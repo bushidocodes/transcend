@@ -4,6 +4,7 @@
   "description": "A social and educational VR environment.",
   "main": "server/index.js",
   "scripts": {
+    "postinstall": "patch-package",
     "build": "webpack",
     "build-watch": "webpack -w",
     "seed": "node db/seed.js",
@@ -55,7 +56,6 @@
     "passport-google-oauth": "^1.0.0",
     "passport-local": "^1.0.0",
     "pg": "^6.1.2",
-    "pg-native": "^1.10.0",
     "radium": "^0.18.1",
     "randomcolor": "^0.4.4",
     "react": "^15.4.2",
@@ -84,6 +84,7 @@
     "eslint-plugin-standard": "^2.0.1",
     "mocha": "^3.2.0",
     "morgan": "^1.7.0",
+    "patch-package": "^8.0.1",
     "react-addons-test-utils": "^15.4.2",
     "sinon": "^1.17.7",
     "sinon-chai": "^2.8.0",
