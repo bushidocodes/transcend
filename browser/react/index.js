@@ -49,6 +49,12 @@ const confirmLogin = () => {
         }
         browserHistory.push('/');
       });
+  } else {
+    // Already authenticated in the store (e.g. just logged in via the local
+    // login form, which sets auth state before navigating here). Still need to
+    // tell the server to spawn this user's avatar, otherwise renderAvatar never
+    // fires and the first-person camera/cursor never get attached.
+    window.socket.emit('connectUser', user);
   }
 };
 
