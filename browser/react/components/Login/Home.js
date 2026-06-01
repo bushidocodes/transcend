@@ -7,7 +7,6 @@ import Title from './Title';
 
 /* ----------------- COMPONENT ------------------ */
 
-@Radium
 class Home extends React.Component {
 
 
@@ -49,4 +48,4 @@ const mapDispatch = dispatch => ({
   }
 });
 
-export default connect(mapStateToProps, mapDispatch)(Home);
+export default connect(mapStateToProps, mapDispatch)(Radium(Home));
