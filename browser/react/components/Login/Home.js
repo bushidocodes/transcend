@@ -1,13 +1,11 @@
 import React from 'react';
 import { connect } from 'react-redux';
-import Radium from 'radium';
 import { login, logout, signup } from '../../../redux/reducers/auth';
 import styles from './styles';
 import Title from './Title';
 
 /* ----------------- COMPONENT ------------------ */
 
-@Radium
 class Home extends React.Component {
 
 
