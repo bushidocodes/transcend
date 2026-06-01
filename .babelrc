@@ -3,7 +3,8 @@
     ["@babel/preset-env", {
       "targets": {
         "browsers": ["last 2 versions", "> 0.25%", "not dead"]
-      }
+      },
+      "include": ["@babel/plugin-transform-classes"]
     }],
     "@babel/preset-react"
   ],
