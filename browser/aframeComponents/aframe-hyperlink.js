@@ -1,13 +1,12 @@
 // Component for using teleporters to navigate between VR scenes
 
 import AFRAME from 'aframe';
-import { browserHistory } from 'react-router';
+import { navigateTo } from '../navigate';
 import hyperlinkFactory from './hyperlinkFactory';
 
 // Define a custom handler and use it to create a hyperlink component
 const handler = function () {
-  const url = this.data;
-  browserHistory.push(url);
+  navigateTo(this.data);
 };
 const teleporterHyperlink = hyperlinkFactory(handler);
 

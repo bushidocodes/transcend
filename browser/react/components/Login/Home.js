@@ -1,50 +1,34 @@
 import React from 'react';
-import { connect } from 'react-redux';
-import { login, logout, signup } from '../../../redux/reducers/auth';
+import { Outlet, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { login, signup } from '../../../redux/reducers/auth';
 import styles from './styles';
 import Title from './Title';
 
-/* ----------------- COMPONENT ------------------ */
+export default function Home () {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
-class Home extends React.Component {
-
-
-  render () {
-    return (
-      <div>
-        <Title styles={this.props.styles} />
-        {this.props.children && React.cloneElement(this.props.children, this.props)}
-      </div>
-    );
-  }
-}
-
-/* ----------------- CONTAINER ------------------ */
-
-const mapStateToProps = () => {
-  return {
-    styles: styles
-  };
-};
-
-const mapDispatch = dispatch => ({
-  login (event) {
+  function handleLogin (event) {
     event.preventDefault();
     const email = event.target.email.value;
     const password = event.target.password.value;
-    dispatch(login(email, password));
-  },
-  logout () {
-    dispatch(logout());
-  },
-  signup (event) {
+    dispatch(login(email, password)).then(() => navigate('/vr'));
+  }
+
+  function handleSignup (event) {
     event.preventDefault();
     const name = event.target.name.value;
     const displayName = event.target.displayName.value;
     const email = event.target.email.value;
     const password = event.target.password.value;
-    dispatch(signup(name, displayName, email, password));
+    dispatch(signup(name, displayName, email, password)).then(() => navigate('/vr'));
   }
-});
 
-export default connect(mapStateToProps, mapDispatch)(Home);
+  return (
+    <div>
+      <Title styles={styles} />
+      <Outlet context={{ login: handleLogin, signup: handleSignup, styles }} />
+    </div>
+  );
+}
