@@ -1,6 +1,6 @@
 const db = require('./index');
 
-const seedUsers = () => db.Promise.map([
+const seedUsers = () => Promise.all([
   { name: 'Omri Bernstein', displayName: 'Omri', email: 'omri@transcend.vr', password: '1234', skin: '3djesus' },
   { name: 'Barack Obama', displayName: 'Barack', email: 'barack@transcend.vr', password: '1234', skin: 'agentsmith' },
   { name: 'Joey Darbyshire', displayName: 'Joey', email: 'joey@transcend.vr', password: '1234', skin: 'batman' },
@@ -20,7 +20,7 @@ const seedUsers = () => db.Promise.map([
   { name: 'Geoff Bass', displayName: 'Geoff', email: 'geoff@transcend.vr', password: '1234', skin: 'woody' },
   { name: 'Mark Davis', displayName: 'Mark D.', email: 'markd@transcend.vr', password: '1234', skin: 'Spiderman' },
   { name: 'Surabhi Nigam', displayName: 'Surabhi', email: 'surabhi@transcend.vr', password: '1234', skin: 'jetienne' }
-], user => db.model('users').create(user));
+].map(user => db.model('users').create(user)));
 
 db.didSync
   .then(() => db.sync({ force: true }))
