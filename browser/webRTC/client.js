@@ -214,7 +214,7 @@ export function disconnectUser () {
     peerMediaElements[peerId].remove();
   }
   const peers = store.getState().webrtc.get('peers');
-  peers.valueSeq.forEach(peerConn => {
+  peers.valueSeq().forEach(peerConn => {
     peerConn.close();
   });
   store.dispatch(clearPeers());

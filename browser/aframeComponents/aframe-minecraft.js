@@ -1,6 +1,6 @@
 import AFRAME from 'aframe';
 
-const THREEx = THREEx || {};
+var THREEx = THREEx || {}; // var needed: self-reference on RHS requires hoisting (const would TDZ)
 const THREE = window.THREE;
 
 THREEx.createAnimation = function (opts) {
