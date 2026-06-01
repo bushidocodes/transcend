@@ -1,7 +1,7 @@
 /* global socket */
-import io from 'socket.io-client';
+import { io } from 'socket.io-client';
 // All A-Frame components need access to the socket instance
-window.socket = io.connect(window.location.origin);
+window.socket = io(window.location.origin);
 import { fromJS } from 'immutable';
 import store from './redux/store';
 import { receiveUsers } from './redux/reducers/user-reducer';

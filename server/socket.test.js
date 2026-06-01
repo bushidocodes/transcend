@@ -11,7 +11,7 @@
  */
 
 const http = require('http');
-const socketio = require('socket.io');
+const { Server: SocketIOServer } = require('socket.io');
 const socketClient = require('socket.io-client');
 const { expect } = require('chai');
 
@@ -21,7 +21,7 @@ let server, io, PORT;
 // server.listen(0) lets the OS pick a free port.
 before(function (done) {
   server = http.createServer();
-  io = socketio(server);
+  io = new SocketIOServer(server, { cors: { origin: '*' } });
   require('./socket')(io);
   server.listen(0, function () {
     PORT = server.address().port;
@@ -30,8 +30,7 @@ before(function (done) {
 });
 
 after(function (done) {
-  // socket.io v1's io.close() also closes the underlying HTTP server,
-  // so calling server.close() afterward would throw "Server is not running".
+  // io.close() disconnects all sockets and closes the underlying HTTP server.
   io.close(done);
 });
 
