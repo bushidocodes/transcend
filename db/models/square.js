@@ -11,7 +11,7 @@ const Square = db.define('squares', {
   },
   // Format is [{ value: lowerBound, inclusive: true }, { value: upperBound, inclusive: false }]  Always exclude the upperBound and include the lowerBound
   xcoord: {
-    type: Sequelize.RANGE(Sequelize.INTERGER),
+    type: Sequelize.RANGE(Sequelize.INTEGER),
     unique: true,
     allowNull: false,
     set: function (coordinates) {
@@ -19,27 +19,25 @@ const Square = db.define('squares', {
     }
   },
   zcoord: {
-    type: Sequelize.RANGE(Sequelize.INTERGER),
+    type: Sequelize.RANGE(Sequelize.INTEGER),
     unique: true,
     allowNull: false,
     set: function (coordinates) {
       return this.setCoordinate(coordinates, 'z');
     }
   }
-}, {
-  instanceMethods: {
-    setCoordinate: function (coordinates, position) {
-      // Requires the lower bound be inclusive for all Squares
-      if (coordinates[0].inclusive === false) {
-        return new Error(`Validation Error: Lower Bound for ${position.toUpperCase()} is not inclusive`);
-      }
-      // Requires the upper bound be exclusive for all Squares
-      if (coordinates[1].inclusive === true) {
-        return new Error(`Validation Error: Upper Bound for ${position.toUpperCase()} is not exclusive`);
-      }
-      this.setDataValue(`${position}coord`, coordinates);
-    }
-  }
 });
+
+Square.prototype.setCoordinate = function (coordinates, position) {
+  // Requires the lower bound be inclusive for all Squares
+  if (coordinates[0].inclusive === false) {
+    return new Error(`Validation Error: Lower Bound for ${position.toUpperCase()} is not inclusive`);
+  }
+  // Requires the upper bound be exclusive for all Squares
+  if (coordinates[1].inclusive === true) {
+    return new Error(`Validation Error: Upper Bound for ${position.toUpperCase()} is not exclusive`);
+  }
+  this.setDataValue(`${position}coord`, coordinates);
+};
 
 module.exports = Square;
