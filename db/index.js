@@ -2,9 +2,14 @@ const debug = require('debug')('sql');
 const chalk = require('chalk');
 const Sequelize = require('sequelize');
 
-const name = (process.env.DATABASE_NAME || 'transcend' + (process.env.NODE_ENV === 'testing' ? '_test' : ''));
+const name = process.env.DATABASE_NAME || ('transcend' + (process.env.NODE_ENV === 'testing' ? '_test' : ''));
+const defaultUrl = `postgres://localhost:5432/${name}`;
 
-const url = process.env.DATABASE_URL || `postgres://localhost:5432/${name}`;
+// When testing, prefer DATABASE_TEST_URL so a shell-exported DATABASE_URL
+// (pointing at the live dev DB) can't accidentally wipe it via force-sync.
+const url = (process.env.NODE_ENV === 'testing' ? process.env.DATABASE_TEST_URL : null)
+  || process.env.DATABASE_URL
+  || defaultUrl;
 console.log(chalk.blue(`Opening database connection to ${url}`));
 
 // Create the database instance
