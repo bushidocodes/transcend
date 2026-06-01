@@ -58,9 +58,9 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Setting up socket.io
-const socketio = require('socket.io');
+const { Server: SocketIOServer } = require('socket.io');
 server.on('request', app);
-const io = socketio(server);
+const io = new SocketIOServer(server, { cors: { origin: '*' } });
 require('./socket')(io);
 
 // Serve static files
