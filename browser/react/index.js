@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import store from '../redux/store';
@@ -62,7 +62,7 @@ function Logout () {
   return null;
 }
 
-ReactDOM.render(
+createRoot(document.getElementById('react-app')).render(
   <Provider store={store}>
     <ThemeProvider theme={theme}>
       <BrowserRouter>
@@ -90,6 +90,5 @@ ReactDOM.render(
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
-  </Provider>,
-  document.getElementById('react-app')
+  </Provider>
 );
