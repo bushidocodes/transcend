@@ -14,7 +14,7 @@ describe('Square', () => {
   });
 
   afterEach(() => {
-    return Square.truncate({ cascade: true });
+    return Square.destroy({ where: {} });
   });
 
   describe('Validations', () => {
@@ -22,8 +22,8 @@ describe('Square', () => {
       createdSquare.save()
         .then(square => {
           expect(square.name).to.equal('FakeSquare');
-          expect(square.xcoord.inclusive).to.eql([true, false]);
-          expect(square.zcoord.inclusive).to.eql([true, false]);
+          expect(square.xcoord.map(b => b.inclusive)).to.eql([true, false]);
+          expect(square.zcoord.map(b => b.inclusive)).to.eql([true, false]);
         });
     });
 

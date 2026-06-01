@@ -23,17 +23,16 @@ const User = db.define('users', {
   hooks: {
     beforeCreate: setEmailAndPassword,
     beforeUpdate: setEmailAndPassword
-  },
-  instanceMethods: {
-    authenticate (plaintext) {
-      return new Promise((resolve, reject) =>
-        bcrypt.compare(plaintext, this.password_digest,
-          (err, result) =>
-            err ? reject(err) : resolve(result))
-        );
-    }
   }
 });
+
+User.prototype.authenticate = function (plaintext) {
+  return new Promise((resolve, reject) =>
+    bcrypt.compare(plaintext, this.password_digest,
+      (err, result) =>
+        err ? reject(err) : resolve(result))
+    );
+};
 
 function setEmailAndPassword (user) {
   user.email = user.email && user.email.toLowerCase();
