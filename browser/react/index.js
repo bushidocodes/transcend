@@ -15,7 +15,9 @@ import Login from './components/Login/Login';
 import Signup from './components/Login/Signup';
 import SOCKET from '../socket';
 import { whoami, logout } from '../redux/reducers/auth';
-import MuiThemeProvider from 'material-ui/styles/MuiThemeProvider';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+
+const theme = createTheme();
 
 // Dispatch whoami to set the user whenever you hit the home page
 // Primary purpose right now is to set user right after local/OAuth login
@@ -65,7 +67,7 @@ const bye = () => {
 
 ReactDOM.render(
   <Provider store={store}>
-    <MuiThemeProvider>
+    <ThemeProvider theme={theme}>
       <Router history={browserHistory}>
         <Route path="/" onEnter={onHomeEnter} >
           <IndexRedirect to="/login" />
@@ -85,7 +87,7 @@ ReactDOM.render(
           </Route>
         </Route>
       </Router>
-    </MuiThemeProvider>
+    </ThemeProvider>
   </Provider>,
   document.getElementById('react-app')
 );
