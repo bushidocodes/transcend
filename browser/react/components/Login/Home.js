@@ -1,6 +1,5 @@
 import React from 'react';
 import { connect } from 'react-redux';
-import Radium from 'radium';
 import { login, logout, signup } from '../../../redux/reducers/auth';
 import styles from './styles';
 import Title from './Title';
@@ -48,4 +47,4 @@ const mapDispatch = dispatch => ({
   }
 });
 
-export default connect(mapStateToProps, mapDispatch)(Radium(Home));
+export default connect(mapStateToProps, mapDispatch)(Home);
