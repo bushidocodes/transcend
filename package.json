@@ -53,7 +53,6 @@
     "passport-google-oauth": "^2.0.0",
     "passport-local": "^1.0.0",
     "pg": "^8.0.0",
-    "radium": "^0.18.1",
     "randomcolor": "^0.6.0",
     "react": "^16.14.0",
     "react-dom": "^16.14.0",
@@ -72,10 +71,7 @@
     "@babel/register": "^7.0.0",
     "babel-eslint": "^10.1.0",
     "chai": "^3.5.0",
-    "chai-enzyme": "^0.6.1",
     "chai-immutable": "^1.6.0",
-    "enzyme": "^3.11.0",
-    "enzyme-adapter-react-16": "^1.15.7",
     "esl": "^5.2.2",
     "eslint": "^3.14.0",
     "eslint-config-standard": "^6.2.1",
@@ -83,10 +79,6 @@
     "eslint-plugin-react": "^6.9.0",
     "eslint-plugin-standard": "^2.0.1",
     "mocha": "^3.2.0",
-    "morgan": "^1.7.0",
-    "sinon": "^1.17.7",
-    "sinon-chai": "^2.8.0",
-    "supertest": "^2.0.1",
-    "supertest-as-promised": "^4.0.2"
+    "morgan": "^1.7.0"
   }
 }

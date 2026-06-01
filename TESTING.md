@@ -38,8 +38,7 @@ socket.io integration × 13).
 ### What's not covered
 
 The `browser/**/*.test.js` and `browser/**/*.test.jsx` globs match nothing — no
-browser-side unit tests were written for this project. `enzyme` + `chai-enzyme` +
-`react-addons-test-utils` are installed if you want to add them later.
+browser-side unit tests were written for this project.
 
 ---
 
