@@ -32,8 +32,8 @@ the force-sync to wipe it.
 npm test
 ```
 
-Expected output: **11 passing** (Square model validations × 3, User authenticate × 2,
-userReducer × 6).
+Expected output: **21 passing** (User authenticate × 2, userReducer × 6,
+socket.io integration × 13).
 
 ### What's not covered
 
@@ -52,7 +52,8 @@ Perform this after every dependency bump to confirm the golden path still works.
 - `npm run build` completes without error (webpack emits `public/bundle.js`).
 - Server running: `npm run server` (or `npm start` which also builds).
 - At least one user account exists: run `npm run seed` for demo accounts
-  (password `1234`) or register with email/password on the login page.
+  (password `1234`, emails like `sean@transcend.vr`) or register with
+  email/password on the login page.
 
 ### Steps
 
