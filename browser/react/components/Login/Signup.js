@@ -1,15 +1,18 @@
 import React from 'react';
+import { useOutletContext } from 'react-router-dom';
 
-export default (props) => {
+export default function Signup () {
+  const { signup, styles } = useOutletContext();
+
   return (
-    <div style={props.styles.signUpContainer}>
-      <form onSubmit={props.signup}>
+    <div style={styles.signUpContainer}>
+      <form onSubmit={signup}>
         <div>
           <input
             key="name"
             name="name"
             placeholder="name"
-            style={props.styles.formControl}
+            style={styles.formControl}
             required
           />
         </div>
@@ -19,7 +22,7 @@ export default (props) => {
             name="displayName"
             placeholder="display name"
             maxLength="8"
-            style={props.styles.formControl}
+            style={styles.formControl}
             required
           />
         </div>
@@ -29,7 +32,7 @@ export default (props) => {
             name="email"
             type="email"
             placeholder="email"
-            style={props.styles.formControl}
+            style={styles.formControl}
             required
           />
         </div>
@@ -39,13 +42,12 @@ export default (props) => {
             name="password"
             type="password"
             placeholder="password"
-            style={props.styles.formControl}
+            style={styles.formControl}
             required
           />
         </div>
-        <button style={props.styles.loginButton} type="submit">Sign Up</button>
+        <button style={styles.loginButton} type="submit">Sign Up</button>
       </form>
     </div>
   );
-};
-
+}

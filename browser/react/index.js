@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Provider } from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import store from '../redux/store';
-import { Router, Route, browserHistory, IndexRedirect } from 'react-router';
 import App from './components/App';
 import Sean from './components/Sean';
 import Beth from './components/Beth';
@@ -16,77 +16,79 @@ import Signup from './components/Login/Signup';
 import SOCKET from '../socket';
 import { whoami, logout } from '../redux/reducers/auth';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { setNavigateFn } from '../navigate';
 
 const theme = createTheme();
 
-// Dispatch whoami to set the user whenever you hit the home page
-// Primary purpose right now is to set user right after local/OAuth login
-const onHomeEnter = () => {
-  // Clear the DIV in the physical DOM that provides initial feedback to user while bundle.js loads
-  document.getElementById('prebundleContent').setAttribute('style', 'display: none;');
-  if (window.location.pathname === '/login') {
-    if (store.getState().auth.has('id')) browserHistory.push('/vr');
-    store.dispatch(whoami())
-      .then(() => {
-        const user = store.getState().auth;
-        if (user.has('id')) {
-          window.socket.emit('connectUser', user);
-          browserHistory.push('/vr');
-        }
-      });
-  }
-};
+// Hide the pre-bundle loading placeholder once React takes over
+const prebundle = document.getElementById('prebundleContent');
+if (prebundle) prebundle.style.display = 'none';
 
-const confirmLogin = () => {
-  // Clear the DIV in the physical DOM that provides initial feedback to user while bundle.js loads
-  document.getElementById('prebundleContent').setAttribute('style', 'display: none;');
-  const user = store.getState().auth;
-  if (!user.has('id')) {
-    store.dispatch(whoami())
-      .then(() => {
-        const user = store.getState().auth;
-        if (user.has('id')) {
-          window.socket.emit('connectUser', user);
-          return;
-        }
-        browserHistory.push('/');
-      });
-  } else {
-    // Already authenticated in the store (e.g. just logged in via the local
-    // login form, which sets auth state before navigating here). Still need to
-    // tell the server to spawn this user's avatar, otherwise renderAvatar never
-    // fires and the first-person camera/cursor never get attached.
-    window.socket.emit('connectUser', user);
-  }
-};
+// Guards the /vr subtree. On a hard refresh the Redux store is empty, so we
+// dispatch whoami() once to rehydrate auth from the server session cookie.
+function RequireAuth ({ children }) {
+  const auth = useSelector(state => state.auth);
+  const dispatch = useDispatch();
+  const alreadyAuthed = auth.has('id');
+  const [loading, setLoading] = useState(!alreadyAuthed);
 
-const bye = () => {
-  store.dispatch(logout())
-    .then(() => browserHistory.push('/'));
-};
+  useEffect(() => {
+    if (!alreadyAuthed) {
+      dispatch(whoami()).then(() => setLoading(false));
+    }
+  }, []);
+
+  if (loading) return null;
+  if (!auth.has('id')) return <Navigate to="/" replace />;
+  return children;
+}
+
+// Populates the module-level navigate shim used by A-Frame components (aframe-hyperlink.js).
+function NavigateCapture () {
+  const navigate = useNavigate();
+  useEffect(() => { setNavigateFn(navigate); }, [navigate]);
+  return null;
+}
+
+// Handles the /logout route: dispatches logout then redirects home.
+function Logout () {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    dispatch(logout()).then(() => navigate('/', { replace: true }));
+  }, []);
+
+  return null;
+}
 
 ReactDOM.render(
   <Provider store={store}>
     <ThemeProvider theme={theme}>
-      <Router history={browserHistory}>
-        <Route path="/" onEnter={onHomeEnter} >
-          <IndexRedirect to="/login" />
-          <Route component={Home}>
-            <Route path="/login" component={Login} />
-            <Route path="/signup" component={Signup} />
+      <BrowserRouter>
+        <NavigateCapture />
+        <Routes>
+          {/* Auth / login shell — Home provides title + Outlet context (login, signup, styles) */}
+          <Route path="/" element={<Home />}>
+            <Route index element={<Navigate to="/login" replace />} />
+            <Route path="login" element={<Login />} />
+            <Route path="signup" element={<Signup />} />
           </Route>
-          <Route path="/logout" onEnter={bye} />
-          <Route path="/vr" component={App} onEnter={confirmLogin}>
-            <IndexRedirect to="lobby" />
-            <Route path="lobby" component={Lobby} />
-            <Route path="thebasement" component={Sean} />
-            <Route path="spaceroom" component={Beth} />
-            <Route path="catroom" component={Yoonah} />
-            <Route path="gameroom" component={Joey} />
-            <Route path="thegap" component={ChangingRoom} />
+
+          <Route path="/logout" element={<Logout />} />
+
+          {/* VR section — RequireAuth checks session before rendering App */}
+          <Route path="/vr" element={<RequireAuth><App /></RequireAuth>}>
+            <Route index element={<Navigate to="lobby" replace />} />
+            <Route path="lobby" element={<Lobby />} />
+            <Route path="thebasement" element={<Sean />} />
+            <Route path="spaceroom" element={<Beth />} />
+            <Route path="catroom" element={<Yoonah />} />
+            <Route path="gameroom" element={<Joey />} />
+            <Route path="thegap" element={<ChangingRoom />} />
           </Route>
-        </Route>
-      </Router>
+        </Routes>
+      </BrowserRouter>
     </ThemeProvider>
   </Provider>,
   document.getElementById('react-app')
