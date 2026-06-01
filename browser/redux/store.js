@@ -1,7 +1,7 @@
 import { createStore, applyMiddleware, combineReducers } from 'redux';
 
-// import createLogger from 'redux-logger';
-import thunkMiddleware from 'redux-thunk';
+// import { createLogger } from 'redux-logger';
+import { thunk as thunkMiddleware } from 'redux-thunk';
 
 import userReducer from './reducers/user-reducer';
 import authReducer from './reducers/auth';

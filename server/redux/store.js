@@ -1,5 +1,5 @@
 const { createStore, applyMiddleware, combineReducers } = require('redux');
-const thunkMiddleware = require('redux-thunk').default;
+const { thunk: thunkMiddleware } = require('redux-thunk');
 
 const { userReducer } = require('./reducers/user-reducer');
 const { roomReducer } = require('./reducers/room-reducer');
