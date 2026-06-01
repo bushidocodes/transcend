@@ -11,7 +11,7 @@ export default function AssetLoader (props) {
       <img id="microphone-mute" src="/img/microphone-mute.png"/>
       <img id="microphone-unmute" src="/img/microphone-unmute.png"/>
       <a-mixin id="chair-part" geometry="primitive: box" material="color: #BFBFBF"></a-mixin>
-      <a-asset-item id="monitor" src="/img/monitor/model.dae"></a-asset-item>
+      <a-asset-item id="monitor" src="/img/monitor/model.glb"></a-asset-item>
 
       {/* Cat GIF Room assets */}
       <img id="pusheen" src="/img/cats/pusheen.gif"/>

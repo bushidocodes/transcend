@@ -1,3 +1,4 @@
+import '../three-compat'; // restore THREE.Math alias for aframe-gif-shader; must run before it loads
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider, useSelector, useDispatch } from 'react-redux';
