@@ -22,6 +22,25 @@ module.exports = io => {
 
     socket.on('connectUser', (user) => {
       socket.createdUser = true;
+      // Enforce a single active session per user account. Without this, the same
+      // account can accumulate unlimited live sockets (a stale tab, or a crashed/
+      // dropped connection that hasn't TCP-timed-out yet), each spawning its own
+      // ghost avatar (see issue #30). "Newest session wins": disconnect any prior
+      // socket for this account before registering the new one. Disconnecting the
+      // old socket fires its own 'disconnect' handler below, which removes its user
+      // from the store and broadcasts 'removeUser', clearing the ghost avatar.
+      // Anonymous connections (no account id) are exempt so they don't evict each other.
+      const accountId = user && user.id != null ? user.id : null;
+      socket.accountId = accountId;
+      if (accountId != null) {
+        store.getState().sockets.forEach(existing => {
+          if (existing.id !== socket.id && existing.accountId === accountId) {
+            console.log(chalk.red(`Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`));
+            existing.emit('sessionReplaced');
+            existing.disconnect(true);
+          }
+        });
+      }
       store.dispatch(createAndEmitUser(socket, user));
     });
 
