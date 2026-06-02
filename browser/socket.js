@@ -11,14 +11,59 @@ import './aframeComponents/webrtc-controls';
 import './aframeComponents/wall-collision';
 import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate } from './webRTC/client';
 
+// Track the socket id our local avatar was rendered under so we can tear it down on a
+// reconnect (the id changes when the server hands us a new socket).
+let localAvatarId = null;
+// connectUser is emitted once by <App> on mount (browser/react/components/App.js). The
+// 'connect' event, however, also fires on every socket.io *re*connect, where <App> is
+// already mounted and will NOT re-emit it. Distinguish the two with this flag.
+let hasConnected = false;
+
 socket.on('connect', () => {
   console.log('You\'ve made a persistent two-way connection to the server!');
+  if (!hasConnected) {
+    hasConnected = true;
+    return; // initial connect — <App> handles the first connectUser on mount
+  }
+  // Reconnect (typically the server restarted, possibly a network blip). The server lost
+  // our in-memory user record and assigned us a new socket id. Because <App> stays mounted
+  // across a reconnect, connectUser never re-fires on its own, so the server only learns of
+  // us again from position ticks — which carry no displayName — and everyone (including us)
+  // sees a default "John" ghost (issue #56). Re-register explicitly: drop the stale local
+  // avatar, then replay connectUser + sceneLoad so the server rebuilds the full record
+  // (displayName + skin) and emits renderAvatar to repopulate our avatar under the new id.
+  const auth = store.getState().auth;
+  if (auth && typeof auth.has === 'function' && auth.has('id')) {
+    console.log('Reconnected — re-registering this client with the server (issue #56)');
+    removeLocalAvatar();
+    socket.emit('connectUser', auth);
+    // The server gates renderAvatar on socket.sceneLoaded, which is false on the fresh
+    // socket. The scene is already loaded client-side (scene-load won't re-init), so
+    // re-arm the server's flag manually; its sceneLoad handler then emits renderAvatar.
+    socket.emit('sceneLoad');
+  }
 });
+
+// Remove the local (first-person) avatar, its child cursor, and the separate mutebutton
+// entity so a reconnect can rebuild them cleanly under the new socket id without leaving
+// a duplicate camera or a duplicate #mutebutton on the DOM.
+function removeLocalAvatar () {
+  let head = localAvatarId ? document.getElementById(localAvatarId) : null;
+  // Fall back to the publish-location marker in case the id was never captured.
+  if (!head) head = document.querySelector('a-minecraft[publish-location]');
+  if (head && head.parentNode) head.parentNode.removeChild(head);
+  const mutebutton = document.getElementById('mutebutton');
+  if (mutebutton && mutebutton.parentNode) mutebutton.parentNode.removeChild(mutebutton);
+  localAvatarId = null;
+}
 
 // Render the user returned by the server, add first person attributes (camera, controls,
 //   and ticks pushed to server), then get other users in the scene
 socket.on('renderAvatar', user => {
   const avatar = putUserOnDOM(user);
+  // Remember the id we rendered under (the server sends a plain object) so a later
+  // reconnect can find and remove this exact avatar.
+  localAvatarId = (user && user.get) ? user.get('id') : (user && user.id);
   addFirstPersonProperties(avatar, user);
   socket.emit('getOthers');
 });
