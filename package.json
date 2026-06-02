@@ -27,9 +27,8 @@
   },
   "homepage": "https://github.com/TranscendVR/transcend#readme",
   "dependencies": {
-    "aframe": "^0.4.0",
-    "aframe-gif-shader": "^0.2.0",
-    "aframe-text-component": "^0.4.2",
+    "aframe": "^1.7.0",
+    "aframe-gif-shader": "0.9.1",
     "@babel/core": "^7.0.0",
     "@babel/plugin-proposal-class-properties": "^7.0.0",
     "@babel/plugin-proposal-decorators": "^7.0.0",

@@ -321,6 +321,8 @@ THREEx.MinecraftChar = function (skinUrl) {
   const texture = new THREE.Texture();
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
+  // Modern three.js (r152+) defaults textures to linear colorSpace; skins are sRGB PNGs.
+  texture.colorSpace = THREE.SRGBColorSpace;
   this.texture = texture;
   this.loadSkin(skinUrl);
 
@@ -375,7 +377,7 @@ THREEx.MinecraftChar = function (skinUrl) {
   model.root.add(model.headGroup);
 
   // build model.head
-  let geometry = new THREE.CubeGeometry(sizes.headW, sizes.headH, sizes.headD);
+  let geometry = new THREE.BoxGeometry(sizes.headW, sizes.headH, sizes.headD);
   mapUv(geometry, 0, 16, 24, 24, 16); // left
   mapUv(geometry, 1, 0, 24, 8, 16); // right
   mapUv(geometry, 2, 8, 32, 16, 24); // top
@@ -390,7 +392,7 @@ THREEx.MinecraftChar = function (skinUrl) {
 
 
   // build model.helmet
-  geometry = new THREE.CubeGeometry(sizes.helmetH, sizes.helmetH, sizes.helmetH);
+  geometry = new THREE.BoxGeometry(sizes.helmetH, sizes.helmetH, sizes.helmetH);
   model.helmet = new THREE.Mesh(geometry, materialTran);
   model.headGroup.add(model.helmet);
   model.helmet.position.y = sizes.headH / 2;
@@ -404,7 +406,7 @@ THREEx.MinecraftChar = function (skinUrl) {
 
 
   // build model.body
-  geometry = new THREE.CubeGeometry(sizes.bodyW, sizes.bodyH, sizes.bodyD);
+  geometry = new THREE.BoxGeometry(sizes.bodyW, sizes.bodyH, sizes.bodyD);
   model.body = new THREE.Mesh(geometry, material);
   model.rootBody.add(model.body);
   model.body.position.y = sizes.legH + sizes.bodyH / 2 - sizes.cameraMod;
@@ -417,10 +419,10 @@ THREEx.MinecraftChar = function (skinUrl) {
   mapUv(geometry, 5, 32, 12, 40, 0); // back
 
   // build model.armR
-  geometry = new THREE.CubeGeometry(sizes.armW, sizes.armH, sizes.armD);
+  geometry = new THREE.BoxGeometry(sizes.armW, sizes.armH, sizes.armD);
   model.armR = new THREE.Mesh(geometry, material);
   model.rootBody.add(model.armR);
-  geometry.applyMatrix(new THREE.Matrix4().makeTranslation(0, -sizes.armH / 2 + sizes.armW / 2, 0));
+  geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -sizes.armH / 2 + sizes.armW / 2, 0));
   model.armR.position.x = -sizes.bodyW / 2 - sizes.armW / 2;
   model.armR.position.y = sizes.legH + sizes.bodyH - sizes.armW / 2 - sizes.cameraMod;
   model.armR.rotation.y = 135;
@@ -432,10 +434,10 @@ THREEx.MinecraftChar = function (skinUrl) {
   mapUv(geometry, 5, 52, 12, 56, 0); // back
 
   // build model.armL
-  geometry = new THREE.CubeGeometry(sizes.armW, sizes.armH, sizes.armD);
+  geometry = new THREE.BoxGeometry(sizes.armW, sizes.armH, sizes.armD);
   model.armL = new THREE.Mesh(geometry, material);
   model.rootBody.add(model.armL);
-  geometry.applyMatrix(new THREE.Matrix4().makeTranslation(0, -sizes.armH / 2 + sizes.armW / 2, 0));
+  geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -sizes.armH / 2 + sizes.armW / 2, 0));
   model.armL.position.x = sizes.bodyW / 2 + sizes.armW / 2;
   model.armL.position.y = sizes.legH + sizes.bodyH - sizes.armW / 2 - sizes.cameraMod;
   model.armL.rotation.y = 135;
@@ -447,10 +449,10 @@ THREEx.MinecraftChar = function (skinUrl) {
   mapUv(geometry, 5, 56, 12, 52, 0); // back
 
   // build model.legR
-  geometry = new THREE.CubeGeometry(sizes.legW, sizes.legH, sizes.legD);
+  geometry = new THREE.BoxGeometry(sizes.legW, sizes.legH, sizes.legD);
   model.legR = new THREE.Mesh(geometry, material);
   model.rootBody.add(model.legR);
-  geometry.applyMatrix(new THREE.Matrix4().makeTranslation(0, -sizes.legH / 2, 0));
+  geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -sizes.legH / 2, 0));
   model.legR.position.x = -sizes.legW / 2;
   model.legR.position.y = sizes.legH - sizes.cameraMod;
   model.legR.rotation.y = 135;
@@ -462,10 +464,10 @@ THREEx.MinecraftChar = function (skinUrl) {
   mapUv(geometry, 5, 12, 12, 16, 0); // back
 
   // build model.legL
-  geometry = new THREE.CubeGeometry(sizes.legW, sizes.legH, sizes.legD);
+  geometry = new THREE.BoxGeometry(sizes.legW, sizes.legH, sizes.legD);
   model.legL = new THREE.Mesh(geometry, material);
   model.rootBody.add(model.legL);
-  geometry.applyMatrix(new THREE.Matrix4().makeTranslation(0, -sizes.legH / 2, 0));
+  geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -sizes.legH / 2, 0));
   model.legL.position.x = sizes.legW / 2;
   model.legL.position.y = sizes.legH - sizes.cameraMod;
   model.legL.rotation.y = 135;
@@ -478,26 +480,29 @@ THREEx.MinecraftChar = function (skinUrl) {
 
   return;
 
+  // Maps a rectangular region of the 64x32 Minecraft skin texture onto one cube face.
+  //
+  // Modern three.js exposes geometry only as BufferGeometry — the old Geometry.faces /
+  // faceVertexUvs / Face3 / Face4 APIs are gone. BoxGeometry builds its six faces in a
+  // fixed order (px, nx, py, ny, pz, nz), which is exactly the 0..5 order the callers above
+  // already use, so faceIdx needs no remapping. Each face has four vertices laid out by
+  // buildPlane as: 0=top-left (u=0,v=1), 1=top-right (u=1,v=1), 2=bottom-left (u=0,v=0),
+  // 3=bottom-right (u=1,v=0). We overwrite those four uv pairs with the requested skin region.
+  //
+  // V-orientation: the original (three r82) code assigned uv.v = y*tileUvH directly while the
+  // skin texture keeps three's default flipY:true. We reproduce that exactly (Form B) so each
+  // face samples the same skin region it always did — verified against char.png in a smoke test
+  // (Form A, 1 - y*tileUvH, mapped the head front to the leg region instead of the face).
   function mapUv (geometry, faceIdx, x1, y1, x2, y2) {
     const tileUvW = 1 / 64;
     const tileUvH = 1 / 32;
-    if (geometry.faces[faceIdx] instanceof THREE.Face3) {
-      let UVs = geometry.faceVertexUvs[0][faceIdx * 2];
-      UVs[0].x = x1 * tileUvW; UVs[0].y = y1 * tileUvH;
-      UVs[1].x = x1 * tileUvW; UVs[1].y = y2 * tileUvH;
-      UVs[2].x = x2 * tileUvW; UVs[2].y = y1 * tileUvH;
-
-      UVs = geometry.faceVertexUvs[0][faceIdx * 2 + 1];
-      UVs[0].x = x1 * tileUvW; UVs[0].y = y2 * tileUvH;
-      UVs[1].x = x2 * tileUvW; UVs[1].y = y2 * tileUvH;
-      UVs[2].x = x2 * tileUvW; UVs[2].y = y1 * tileUvH;
-    } else if (geometry.faces[faceIdx] instanceof THREE.Face4) {
-      const UVs = geometry.faceVertexUvs[0][faceIdx];
-      UVs[0].x = x1 * tileUvW; UVs[0].y = y1 * tileUvH;
-      UVs[1].x = x1 * tileUvW; UVs[1].y = y2 * tileUvH;
-      UVs[2].x = x2 * tileUvW; UVs[2].y = y2 * tileUvH;
-      UVs[3].x = x2 * tileUvW; UVs[3].y = y1 * tileUvH;
-    } else console.assert(false);
+    const uv = geometry.attributes.uv;
+    const base = faceIdx * 4;
+    uv.setXY(base + 0, x1 * tileUvW, y1 * tileUvH); // top-left
+    uv.setXY(base + 1, x2 * tileUvW, y1 * tileUvH); // top-right
+    uv.setXY(base + 2, x1 * tileUvW, y2 * tileUvH); // bottom-left
+    uv.setXY(base + 3, x2 * tileUvW, y2 * tileUvH); // bottom-right
+    uv.needsUpdate = true;
   }
 };
 
@@ -870,6 +875,7 @@ THREEx.MinecraftNickname = function (character) {
     // build the texture
     const canvas = buildNickCartouche(nickName);
     const texture = new THREE.Texture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
     texture.needsUpdate = true;
     // build the sprite itself
     const material = new THREE.SpriteMaterial({

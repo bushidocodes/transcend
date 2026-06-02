@@ -35,14 +35,8 @@ export default class Yoonah extends React.Component {
         {/* Cat GIFs */}
         <a-entity rotation="0 0 0" position="5 2 -10">
           <a-entity geometry="primitive: cylinder; height: 1.5; radius: 1"
-            material="shader: gif; src: #pusheen">
-            <a-animation attribute="rotation"
-              dur="5000"
-              fill="forwards"
-              to="0 360 0"
-              repeat="indefinite"
-              easing="linear" />
-          </a-entity>
+            material="shader: gif; src: #pusheen"
+            animation="property: rotation; to: 0 360 0; dur: 5000; loop: true; easing: linear" />
         </a-entity>
 
         <a-entity rotation="0 0 0" position="5 5 -5">
@@ -50,29 +44,18 @@ export default class Yoonah extends React.Component {
             material="shader: gif; src: #lasercat"></a-entity>
         </a-entity>
 
-        <a-entity rotation="0 0 0" position="5 2 0">
+        <a-entity rotation="0 0 0" position="5 2 0"
+          animation="property: rotation; to: 0 360 0; dur: 5000; loop: true; easing: linear">
           <a-entity geometry="primitive: box; width: 1.5; height: 1.5; depth: 1.5"
             position="3 2 0"
             material="shader: gif; src: #nyancat; color: white" />
-          <a-animation
-            attribute="rotation"
-            dur="5000"
-            fill="forwards"
-            to="0 360 0"
-            repeat="indefinite"
-            easing="linear" />
         </a-entity>
 
-        <a-entity rotation="0 0 0" position="5 2 -15">
+        <a-entity rotation="0 0 0" position="5 2 -15"
+          animation="property: rotation; to: 0 360 0; dur: 5000; loop: true; easing: linear">
           <a-entity geometry="primitive: box; width: 1.5; height: 1.5; depth: 1.5"
             position="3 2 0"
             material="shader: gif; src: #bwcat; color: white" />
-          <a-animation attribute="rotation"
-            dur="5000"
-            fill="forwards"
-            to="0 360 0"
-            repeat="indefinite"
-            easing="linear" />
         </a-entity>
 
       </a-entity>

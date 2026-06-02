@@ -8,8 +8,6 @@ import { createArray } from '../../utils';
 import { joinChatRoom, leaveChatRoom } from '../../webRTC/client.js';
 import Teleporter from './Teleporter';
 
-require('aframe-text-component');
-
 export default class Lobby extends React.Component {
   componentDidMount () {
     joinChatRoom('lobby');
@@ -101,12 +99,14 @@ export default class Lobby extends React.Component {
           material="src: #slide" position="0 8.5 -24"></a-entity>
 
         {/* Podium */}
-        <a-entity id="podium" geometry="primitive: box; depth: 1; height: 1.5; width: 5"
+        {/* No id here: it would collide with the <img id="podium"> asset this references via
+            material="src: #podium", making #podium ambiguous. */}
+        <a-entity geometry="primitive: box; depth: 1; height: 1.5; width: 5"
           material="src: #podium" position="12.5 0.75 -21"></a-entity>
 
         {/* Monitors */}
-        <a-collada-model src="#monitor" scale="0.5 0.5 0.5" position="12.5 1.5 -20.5" rotation="0 90 0"></a-collada-model>
-        <a-collada-model src="#monitor" scale="0.5 0.5 0.5" position="14.75 1.5 -20.5" rotation="0 90 0"></a-collada-model>
+        <a-entity gltf-model="#monitor" scale="0.5 0.5 0.5" position="12.5 1.5 -20.5" rotation="0 90 0"></a-entity>
+        <a-entity gltf-model="#monitor" scale="0.5 0.5 0.5" position="14.75 1.5 -20.5" rotation="0 90 0"></a-entity>
 
         {/* Couches and coffee tables */}
         <Couch x="-5" y="0" z="23"

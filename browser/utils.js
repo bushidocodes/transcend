@@ -1,5 +1,3 @@
-import './aframeComponents/fps-look-controls';
-
 // putUserOnDom performs local filtering to make sure the user is in the same
 //   A-Frame room and perfoms an initial render of their avatar if they are
 export function putUserOnDOM (user) {
@@ -50,15 +48,20 @@ export function addFirstPersonProperties (avatar, user) {
   scene.appendChild(mutebutton);
   mutebutton.setAttribute('geometry', 'primitive: box;  width: .4; height: 0.01; depth: .4');
   mutebutton.setAttribute('id', `mutebutton`);
-  mutebutton.setAttribute('material', 'src: #microphone-unmute');
+  // transparent:true is required so the mic PNG's transparent background shows the floor through
+  // it rather than an opaque tile. A-Frame 0.4 auto-enabled this for alpha textures; 1.x does not.
+  mutebutton.setAttribute('material', 'src: #microphone-unmute; transparent: true');
   mutebutton.setAttribute('position', `0 0.1 ${user.z - 1}`);
   mutebutton.setAttribute('rotation', '0 0 0');
   mutebutton.setAttribute('mute-self', false);
 
   avatar.setAttribute('publish-location', true);
   avatar.setAttribute('camera', true);
-  avatar.setAttribute('fps-look-controls', true);
-  avatar.setAttribute('wasd-controls', 'sensitivity: 1');
+  // A-Frame 1.x built-in look-controls replaces the old custom fps-look-controls (which used
+  // the removed THREE.VRControls). pointerLockEnabled gives the FPS-style mouse capture; the
+  // component also drives HMD/WebXR head pose automatically.
+  avatar.setAttribute('look-controls', 'pointerLockEnabled: true');
+  avatar.setAttribute('wasd-controls', 'acceleration: 100');
 
   // Add and append the cursor to the player's avatar
   // The cursor is represented by a tiny ring 1/10 of a meter in front of the player
@@ -66,7 +69,11 @@ export function addFirstPersonProperties (avatar, user) {
   // The cursor emits click events and fuse events (automatically emitting click after keeping cursor on something)
   const cursor = document.createElement('a-entity');
   avatar.appendChild(cursor);
-  cursor.setAttribute('cursor', 'fuse:true;');
+  cursor.setAttribute('cursor', 'fuse: true; fuseTimeout: 1500');
+  // A-Frame 1.x: the cursor's click/mouseenter/mouseleave events (used by href, wearable-skin,
+  // and mute-self) only fire when a raycaster shares the entity. Scope it to interactive
+  // entities so the ray ignores walls/floor and doesn't block fuse on the orbs.
+  cursor.setAttribute('raycaster', 'objects: [href], [wearable-skin], [mute-self]');
   cursor.setAttribute('position', '0 0 -0.1');
   cursor.setAttribute('material', 'color: cyan; shader: flat');
   cursor.setAttribute('geometry', 'primitive: ring; radiusOuter: 0.007; radiusInner: 0.005;');
