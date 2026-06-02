@@ -889,26 +889,28 @@ THREEx.MinecraftNickname = function (character) {
   * Build a canvas for the nickname cartouche
   */
   function buildNickCartouche (text) {
-    // create the canvas
+    // Measure text first on a scratch canvas so we can size the real one to fit.
+    const scratch = document.createElement('canvas');
+    const scratchCtx = scratch.getContext('2d');
+    const fontSize = 36;
+    scratchCtx.font = `bolder ${fontSize}px Verdana`;
+    const fontW = scratchCtx.measureText(text).width;
+    const fontH = fontSize;
+    const scale = 1.2;
+    const hPad = 20;
+
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    canvas.width = 256;
-    canvas.height = 128;
-    // center the origin
+    canvas.width = Math.ceil(fontW * scale) + hPad * 2;
+    canvas.height = Math.ceil(fontH * scale * 1.6);
     context.translate(canvas.width / 2, canvas.height / 2);
-    // measure text
-    const fontSize = 36;
     context.font = `bolder ${fontSize}px Verdana`;
-    const fontH = fontSize;
-    const fontW = context.measureText(text).width;
     // build the background
     context.fillStyle = 'rgba(0,0,255,0.3)';
-    const scale = 1.2;
     context.fillRect(-fontW * scale / 2, -fontH * scale / 1.3, fontW * scale, fontH * scale);
     // display the text
     context.fillStyle = 'rgba(0,0,0,0.7)';
     context.fillText(text, -fontW / 2, 0);
-    // return the canvas element
     return canvas;
   }
 };
