@@ -39,6 +39,11 @@ export function changeUserSkin (skin) {
   // Commented out because we're just floating heads
   // const avatarBody = document.getElementById(`${window.socket.id}-body`);
   // avatarBody.setAttribute('minecraft', `skinUrl: ../../images/${skin}.png;  component: body; heightMeter: 0.4`);
+  fetch('/api/auth/skin', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skin })
+  }).catch(() => {});
 }
 
 export function addFirstPersonProperties (avatar, user) {

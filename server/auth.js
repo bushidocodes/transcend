@@ -105,6 +105,14 @@ auth.get('/google/callback',
 // Send user info to frontend
 auth.get('/whoami', (req, res) => res.send(req.user));
 
+// Persist a skin selection to the user's account
+auth.put('/skin', (req, res, next) => {
+  if (!req.user) return res.sendStatus(401);
+  req.user.update({ skin: req.body.skin })
+    .then(user => res.json(user))
+    .catch(next);
+});
+
 auth.post('/logout', (req, res, next) => {
   req.logout((err) => {
     if (err) return next(err);
