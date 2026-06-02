@@ -1,4 +1,5 @@
 import AFRAME from 'aframe';
+import { loadSkinInto } from './loadSkinInto';
 
 var THREEx = THREEx || {}; // var needed: self-reference on RHS requires hoisting (const would TDZ)
 const THREE = window.THREE;
@@ -515,14 +516,10 @@ THREEx.MinecraftChar.defaultMaterial = null;
 * @param {string} url the url of the skin image
 */
 THREEx.MinecraftChar.prototype.loadSkin = function (url, onLoad) {
-  const image = new window.Image();
-  image.onload = function () {
-    this.texture.image = image;
-    this.texture.needsUpdate = true;
-    onLoad && onLoad(this);
-  }.bind(this);
-  image.src = url;
-  return this; // for chained API
+  // Token-guarded to stop the default-skin load from clobbering the real one (issue #50);
+  // see loadSkinInto.js for the full explanation. Delegates so the race fix is unit-testable
+  // without importing aframe/three.
+  return loadSkinInto(this, url, onLoad);
 };
 
 
