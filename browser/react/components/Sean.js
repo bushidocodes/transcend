@@ -21,7 +21,7 @@ export default class Sean extends React.Component {
           wallHeight="25"
           wallColor="red"
           floorColor=""
-          floorTexture="#floorText"
+          floorTexture="/img/carpet2.jpg"
           ceilingColor="#998403" />
         <Teleporter
           color="green"

@@ -31,9 +31,9 @@ AFRAME.registerComponent('mute-self', {
     // transparent:true so the mic PNG's transparent background isn't drawn as an opaque tile
     // (A-Frame 0.4 auto-enabled this for alpha textures; 1.x requires it explicitly).
     if (isEnabled) {
-      this.el.setAttribute('material', 'src: #microphone-mute; transparent: true');
+      this.el.setAttribute('material', 'src: /img/microphone-mute.png; transparent: true');
     } else {
-      this.el.setAttribute('material', 'src: #microphone-unmute; transparent: true');
+      this.el.setAttribute('material', 'src: /img/microphone-unmute.png; transparent: true');
     }
     stream.getAudioTracks()[0].enabled = !isEnabled;
   }

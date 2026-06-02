@@ -22,7 +22,7 @@ export default class Sean extends React.Component {
           wallHeight="25"
           wallColor="#BB96FF"
           floorColor=""
-          floorTexture="#floorText"
+          floorTexture="/img/carpet2.jpg"
           ceilingColor="#998403" />
 
         <Mannequin x="-14" y="0.75" z="5" xrot="0" yrot="0" zrot="0" skin="3djesus" nickname="3D Jesus"/>
