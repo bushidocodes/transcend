@@ -8,6 +8,7 @@ import { receiveUsers } from './redux/reducers/user-reducer';
 import { putUserOnDOM, putUserBodyOnDOM, addFirstPersonProperties } from './utils';
 import './aframeComponents/publish-location';
 import './aframeComponents/webrtc-controls';
+import './aframeComponents/wall-collision';
 import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate } from './webRTC/client';
 
 socket.on('connect', () => {
