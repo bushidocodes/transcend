@@ -398,3 +398,103 @@ describe('Socket.io – disconnect cleanup', function () {
       });
   });
 });
+
+// -----------------------------------------------------------------
+// 5. Single active session per account (#30)
+//
+// connectUser carries the authenticated account id (user.id). The server must
+// allow only one live socket per account: a second connectUser for the same
+// account disconnects the prior socket ("newest wins"), preventing ghost
+// avatars. Connections with no account id (anonymous) are exempt.
+// -----------------------------------------------------------------
+
+describe('Socket.io – single active session per account (#30)', function () {
+
+  it('disconnects the prior socket when the same account connects again', function () {
+    var first = connect();
+    var second;
+
+    return waitFor(first, 'connect')
+      .then(function () {
+        first.emit('connectUser', { id: 42, displayName: 'Dup', skin: 'default' });
+        return sleep(120);
+      })
+      .then(function () {
+        second = connect();
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        // The server should drop `first` as soon as `second` claims account 42.
+        var firstClosed = waitFor(first, 'disconnect');
+        second.emit('connectUser', { id: 42, displayName: 'Dup', skin: 'default' });
+        return firstClosed;
+      })
+      .then(function () {
+        expect(first.connected).to.equal(false);
+        expect(second.connected).to.equal(true);
+        return cleanup(second);
+      });
+  });
+
+  it('keeps both sockets when they belong to different accounts', function () {
+    var a = connect();
+    var b = connect();
+
+    return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
+      .then(function () {
+        a.emit('connectUser', { id: 1, displayName: 'A' });
+        b.emit('connectUser', { id: 2, displayName: 'B' });
+        return sleep(150);
+      })
+      .then(function () {
+        expect(a.connected).to.equal(true);
+        expect(b.connected).to.equal(true);
+        return cleanup(a, b);
+      });
+  });
+
+  it('does not evict anonymous connections (no account id)', function () {
+    var a = connect();
+    var b = connect();
+
+    return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
+      .then(function () {
+        a.emit('connectUser', { displayName: 'Anon1' });
+        b.emit('connectUser', { displayName: 'Anon2' });
+        return sleep(150);
+      })
+      .then(function () {
+        expect(a.connected).to.equal(true);
+        expect(b.connected).to.equal(true);
+        return cleanup(a, b);
+      });
+  });
+
+  it('broadcasts removeUser for the replaced ghost socket', function () {
+    var observer = connect(); // different account; stays connected to observe
+    var first = connect();
+    var second;
+    var firstId;
+
+    return Promise.all([waitFor(observer, 'connect'), waitFor(first, 'connect')])
+      .then(function () {
+        observer.emit('connectUser', { id: 999, displayName: 'Obs' });
+        first.emit('connectUser', { id: 7, displayName: 'Dup' });
+        return sleep(120);
+      })
+      .then(function () {
+        firstId = first.id;
+        second = connect();
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        var removed = waitFor(observer, 'removeUser');
+        second.emit('connectUser', { id: 7, displayName: 'Dup' });
+        return removed;
+      })
+      .then(function (removedId) {
+        expect(removedId).to.equal(firstId);
+        return cleanup(observer, second);
+      });
+  });
+});
