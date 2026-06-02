@@ -20,12 +20,20 @@ AFRAME.registerComponent('mute-self', {
     console.log('Muting');
     const stream = store.getState().webrtc.get('localMediaStream');
     console.log('stream', stream);
+    // No mic stream (user denied access or it never initialized) — nothing to mute. Bail out
+    // instead of throwing on stream.getAudioTracks(), which would crash the click handler.
+    if (!stream) {
+      console.warn('mute-self: no local media stream; ignoring toggle');
+      return;
+    }
     const isEnabled = stream.getAudioTracks()[0].enabled;
     console.log('enabled', isEnabled);
+    // transparent:true so the mic PNG's transparent background isn't drawn as an opaque tile
+    // (A-Frame 0.4 auto-enabled this for alpha textures; 1.x requires it explicitly).
     if (isEnabled) {
-      this.el.setAttribute('material', 'src: #microphone-mute');
+      this.el.setAttribute('material', 'src: #microphone-mute; transparent: true');
     } else {
-      this.el.setAttribute('material', 'src: #microphone-unmute');
+      this.el.setAttribute('material', 'src: #microphone-unmute; transparent: true');
     }
     stream.getAudioTracks()[0].enabled = !isEnabled;
   }

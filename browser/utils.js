@@ -48,7 +48,9 @@ export function addFirstPersonProperties (avatar, user) {
   scene.appendChild(mutebutton);
   mutebutton.setAttribute('geometry', 'primitive: box;  width: .4; height: 0.01; depth: .4');
   mutebutton.setAttribute('id', `mutebutton`);
-  mutebutton.setAttribute('material', 'src: #microphone-unmute');
+  // transparent:true is required so the mic PNG's transparent background shows the floor through
+  // it rather than an opaque tile. A-Frame 0.4 auto-enabled this for alpha textures; 1.x does not.
+  mutebutton.setAttribute('material', 'src: #microphone-unmute; transparent: true');
   mutebutton.setAttribute('position', `0 0.1 ${user.z - 1}`);
   mutebutton.setAttribute('rotation', '0 0 0');
   mutebutton.setAttribute('mute-self', false);
