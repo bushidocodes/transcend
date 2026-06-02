@@ -62,6 +62,10 @@ export function addFirstPersonProperties (avatar, user) {
   // component also drives HMD/WebXR head pose automatically.
   avatar.setAttribute('look-controls', 'pointerLockEnabled: true');
   avatar.setAttribute('wasd-controls', 'acceleration: 100');
+  // Keep the player inside the room box so wasd-controls can't walk through the walls
+  // (issue #55). Set after wasd-controls so this component's tick runs afterward and
+  // corrects the move. Defaults match Room.js's 50x50 box (half-extent 25).
+  avatar.setAttribute('wall-collision', 'halfWidth: 25; halfDepth: 25; margin: 0.5');
 
   // Add and append the cursor to the player's avatar
   // The cursor is represented by a tiny ring 1/10 of a meter in front of the player
