@@ -19,12 +19,36 @@ if (THREE && !THREE.Math) {
 // module caching means it only evaluates (and registers) once.
 require('aframe-gif-shader');
 
+// Live gif shader instances, ticked each frame by the gif-ticker component below.
+const gifShaders = new Set();
+
+// 3. A-Frame 1.x never calls a shader's tick(). It only re-runs a shader's update() for schema
+//    properties of type 'time'; a shader's own tick() is ignored. The gif shader advances its
+//    animation in tick(), so without a driver every gif freezes on frame 0. A registered
+//    component's tick *is* called (the scene render loop ticks behaviors keyed by component
+//    name), so this component — attached to the scene by the __ready patch — drives every gif.
+if (!AFRAME.components['gif-ticker']) {
+  AFRAME.registerComponent('gif-ticker', {
+    tick: function (time, delta) {
+      gifShaders.forEach(function (shader) {
+        // Prune shaders whose entity left the scene (e.g. on room change) so we don't tick
+        // detached materials forever.
+        if (!shader.el || !shader.el.isConnected) { gifShaders.delete(shader); return; }
+        if (shader.tick) { shader.tick(time, delta); }
+      });
+    }
+  });
+}
+
 // 2. The shader creates its texture from a 2x2 canvas, then resizes that same canvas to a
 //    power-of-two and flags needsUpdate. Modern three sees the same image object and does a
 //    sub-image upload (texSubImage) into the stale 2x2 GPU allocation, overflowing it
 //    ("glCopySubTextureCHROMIUM: Offset overflows texture dimensions"), so every gif renders
 //    black. Disposing after the resize drops the GPU allocation and forces a full re-upload at
 //    the new size. Same-size per-frame updates afterwards are fine.
+//
+//    We also use __ready (fired once per gif load) to register the shader for ticking and to
+//    ensure the scene carries the gif-ticker component.
 const gif = AFRAME.shaders && AFRAME.shaders.gif;
 const proto = gif && gif.Shader && gif.Shader.prototype;
 if (proto && proto.__ready && !proto.__readyPatchedForModernThree) {
@@ -32,6 +56,11 @@ if (proto && proto.__ready && !proto.__readyPatchedForModernThree) {
   proto.__ready = function patchedReady () {
     const result = origReady.apply(this, arguments);
     if (this.__texture) this.__texture.dispose();
+    gifShaders.add(this);
+    const sceneEl = this.el && this.el.sceneEl;
+    if (sceneEl && !sceneEl.hasAttribute('gif-ticker')) {
+      sceneEl.setAttribute('gif-ticker', '');
+    }
     return result;
   };
   proto.__readyPatchedForModernThree = true;
