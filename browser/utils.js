@@ -86,6 +86,26 @@ export function addFirstPersonProperties (avatar, user) {
   cursor.setAttribute('position', '0 0 -0.1');
   cursor.setAttribute('material', 'color: cyan; shader: flat');
   cursor.setAttribute('geometry', 'primitive: ring; radiusOuter: 0.007; radiusInner: 0.005;');
+
+  // A-Frame 1.7 suppresses the mousedown→click path when fuse:true (the gaze cursor normally
+  // runs on headsets where there is no mouse click). Re-enable desktop click by watching the
+  // canvas directly and emitting 'click' on the same entity the raycaster is intersecting.
+  const scene = document.getElementById('scene');
+  const attachMouseClick = function () {
+    let downEl = null;
+    scene.canvas.addEventListener('mousedown', function () {
+      const r = cursor.components && cursor.components.raycaster;
+      downEl = r ? (r.intersectedEls[0] || null) : null;
+    });
+    scene.canvas.addEventListener('mouseup', function () {
+      const r = cursor.components && cursor.components.raycaster;
+      const upEl = r ? (r.intersectedEls[0] || null) : null;
+      if (downEl && downEl === upEl) downEl.emit('click');
+      downEl = null;
+    });
+  };
+  if (scene.hasLoaded) attachMouseClick();
+  else scene.addEventListener('loaded', attachMouseClick);
 }
 
 // creates an array of x and z coordinates that can be mapped over to create rows of chairs
