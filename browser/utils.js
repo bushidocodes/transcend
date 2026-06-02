@@ -90,7 +90,6 @@ export function addFirstPersonProperties (avatar, user) {
   // A-Frame 1.7 suppresses the mousedown→click path when fuse:true (the gaze cursor normally
   // runs on headsets where there is no mouse click). Re-enable desktop click by watching the
   // canvas directly and emitting 'click' on the same entity the raycaster is intersecting.
-  const scene = document.getElementById('scene');
   const attachMouseClick = function () {
     let downEl = null;
     scene.canvas.addEventListener('mousedown', function () {
