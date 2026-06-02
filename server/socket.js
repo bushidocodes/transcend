@@ -86,6 +86,18 @@ module.exports = io => {
       store.dispatch(updateUserData(userData));
     });
 
+    // Explicit logout: remove the avatar and tear down subscriptions without closing the socket,
+    // so the client can re-register (via connectUser) on a subsequent login without reconnecting.
+    socket.on('logoutUser', () => {
+      if (socket.createdUser) {
+        store.dispatch(removeUserAndEmit(socket));
+        leaveChatRoom();
+        if (unsubscribe) { unsubscribe(); unsubscribe = undefined; }
+        socket.createdUser = false;
+        socket.accountId = null;
+      }
+    });
+
     // When a socket disconnects, removes the user from the store, broadcast 'removeUser' to all
     //   clients, and remove the socket from any socket.io rooms or WebRTC P2P connections
     socket.on('disconnect', () => {

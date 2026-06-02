@@ -51,12 +51,13 @@ function NavigateCapture () {
   return null;
 }
 
-// Handles the /logout route: dispatches logout then redirects home.
+// Handles the /logout route: tears down the avatar, dispatches logout, then redirects home.
 function Logout () {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   useEffect(() => {
+    SOCKET.emit('logoutUser');
     dispatch(logout()).then(() => navigate('/', { replace: true }));
   }, []);
 
