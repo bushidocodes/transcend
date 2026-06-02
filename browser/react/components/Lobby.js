@@ -29,7 +29,7 @@ export default class Lobby extends React.Component {
           wallHeight="25"
           wallColor="#f9f7d9"
           floorColor="gray"
-          floorTexture="#floorText"
+          floorTexture="/img/carpet2.jpg"
           ceilingColor="#8DA0AF" />
 
         {/* Orbs */}
@@ -94,19 +94,20 @@ export default class Lobby extends React.Component {
           ))
         }
 
-        {/* Projection Screen */}
+        {/* Projection Screen. Assets are referenced by direct URL rather than by #id selector:
+            under React 18 + A-Frame 1.7, entities sometimes parse a selector before <a-assets>
+            has registered the matching element, resolving to null with no retry (images/models
+            then missing on some loads/refreshes). Direct URLs load async with no such race. */}
         <a-entity id="screen" geometry="primitive: plane; height: 15; width: 20"
-          material="src: #slide" position="0 8.5 -24"></a-entity>
+          material="src: /img/class_copy.png" position="0 8.5 -24"></a-entity>
 
         {/* Podium */}
-        {/* No id here: it would collide with the <img id="podium"> asset this references via
-            material="src: #podium", making #podium ambiguous. */}
         <a-entity geometry="primitive: box; depth: 1; height: 1.5; width: 5"
-          material="src: #podium" position="12.5 0.75 -21"></a-entity>
+          material="src: /img/fullstack.png" position="12.5 0.75 -21"></a-entity>
 
         {/* Monitors */}
-        <a-entity gltf-model="#monitor" scale="0.5 0.5 0.5" position="12.5 1.5 -20.5" rotation="0 90 0"></a-entity>
-        <a-entity gltf-model="#monitor" scale="0.5 0.5 0.5" position="14.75 1.5 -20.5" rotation="0 90 0"></a-entity>
+        <a-entity gltf-model="url(/img/monitor/model.glb)" scale="0.5 0.5 0.5" position="12.5 1.5 -20.5" rotation="0 90 0"></a-entity>
+        <a-entity gltf-model="url(/img/monitor/model.glb)" scale="0.5 0.5 0.5" position="14.75 1.5 -20.5" rotation="0 90 0"></a-entity>
 
         {/* Couches and coffee tables */}
         <Couch x="-5" y="0" z="23"

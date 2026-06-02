@@ -11,12 +11,11 @@ import LoadingSpinner from './LoadingSpinner';
 const style = { 'width': '100%', 'height': '100%' };
 
 function App (props) {
-  // Gate the room (Outlet) on <a-assets> finishing. Room entities reference assets by selector
-  // (e.g. material="src: #slide", gltf-model="#monitor"). If A-Frame parses those before the
-  // a-assets <img>/<a-asset-item> children are registered, the selector resolves to null and the
-  // texture/model silently never loads — and A-Frame doesn't retry. Under React 18 + A-Frame 1.7
-  // that race fires intermittently, so images/monitors went missing on some loads. Waiting for
-  // a-assets 'loaded' guarantees the assets exist before any room entity is created.
+  // Gate the room (Outlet) on <a-assets> finishing. Under React 18 + A-Frame 1.7, an entity that
+  // references an asset by #id selector can parse before <a-assets> has registered the matching
+  // element, resolving to null with no retry. The static images / gltf monitors / floors now use
+  // direct URLs (race-immune), but the cat-room gif materials still reference assets by selector,
+  // so waiting for a-assets 'loaded' before creating any room entity keeps those resolving too.
   const [assetsReady, setAssetsReady] = useState(false);
 
   // Emit connectUser when the VR scene first mounts so the server spawns this

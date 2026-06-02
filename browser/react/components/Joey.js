@@ -20,7 +20,7 @@ export default class Joey extends React.Component {
           wallHeight="25"
           wallColor="blue"
           floorColor=""
-          floorTexture="#floorText"
+          floorTexture="/img/carpet2.jpg"
           ceilingColor="#998403" />
         <Teleporter
           color="green"
