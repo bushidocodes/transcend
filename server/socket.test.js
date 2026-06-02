@@ -313,6 +313,44 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
 });
 
 // -----------------------------------------------------------------
+// 3b. Tick guard — a position tick must never CREATE a user (issue #56)
+//
+// After a server restart, reconnecting clients keep emitting ticks under their
+// previous socket id before they re-register. immutable's mergeIn would otherwise
+// auto-vivify those ticks into displayName-less records that render as "John".
+// connectUser is the only thing allowed to create a user.
+// -----------------------------------------------------------------
+
+describe('Socket.io – tick guard (issue #56)', function () {
+
+  it('a tick for an unregistered socket id does not create a ghost user', function () {
+    var client = connect();
+    return waitFor(client, 'connect')
+      .then(function () { return handshake(client, 'Alice'); })
+      .then(function () {
+        // A tick arriving under an id that never sent connectUser — the post-restart
+        // ghost. Pre-fix this auto-created a user with no displayName ("John").
+        client.emit('tick', {
+          id: 'ghost-stale-socket-id',
+          x: 1, y: 1.3, z: 2, xrot: 0, yrot: 0, zrot: 0,
+          skin: 'default', scene: 'lobby'
+        });
+        return sleep(100); // let the (dropped) dispatch settle
+      })
+      .then(function () {
+        var others = waitFor(client, 'getOthersCallback');
+        client.emit('getOthers');
+        return others;
+      })
+      .then(function (others) {
+        // The ghost id must not have become a user; getOthers should not list it.
+        expect(others).to.not.have.property('ghost-stale-socket-id');
+        return cleanup(client);
+      });
+  });
+});
+
+// -----------------------------------------------------------------
 // 4. Disconnect / cleanup
 // -----------------------------------------------------------------
 

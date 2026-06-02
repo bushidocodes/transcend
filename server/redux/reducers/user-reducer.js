@@ -68,6 +68,14 @@ function userReducer (state = initialState, action) {
       return state.set(action.user.get('id'), action.user);
 
     case UPDATE_USER_DATA:
+      // A position tick must only ever UPDATE an already-registered user; it must
+      // never CREATE one. immutable's mergeIn auto-vivifies a missing path, so an
+      // unguarded merge turns a tick (which carries no displayName) into a brand-new
+      // user record. After a server restart, reconnecting clients keep ticking under
+      // their old socket id before re-registering, and those ghost records render with
+      // the default "John" nickname (issue #56). User creation is connectUser's job
+      // alone (ADD_USER), so drop ticks for ids we don't already know about.
+      if (!state.has(action.userData.get('id'))) return state;
       return state.mergeIn([action.userData.get('id')], action.userData);
 
     case REMOVE_USER:
