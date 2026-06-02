@@ -161,3 +161,5 @@ socket.on('iceCandidate', setIceCandidate);
 
 // Removes all peer connections and audio Elements from the DoM
 socket.on('disconnect', disconnectUser);
+
+export default window.socket;
