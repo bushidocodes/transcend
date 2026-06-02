@@ -23,6 +23,10 @@ passport.deserializeUser(
 
 // Local signup
 auth.post('/local/signup', (req, res, next) => {
+  const { displayName } = req.body;
+  if (!displayName || displayName.length < 1 || displayName.length > 8) {
+    return res.status(400).json({ error: 'Display name must be 1–8 characters' });
+  }
   User.create(req.body)
     .then(user => {
       req.login(user, (err) => {
