@@ -99,7 +99,9 @@ export default class Lobby extends React.Component {
           material="src: #slide" position="0 8.5 -24"></a-entity>
 
         {/* Podium */}
-        <a-entity id="podium" geometry="primitive: box; depth: 1; height: 1.5; width: 5"
+        {/* No id here: it would collide with the <img id="podium"> asset this references via
+            material="src: #podium", making #podium ambiguous. */}
+        <a-entity geometry="primitive: box; depth: 1; height: 1.5; width: 5"
           material="src: #podium" position="12.5 0.75 -21"></a-entity>
 
         {/* Monitors */}
