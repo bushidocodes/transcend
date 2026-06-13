@@ -34,6 +34,17 @@ User.prototype.authenticate = function (plaintext) {
     );
 };
 
+// Never serialize the password hash (or the virtual plaintext password) to clients. This is
+// the single chokepoint for every response that returns a user — /local/login (via its
+// redirect to /whoami), /whoami, and /skin all go through JSON serialization (issue #89).
+// The instance keeps password_digest in memory, so authenticate() still works.
+User.prototype.toJSON = function () {
+  const values = Object.assign({}, this.get());
+  delete values.password_digest;
+  delete values.password;
+  return values;
+};
+
 function setEmailAndPassword (user) {
   user.email = user.email && user.email.toLowerCase();
   if (!user.password) return Promise.resolve(user);
