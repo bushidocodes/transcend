@@ -5,6 +5,19 @@ const GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 
 const User = require('../db').model('users');
 
+// The complete set of selectable skins, mirroring the Mannequins offered in the
+// ChangingRoom (browser/react/components/ChangingRoom.js). Each value is the basename of a
+// file in public/images/ and is interpolated into a `skinUrl: ../../images/${skin}.png`
+// A-Frame component string rendered on every client, so it must be validated server-side
+// (issue #79) — otherwise an authenticated user could persist an arbitrary string (path
+// traversal, A-Frame component injection seen by other users, unbounded length).
+const VALID_SKINS = new Set([
+  '3djesus', 'agentsmith', 'batman', 'char', 'god', 'Iron-Man-Minecraft-Skin', 'jetienne',
+  'Joker', 'Mario', 'martialartist', 'robocop', 'Sonicthehedgehog', 'woody', 'powerRanger',
+  'catwoman', 'blackWidow', 'evilQueen', 'graceHopper', 'princessBelle', 'skaterGirl',
+  'katnissEverdeen', 'theflash', 'Superman', 'Spiderman'
+]);
+
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
@@ -112,7 +125,11 @@ auth.get('/whoami', (req, res) => res.send(req.user));
 // Persist a skin selection to the user's account
 auth.put('/skin', (req, res, next) => {
   if (!req.user) return res.sendStatus(401);
-  req.user.update({ skin: req.body.skin })
+  const { skin } = req.body;
+  if (!VALID_SKINS.has(skin)) {
+    return res.status(400).json({ error: 'Invalid skin' });
+  }
+  req.user.update({ skin })
     .then(user => res.json(user))
     .catch(next);
 });
