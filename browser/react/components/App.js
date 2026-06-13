@@ -5,6 +5,7 @@ import '../../aframeComponents/scene-load';
 import '../../aframeComponents/aframe-minecraft';
 import AssetLoader from './AssetLoader';
 import LoadingSpinner from './LoadingSpinner';
+import { initSocket } from '../../socket';
 
 /* ----------------- COMPONENT ------------------ */
 
@@ -18,11 +19,15 @@ function App (props) {
   // so waiting for a-assets 'loaded' before creating any room entity keeps those resolving too.
   const [assetsReady, setAssetsReady] = useState(false);
 
-  // Emit connectUser when the VR scene first mounts so the server spawns this
-  // user's avatar and begins pushing usersUpdated ticks (see server/socket.js).
+  // <App> only mounts under RequireAuth, so reaching here means the user has a valid auth
+  // session — the Stage 1 → Stage 2 boundary (issue #67). Create the socket here (deferred
+  // from module load) so io() never fires before login, then emit connectUser so the server
+  // spawns this user's avatar and begins pushing usersUpdated ticks (see server/socket.js).
+  // initSocket() is idempotent, so a logout→login remount reuses the existing socket.
   useEffect(() => {
     if (props.auth && props.auth.has('id')) {
-      window.socket.emit('connectUser', props.auth);
+      const socket = initSocket();
+      socket.emit('connectUser', props.auth);
     }
   }, []);
 
