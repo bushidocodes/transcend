@@ -165,7 +165,9 @@ export function removePeerConn (config) {
     peers.get(peerId).close();
   }
   store.dispatch(deletePeer(peerId));
-  delete peerMediaElements[config.peerId];
+  // Use the extracted peerId (snake_case config.peer_id). config.peerId is always undefined,
+  // so the old delete was a no-op that leaked a detached <audio> reference per disconnect (#76).
+  delete peerMediaElements[peerId];
 }
 
 export async function setRemoteAnswer (config) {
