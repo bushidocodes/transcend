@@ -1,26 +1,28 @@
 import store from '../redux/store';
 import { setUserMedia, addPeer, deletePeer, clearPeers } from '../redux/reducers/webrtc-reducer';
 
-/** You should probably use a different stun server doing commercial stuff **/
-/** Also see: https://gist.github.com/zziuni/3741933 **/
-const ICE_SERVERS = [
-  { url: 'stun:stun.l.google.com:19302' },
-  {
-    url: 'turn:numb.viagenie.ca',
-    credential: 'muazkh',
-    username: 'webrtc@live.com'
-  },
-  {
-    url: 'turn:192.158.29.39:3478?transport=udp',
-    credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
-    username: '28224511:1379330808'
-  },
-  {
-    url: 'turn:192.158.29.39:3478?transport=tcp',
-    credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
-    username: '28224511:1379330808'
+let cachedIceServers = null;
+
+// If the backend is unreachable, fall back to a public STUN server so peering still works on
+// non-symmetric NATs rather than failing silently. (TURN-only networks still won't connect,
+// but that's no worse than a missing config — and better than an unhandled rejection.)
+const FALLBACK_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+async function getIceServers () {
+  if (cachedIceServers) return cachedIceServers;
+  try {
+    const res = await fetch('/api/ice-servers');
+    if (!res.ok) throw new Error(`GET /api/ice-servers responded ${res.status}`);
+    const { iceServers } = await res.json();
+    if (!iceServers) throw new Error('GET /api/ice-servers returned no iceServers');
+    cachedIceServers = iceServers;
+    return iceServers;
+  } catch (err) {
+    // Don't cache the fallback — a later peer may succeed once the endpoint recovers.
+    console.error('Could not load ICE servers, falling back to public STUN:', err);
+    return FALLBACK_ICE_SERVERS;
   }
-];
+}
 
 // This will be our socket connection
 let signalingSocket = null;
@@ -78,7 +80,7 @@ export function leaveChatRoom () {
 }
 
 // accepts conifg
-export function addPeerConn (config) {
+export async function addPeerConn (config) {
   console.log('Signaling server said to add peer:', config);
   const peerId = config.peer_id;
   const peers = store.getState().webrtc.get('peers');
@@ -88,9 +90,11 @@ export function addPeerConn (config) {
     return;
   }
 
+  const iceServers = await getIceServers();
+
   // Create a webRTC peer connection to the ICE servers
   const peerConnection = new webkitRTCPeerConnection(
-    { 'iceServers': ICE_SERVERS },
+    { 'iceServers': iceServers },
     { 'optional': [{ 'DtlsSrtpKeyAgreement': true }] }
     /* this will no longer be needed by chrome
     * eventually (supposedly), but is necessary
