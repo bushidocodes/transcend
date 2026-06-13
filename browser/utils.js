@@ -1,20 +1,24 @@
+// Whether a user belongs in the room currently on screen, used to keep avatars from other
+//   rooms off the DOM (issues #74, #87). The condition has two subtleties:
+//   - the path-derived scene name parenthesizes the 'root' fallback so it's the default scene
+//     name for the lobby (empty pathname), not a standalone truthy operand (the original
+//     `=== ... || 'root'` precedence bug made the check always pass);
+//   - the server seeds a new user's scene as '' and only fills it on the first position tick,
+//     so the local avatar (rendered from connectUser via renderAvatar) and not-yet-ticked
+//     users have a blank scene. Treat a blank scene as "unknown, allow through" rather than
+//     filtering it out (which would drop the local avatar and crash addFirstPersonProperties).
+//     Only a *known, differing* scene excludes a user; the usersUpdated handler later removes
+//     anyone who turns out to be in another room.
+function isInCurrentScene (user) {
+  const currentScene = window.location.pathname.replace(/\//g, '') || 'root';
+  return !user.scene || user.scene === currentScene;
+}
+
 // putUserOnDom performs local filtering to make sure the user is in the same
 //   A-Frame room and perfoms an initial render of their avatar if they are
 export function putUserOnDOM (user) {
   console.log(`Putting user ${user} on the DOM`);
-  // Render the avatar only if the user is in this scene (issue #74). The original
-  //   `user.scene === pathname.replace(...) || 'root'` was always truthy because of operator
-  //   precedence (`|| 'root'`), so everyone rendered in every room. Two things to get right:
-  //   - parenthesize the fallback so 'root' is the default *scene name* for the lobby (empty
-  //     pathname), not a standalone truthy operand;
-  //   - the server seeds a new user's scene as '' and only fills it on the first position tick,
-  //     so the local avatar (rendered from connectUser via renderAvatar) and not-yet-ticked
-  //     users have a blank scene. Treat a blank scene as "unknown, allow through" — otherwise
-  //     the local avatar would be filtered out and addFirstPersonProperties would crash on the
-  //     undefined return. Only a *known, differing* scene excludes the avatar; the usersUpdated
-  //     handler later removes anyone who turns out to be in another room.
-  const currentScene = window.location.pathname.replace(/\//g, '') || 'root';
-  if (!user.scene || user.scene === currentScene) {
+  if (isInCurrentScene(user)) {
     const scene = document.getElementById('scene');
     const head = document.createElement('a-minecraft');
     // Just in case a user doesn't have a skin associated with their user, use 3djesus
@@ -31,6 +35,9 @@ export function putUserOnDOM (user) {
 }
 
 export function putUserBodyOnDOM (user) {
+  // Same scene guard as putUserOnDOM. getOthersCallback calls this with no pre-filtering, so
+  // without it the bodies of users in other rooms leak onto the DOM on room entry (issue #87).
+  if (!isInCurrentScene(user)) return;
   const scene = document.getElementById('scene');
   const body = document.createElement('a-minecraft');
   const skin = user.skin || '3djesus';
