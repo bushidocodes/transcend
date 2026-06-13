@@ -2,7 +2,19 @@
 //   A-Frame room and perfoms an initial render of their avatar if they are
 export function putUserOnDOM (user) {
   console.log(`Putting user ${user} on the DOM`);
-  if (user.scene === window.location.pathname.replace(/\//g, '') || 'root') {
+  // Render the avatar only if the user is in this scene (issue #74). The original
+  //   `user.scene === pathname.replace(...) || 'root'` was always truthy because of operator
+  //   precedence (`|| 'root'`), so everyone rendered in every room. Two things to get right:
+  //   - parenthesize the fallback so 'root' is the default *scene name* for the lobby (empty
+  //     pathname), not a standalone truthy operand;
+  //   - the server seeds a new user's scene as '' and only fills it on the first position tick,
+  //     so the local avatar (rendered from connectUser via renderAvatar) and not-yet-ticked
+  //     users have a blank scene. Treat a blank scene as "unknown, allow through" — otherwise
+  //     the local avatar would be filtered out and addFirstPersonProperties would crash on the
+  //     undefined return. Only a *known, differing* scene excludes the avatar; the usersUpdated
+  //     handler later removes anyone who turns out to be in another room.
+  const currentScene = window.location.pathname.replace(/\//g, '') || 'root';
+  if (!user.scene || user.scene === currentScene) {
     const scene = document.getElementById('scene');
     const head = document.createElement('a-minecraft');
     // Just in case a user doesn't have a skin associated with their user, use 3djesus
