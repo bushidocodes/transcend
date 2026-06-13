@@ -52,20 +52,21 @@ export function joinChatRoom (room, errorback) {
     signalingSocket.emit('joinChatRoom', room);
     return;
   }
-  navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
   console.log('Requesting access to local audio / video inputs');
-  navigator.getUserMedia({ 'audio': true, 'video': false },
+  // navigator.mediaDevices.getUserMedia (Promise-based) replaces the removed callback-style
+  // navigator.getUserMedia / webkitGetUserMedia (issue #77).
+  navigator.mediaDevices.getUserMedia({ 'audio': true, 'video': false })
     // On Success
-    function (stream) {
+    .then(stream => {
       console.log('Access granted to audio');
       store.dispatch(setUserMedia(stream));
       const audioEl = document.getElementById('localAudio');
       audioEl.muted = true;
       audioEl.srcObject = stream;
       signalingSocket.emit('joinChatRoom', room);
-    },
+    })
     // On Failure... likely because user denied access to a/v
-    function () {
+    .catch(() => {
       console.log('Access denied for audio/video');
       window.alert('You chose not to provide access to your microphone, so real-time voice chat is unavailable.');
       if (errorback) errorback();
@@ -92,14 +93,10 @@ export async function addPeerConn (config) {
 
   const iceServers = await getIceServers();
 
-  // Create a webRTC peer connection to the ICE servers
-  const peerConnection = new webkitRTCPeerConnection(
-    { 'iceServers': iceServers },
-    { 'optional': [{ 'DtlsSrtpKeyAgreement': true }] }
-    /* this will no longer be needed by chrome
-    * eventually (supposedly), but is necessary
-    * for now to get firefox to talk to chrome */
-  );
+  // Create a webRTC peer connection to the ICE servers. Unprefixed RTCPeerConnection
+  // replaces the removed webkitRTCPeerConnection; the legacy second constraints argument
+  // (DtlsSrtpKeyAgreement) is obsolete now that DTLS-SRTP is mandatory (issue #77).
+  const peerConnection = new RTCPeerConnection({ 'iceServers': iceServers });
 
   // I'm not 100% sure what this does, but it sets up ice candidates ¯\_(ツ)_/¯
   peerConnection.onicecandidate = function (event) {
@@ -114,20 +111,30 @@ export async function addPeerConn (config) {
     }
   };
 
-  // When we recieve a peer's WebRTC stream, add an audio tag to the DOM with
-  //   an ID equal to the peerID, and set it to autoplay.
-  peerConnection.onaddstream = function (event) {
-    console.log('onAddStream', event);
-    const remoteAudio = document.createElement('audio');
-    const bodyTag = document.getElementsByTagName('body')[0];
-    bodyTag.appendChild(remoteAudio);
-    remoteAudio.setAttribute('id', peerId);
-    remoteAudio.setAttribute('autoplay', 'autoplay');
-    peerMediaElements[peerId] = remoteAudio; // array of the all peer WebRTC streams
-    remoteAudio.srcObject = event.stream;
+  // When we receive a peer's WebRTC track, add an audio tag to the DOM with an ID equal to
+  //   the peerID, and set it to autoplay. ontrack replaces the removed onaddstream; its event
+  //   carries a streams array rather than a single stream (issue #77).
+  peerConnection.ontrack = function (event) {
+    console.log('onTrack', event);
+    // A connection can fire ontrack more than once; reuse the element we already made.
+    let remoteAudio = peerMediaElements[peerId];
+    if (!remoteAudio) {
+      remoteAudio = document.createElement('audio');
+      remoteAudio.setAttribute('id', peerId);
+      remoteAudio.setAttribute('autoplay', 'autoplay');
+      document.getElementsByTagName('body')[0].appendChild(remoteAudio);
+      peerMediaElements[peerId] = remoteAudio; // map of all peer WebRTC streams
+    }
+    remoteAudio.srcObject = event.streams[0];
   };
-  /* Add our local stream */
-  peerConnection.addStream(store.getState().webrtc.get('localMediaStream'));
+
+  /* Add our local stream's tracks. addTrack replaces the removed addStream. */
+  const localMediaStream = store.getState().webrtc.get('localMediaStream');
+  localMediaStream.getTracks().forEach(track => peerConnection.addTrack(track, localMediaStream));
+
+  // Register the peer before negotiating so an incoming answer / ICE candidate can find it.
+  store.dispatch(addPeer(peerId, peerConnection));
+
   /* Only one side of the peer connection should create the
   * offer, the signaling server picks one to be the offerer.
   * The other user will get a 'sessionDescription' event and will
@@ -135,24 +142,16 @@ export async function addPeerConn (config) {
   */
   if (config.should_create_offer) {
     console.log('Creating RTC offer to ', peerId);
-    peerConnection.createOffer(
-      function (localDescription) {
-        console.log('Local offer description is: ', localDescription);
-        peerConnection.setLocalDescription(localDescription,
-          function () {
-            signalingSocket.emit('relaySessionDescription',
-              { 'peer_id': peerId, 'session_description': localDescription });
-            console.log('Offer setLocalDescription succeeded');
-          },
-          function () { window.alert('Offer setLocalDescription failed!'); }
-        );
-      },
-      function (error) {
-        console.log('Error sending offer: ', error);
-      }
-    );
+    try {
+      const localDescription = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(localDescription);
+      signalingSocket.emit('relaySessionDescription',
+        { 'peer_id': peerId, 'session_description': localDescription });
+      console.log('Offer setLocalDescription succeeded');
+    } catch (error) {
+      console.error('Error creating/sending offer: ', error);
+    }
   }
-  store.dispatch(addPeer(peerId, peerConnection));
 }
 
 export function removePeerConn (config) {
@@ -169,48 +168,38 @@ export function removePeerConn (config) {
   delete peerMediaElements[config.peerId];
 }
 
-export function setRemoteAnswer (config) {
+export async function setRemoteAnswer (config) {
   console.log('Remote description received: ', config);
   const peerId = config.peer_id;
   const peer = store.getState().webrtc.getIn(['peers', peerId]);
   const remoteDescription = config.session_description;
-  console.log(config.session_description);
-  const desc = new RTCSessionDescription(remoteDescription);
-  const stuff = peer.setRemoteDescription(desc,
-    function () {
-      console.log('setRemoteDescription succeeded');
-      if (remoteDescription.type === 'offer') {
-        console.log('Creating answer');
-        peer.createAnswer(
-          function (localDescription) {
-            console.log('Answer description is: ', localDescription);
-            peer.setLocalDescription(localDescription,
-              function () {
-                signalingSocket.emit('relaySessionDescription',
-                  { 'peer_id': peerId, 'session_description': localDescription });
-                console.log('Answer setLocalDescription succeeded');
-              },
-              function () { window.alert('Answer setLocalDescription failed!'); }
-            );
-          },
-          function (error) {
-            console.log('Error creating answer: ', error);
-            console.log(peer);
-          }
-        );
-      }
-    },
-    function (error) {
-      console.log('setRemoteDescription error: ', error);
+  // The modern Promise-based API accepts the plain RTCSessionDescriptionInit directly, so the
+  // deprecated RTCSessionDescription wrapper and callback forms are gone (issue #77).
+  try {
+    await peer.setRemoteDescription(remoteDescription);
+    console.log('setRemoteDescription succeeded');
+    if (remoteDescription.type === 'offer') {
+      console.log('Creating answer');
+      const localDescription = await peer.createAnswer();
+      await peer.setLocalDescription(localDescription);
+      signalingSocket.emit('relaySessionDescription',
+        { 'peer_id': peerId, 'session_description': localDescription });
+      console.log('Answer setLocalDescription succeeded');
     }
-  );
-  console.log('Description Object: ', desc);
+  } catch (error) {
+    console.error('setRemoteAnswer error: ', error);
+  }
 }
 
-export function setIceCandidate (config) {
+export async function setIceCandidate (config) {
   const peer = store.getState().webrtc.getIn(['peers', config.peer_id]);
-  const iceCandidate = config.ice_candidate;
-  peer.addIceCandidate(new RTCIceCandidate(iceCandidate));
+  // addIceCandidate accepts the plain RTCIceCandidateInit directly; the deprecated
+  // RTCIceCandidate wrapper is no longer needed (issue #77).
+  try {
+    await peer.addIceCandidate(config.ice_candidate);
+  } catch (error) {
+    console.error('addIceCandidate error: ', error);
+  }
 }
 
 export function disconnectUser () {
