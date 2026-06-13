@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { connect } from 'react-redux';
 import { Outlet } from 'react-router-dom';
 import '../../aframeComponents/scene-load';
@@ -18,18 +18,28 @@ function App (props) {
   // direct URLs (race-immune), but the cat-room gif materials still reference assets by selector,
   // so waiting for a-assets 'loaded' before creating any room entity keeps those resolving too.
   const [assetsReady, setAssetsReady] = useState(false);
+  // connectUser must be emitted exactly once, even across re-renders.
+  const connectUserSent = useRef(false);
 
-  // <App> only mounts under RequireAuth, so reaching here means the user has a valid auth
-  // session — the Stage 1 → Stage 2 boundary (issue #67). Create the socket here (deferred
-  // from module load) so io() never fires before login, then emit connectUser so the server
-  // spawns this user's avatar and begins pushing usersUpdated ticks (see server/socket.js).
-  // initSocket() is idempotent, so a logout→login remount reuses the existing socket.
+  // Stage 2 (socket connection): open the socket as soon as <App> mounts — we're past auth via
+  // RequireAuth, so this is the Stage 1 → Stage 2 boundary (issue #67). initSocket() is
+  // idempotent and deferred from module load, so io() never fires before login and a
+  // logout→login remount reuses the existing socket.
   useEffect(() => {
-    if (props.auth && props.auth.has('id')) {
-      const socket = initSocket();
-      socket.emit('connectUser', props.auth);
-    }
+    initSocket();
   }, []);
+
+  // Stage 3 (get all data): announce ourselves with connectUser — but only after <a-assets>
+  // has finished loading (Stage 4). connectUser triggers this user's avatar render and the
+  // getOthers data chain, so gating it on assetsReady keeps the server from pushing user data
+  // at a scene that can't display it yet (issue #68). Guarded to emit exactly once.
+  useEffect(() => {
+    if (!assetsReady || connectUserSent.current) return;
+    if (props.auth && props.auth.has('id')) {
+      connectUserSent.current = true;
+      initSocket().emit('connectUser', props.auth);
+    }
+  }, [assetsReady, props.auth]);
 
   useEffect(() => {
     const assets = document.querySelector('#scene a-assets');
