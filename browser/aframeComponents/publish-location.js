@@ -9,8 +9,20 @@ import AFRAME from 'aframe';
 let hasGottenOthers = false;
 
 export default AFRAME.registerComponent('publish-location', {
+  // Register the startTick listener exactly once when the component attaches. It used to live
+  // in tick(), which A-Frame calls ~60x/second, so a new listener leaked every frame until
+  // socket.io warned about MaxListenersExceeded and the tab eventually died (issue #75).
+  init: function () {
+    this.onStartTick = () => { hasGottenOthers = true; };
+    socket.on('startTick', this.onStartTick);
+  },
+  // Detach on removal so the listener never outlives the component. The socket persists
+  // across the VR session (and SPA navigation), so without this a leak would reappear if the
+  // component is ever torn down and re-attached (logout / leaving the VR section).
+  remove: function () {
+    socket.off('startTick', this.onStartTick);
+  },
   tick: function () {
-    socket.on('startTick', () => hasGottenOthers = true);
     if (hasGottenOthers) {
       const el = this.el;
       const userPosition = {
