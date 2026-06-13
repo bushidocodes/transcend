@@ -32,10 +32,21 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-// Set up session middleware
+// Set up session middleware. The secret signs the session cookie, so a known/guessable
+// value lets anyone forge a session for any user (full auth bypass). Require it in
+// production and refuse to boot otherwise; in dev/test fall back to a throwaway key but
+// warn loudly so the insecure state is never silent (issue #78).
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error(chalk.red('FATAL: SESSION_SECRET is required in production. Generate one with `openssl rand -hex 32`.'));
+    process.exit(1);
+  }
+  console.warn(chalk.yellow('WARNING: SESSION_SECRET is not set — using an insecure development fallback. Set it before deploying (e.g. `openssl rand -hex 32`).'));
+}
 app.use(require('cookie-session')({
   name: 'session',
-  keys: [process.env.SESSION_SECRET || 'an insecure secret key']
+  keys: [sessionSecret || 'insecure-dev-only-secret']
 }));
 
 // Shim for passport 0.6+ compatibility with cookie-session (which lacks regenerate/save)
