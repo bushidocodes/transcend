@@ -3,12 +3,25 @@ import { setUserMedia, addPeer, deletePeer, clearPeers } from '../redux/reducers
 
 let cachedIceServers = null;
 
+// If the backend is unreachable, fall back to a public STUN server so peering still works on
+// non-symmetric NATs rather than failing silently. (TURN-only networks still won't connect,
+// but that's no worse than a missing config — and better than an unhandled rejection.)
+const FALLBACK_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+
 async function getIceServers () {
   if (cachedIceServers) return cachedIceServers;
-  const res = await fetch('/api/ice-servers');
-  const { iceServers } = await res.json();
-  cachedIceServers = iceServers;
-  return iceServers;
+  try {
+    const res = await fetch('/api/ice-servers');
+    if (!res.ok) throw new Error(`GET /api/ice-servers responded ${res.status}`);
+    const { iceServers } = await res.json();
+    if (!iceServers) throw new Error('GET /api/ice-servers returned no iceServers');
+    cachedIceServers = iceServers;
+    return iceServers;
+  } catch (err) {
+    // Don't cache the fallback — a later peer may succeed once the endpoint recovers.
+    console.error('Could not load ICE servers, falling back to public STUN:', err);
+    return FALLBACK_ICE_SERVERS;
+  }
 }
 
 // This will be our socket connection
