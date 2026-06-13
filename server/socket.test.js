@@ -211,8 +211,10 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
       .then(function () {
         var gA = waitFor(cA, 'getOthersCallback');
         var gB = waitFor(cB, 'getOthersCallback');
-        cA.emit('getOthers');
-        cB.emit('getOthers');
+        // Place both clients in the same room. The server now filters usersUpdated by room
+        // (issue #58), so peers must share a scene to see each other's ticks.
+        cA.emit('getOthers', 'lobby');
+        cB.emit('getOthers', 'lobby');
         return Promise.all([gA, gB]);
       })
       .then(function () {
@@ -276,7 +278,7 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
         id: cA.id,
         x: -7.5, y: 1.8, z: 12.3,
         xrot: 5, yrot: 270, zrot: -2,
-        skin: 'steve', scene: 'spaceroom'
+        skin: 'steve', scene: 'lobby'
       });
 
       return updatesForB.then(function (users) {
@@ -287,7 +289,7 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
         expect(a.xrot).to.equal(5);
         expect(a.yrot).to.equal(270);
         expect(a.zrot).to.equal(-2);
-        expect(a.scene).to.equal('spaceroom');
+        expect(a.scene).to.equal('lobby');
       });
     });
   });
@@ -309,6 +311,98 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
         expect(users[cA.id].yrot).to.equal(180);
       });
     });
+  });
+});
+
+// -----------------------------------------------------------------
+// 3a. Room filtering (issue #58)
+//
+// The server now sends each client only the users in its own room (scene), and
+// scopes removeUser to the departing user's room. Scene is reported via getOthers
+// (and kept current by ticks).
+// -----------------------------------------------------------------
+
+describe('Socket.io – room filtering (#58)', function () {
+
+  it('getOthersCallback excludes users in a different room', function () {
+    var cA = connect();
+    var cB = connect();
+
+    return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
+      .then(function () {
+        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
+      })
+      .then(function () {
+        cB.emit('getOthers', 'spaceroom'); // place B in another room
+        return sleep(50);
+      })
+      .then(function () {
+        var othersForA = waitFor(cA, 'getOthersCallback');
+        cA.emit('getOthers', 'lobby');
+        return othersForA;
+      })
+      .then(function (others) {
+        expect(others).to.not.have.property(cB.id);
+        return cleanup(cA, cB);
+      });
+  });
+
+  it('usersUpdated does not deliver a different-room peer\'s tick', function () {
+    var cA = connect();
+    var cB = connect();
+
+    return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
+      .then(function () {
+        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
+      })
+      .then(function () {
+        cA.emit('getOthers', 'lobby');     // A in lobby
+        cB.emit('getOthers', 'spaceroom'); // B in spaceroom
+        cA.emit('readyToReceiveUpdates');
+        cB.emit('readyToReceiveUpdates');
+        return sleep(80);
+      })
+      .then(function () {
+        var updatesForB = waitFor(cB, 'usersUpdated');
+        cA.emit('tick', { id: cA.id, x: 1, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
+        return updatesForB;
+      })
+      .then(function (users) {
+        // B is in spaceroom, so A's lobby tick must not surface A in B's payload.
+        expect(users).to.not.have.property(cA.id);
+        return cleanup(cA, cB);
+      });
+  });
+
+  it('removeUser is sent only to clients in the departing user\'s room', function () {
+    var cLobby1 = connect();
+    var cLobby2 = connect();
+    var cSpace = connect();
+
+    return Promise.all([waitFor(cLobby1, 'connect'), waitFor(cLobby2, 'connect'), waitFor(cSpace, 'connect')])
+      .then(function () {
+        return Promise.all([handshake(cLobby1, 'L1'), handshake(cLobby2, 'L2'), handshake(cSpace, 'S')]);
+      })
+      .then(function () {
+        cLobby1.emit('getOthers', 'lobby');
+        cLobby2.emit('getOthers', 'lobby');
+        cSpace.emit('getOthers', 'spaceroom');
+        return sleep(60);
+      })
+      .then(function () {
+        var leavingId = cLobby1.id;
+        var sameRoomGotIt = waitFor(cLobby2, 'removeUser');
+        var spaceGotIt = false;
+        cSpace.once('removeUser', function () { spaceGotIt = true; });
+        cLobby1.disconnect();
+        return sameRoomGotIt.then(function (removedId) {
+          expect(removedId).to.equal(leavingId);
+          return sleep(120); // give any errant cross-room emit time to arrive
+        }).then(function () {
+          expect(spaceGotIt).to.equal(false);
+          return cleanup(cLobby2, cSpace);
+        });
+      });
   });
 });
 
