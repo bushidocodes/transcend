@@ -1,43 +1,25 @@
-// Whether a user belongs in the room currently on screen, used to keep avatars from other
-//   rooms off the DOM (issues #74, #87). The condition has two subtleties:
-//   - the path-derived scene name parenthesizes the 'root' fallback so it's the default scene
-//     name for the lobby (empty pathname), not a standalone truthy operand (the original
-//     `=== ... || 'root'` precedence bug made the check always pass);
-//   - the server seeds a new user's scene as '' and only fills it on the first position tick,
-//     so the local avatar (rendered from connectUser via renderAvatar) and not-yet-ticked
-//     users have a blank scene. Treat a blank scene as "unknown, allow through" rather than
-//     filtering it out (which would drop the local avatar and crash addFirstPersonProperties).
-//     Only a *known, differing* scene excludes a user; the usersUpdated handler later removes
-//     anyone who turns out to be in another room.
-function isInCurrentScene (user) {
-  const currentScene = window.location.pathname.replace(/\//g, '') || 'root';
-  return !user.scene || user.scene === currentScene;
-}
-
-// putUserOnDom performs local filtering to make sure the user is in the same
-//   A-Frame room and perfoms an initial render of their avatar if they are
+// putUserOnDOM renders a user's avatar head. The server is now authoritative for room
+//   membership — it only sends users in the caller's room (issue #58) — so there is no longer
+//   a client-side scene guard here (the earlier #74/#87 isInCurrentScene check is obsolete).
+//   This also renders the local avatar (via renderAvatar), whose scene isn't set yet.
 export function putUserOnDOM (user) {
   console.log(`Putting user ${user} on the DOM`);
-  if (isInCurrentScene(user)) {
-    const scene = document.getElementById('scene');
-    const head = document.createElement('a-minecraft');
-    // Just in case a user doesn't have a skin associated with their user, use 3djesus
-    const skin = user.skin || '3djesus';
-    head.setAttribute('skin', skin);
-    scene.appendChild(head);
-    head.setAttribute('id', user.id);
-    head.setAttribute('minecraft-nickname', user.displayName);
-    head.setAttribute('minecraft', `skinUrl: ../../images/${skin}.png;`);
-    head.setAttribute('position', `${user.x} ${user.y} ${user.z}`);
-    head.setAttribute('rotation', `${user.xrot} ${user.yrot} ${user.zrot}`);
-    return head;
-  }
+  const scene = document.getElementById('scene');
+  const head = document.createElement('a-minecraft');
+  // Just in case a user doesn't have a skin associated with their user, use 3djesus
+  const skin = user.skin || '3djesus';
+  head.setAttribute('skin', skin);
+  scene.appendChild(head);
+  head.setAttribute('id', user.id);
+  head.setAttribute('minecraft-nickname', user.displayName);
+  head.setAttribute('minecraft', `skinUrl: ../../images/${skin}.png;`);
+  head.setAttribute('position', `${user.x} ${user.y} ${user.z}`);
+  head.setAttribute('rotation', `${user.xrot} ${user.yrot} ${user.zrot}`);
+  return head;
 }
 
 export function putUserBodyOnDOM (user) {
-  // Same scene guard as putUserOnDOM. getOthersCallback calls this with no pre-filtering, so
-  // without it the bodies of users in other rooms leak onto the DOM on room entry (issue #87).
-  if (!isInCurrentScene(user)) return;
+  // No scene guard needed — the server only sends same-room users (issue #58).
   const scene = document.getElementById('scene');
   const body = document.createElement('a-minecraft');
   const skin = user.skin || '3djesus';

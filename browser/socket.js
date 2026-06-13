@@ -67,7 +67,8 @@ export function initSocket () {
     // reconnect can find and remove this exact avatar.
     localAvatarId = (user && user.get) ? user.get('id') : (user && user.id);
     addFirstPersonProperties(avatar, user);
-    socket.emit('getOthers');
+    // Tell the server our room so it can record it and return only this room's users (#58).
+    socket.emit('getOthers', window.location.pathname.replace(/\//g, '') || 'root');
   });
 
   // Perform an initial render the other users' avatars (after local filtering) and emit the following:
@@ -88,46 +89,43 @@ export function initSocket () {
     socket.emit('readyToReceiveUpdates');
   });
 
-  // Once subscribed via 'readyToReceiveUpdates,' the server emits 'usersUpdated' with an array
-  //   of all users other than the client's user to allow the client to render/update the avatars.
-  //   Currently, clients must perform local filtering to determine if an avatar is in the same
-  //   room. The users' avatar components (body and head) are added, updated, or deleted depending
-  //   on the state of the client's DOM.
+  // The server now sends usersUpdated with only the OTHER users in this client's room (#58),
+  //   so the client no longer filters by scene. Add new avatars, update existing ones, and
+  //   reconcile removals: any avatar on the DOM that's absent from this room-scoped payload has
+  //   left the room (or we changed rooms), so it's dropped. The avatar components (head and
+  //   body) are added, updated, or deleted depending on the state of the client's DOM.
   socket.on('usersUpdated', users => {
     store.dispatch(receiveUsers(fromJS(users)));
     const receivedUsers = store.getState().users;
+    const liveIds = new Set();
     receivedUsers.valueSeq().forEach(user => {
-      // Pull the path off the URL, stripping forward slashes
-      // For example, "localhost:1337/sean" would return "sean"
-      // If we are at the root path, we instead received "root"
-      // These values are passed up as "scene" in the user tick and correspond to the names of react components and a-scenes
-      const currentScene = window.location.pathname.replace(/\//g, '') || 'root';
+      liveIds.add(user.get('id'));
       const avatarHead = document.getElementById(user.get('id'));
       const avatarBody = document.getElementById(`${user.get('id')}-body`);
-      // If the user is on the current scene, add or update the user's avatar
-      if (user.get('scene') === currentScene) {
-        // If a user's avatar is NOT on the DOM already, add it
-        if (avatarHead === null) {
-          const userObj = user.toJS();
-          putUserOnDOM(userObj);
-          putUserBodyOnDOM(userObj);
-          // If the user's avatar is on the DOM, but not the right skin, remove and redraw it
-        } else if (avatarHead.getAttribute('skin') !== user.get('skin')) {
-          removeUser(user.get('id'));
-          const userObj = user.toJS();
-          putUserOnDOM(userObj);
-          putUserBodyOnDOM(userObj);
-          // Otherwise, just update the avatar's position attributes
-        } else {
-          avatarHead.setAttribute('position', `${user.get('x')} ${user.get('y')} ${user.get('z')}`);
-          avatarHead.setAttribute('rotation', `${user.get('xrot')} ${user.get('yrot')} ${user.get('zrot')}`);
-          avatarBody.setAttribute('position', `${user.get('x')} ${user.get('y')} ${user.get('z')}`);
-          avatarBody.setAttribute('rotation', `0 ${user.get('yrot')} 0`);
-        }
-        // If the user is not on the scene, make sure the user is not on the DOM
+      // If a user's avatar is NOT on the DOM already, add it
+      if (avatarHead === null) {
+        const userObj = user.toJS();
+        putUserOnDOM(userObj);
+        putUserBodyOnDOM(userObj);
+        // If the user's avatar is on the DOM, but not the right skin, remove and redraw it
+      } else if (avatarHead.getAttribute('skin') !== user.get('skin')) {
+        removeUser(user.get('id'));
+        const userObj = user.toJS();
+        putUserOnDOM(userObj);
+        putUserBodyOnDOM(userObj);
+        // Otherwise, just update the avatar's position attributes
       } else {
-        if (avatarHead || avatarBody) removeUser(user.get('id'));
+        avatarHead.setAttribute('position', `${user.get('x')} ${user.get('y')} ${user.get('z')}`);
+        avatarHead.setAttribute('rotation', `${user.get('xrot')} ${user.get('yrot')} ${user.get('zrot')}`);
+        avatarBody.setAttribute('position', `${user.get('x')} ${user.get('y')} ${user.get('z')}`);
+        avatarBody.setAttribute('rotation', `0 ${user.get('yrot')} 0`);
       }
+    });
+    // Drop any other-user avatar that's no longer in our room's payload (they left, or we did).
+    document.querySelectorAll('a-minecraft[id]').forEach(el => {
+      const id = el.getAttribute('id');
+      if (!id || id.endsWith('-body') || id === window.socket.id) return;
+      if (!liveIds.has(id)) removeUser(id);
     });
   });
 

@@ -5,7 +5,7 @@ const { createAndEmitUser, updateUserData, removeUserAndEmit } = require('./redu
 const { addRoom, addSocketToRoom, removeSocketFromRoom } = require('./redux/reducers/room-reducer');
 const { addSocket, removeSocket } = require('./redux/reducers/socket-reducer');
 
-const { getOtherUsers } = require('./utils');
+const { getRoomPeers } = require('./utils');
 
 module.exports = io => {
   io.on('connection', socket => {
@@ -53,11 +53,13 @@ module.exports = io => {
       }
     });
 
-    // getOthers returns all users other the the user associated with the socket
-    //   client that made the request.
-    socket.on('getOthers', () => {
+    // getOthers returns the users in the requesting client's room. The client passes its scene
+    //   so we can record it up front (a user's scene is otherwise only learned from the first
+    //   position tick, which hasn't happened yet at join time) and filter to that room (#58).
+    socket.on('getOthers', (scene) => {
+      if (scene) store.dispatch(updateUserData(Map({ id: socket.id, scene })));
       const allUsers = store.getState().users;
-      socket.emit('getOthersCallback', getOtherUsers(allUsers, socket.id));
+      socket.emit('getOthersCallback', getRoomPeers(allUsers, socket.id));
     });
 
     // Currently unused lifecycle hook that occurs after a client perform the initial
@@ -70,12 +72,12 @@ module.exports = io => {
       socket.emit('startTick');
     });
 
-    // readyToReceiveUpdates sends the position of all users except the client's own
-    //   whenever the server's store updates.
+    // readyToReceiveUpdates pushes the positions of the OTHER users in this client's room
+    //   (not every connected user) whenever the server's store updates (#58).
     socket.on('readyToReceiveUpdates', () => {
       unsubscribe = store.subscribe(() => {
         const allUsers = store.getState().users;
-        socket.emit('usersUpdated', getOtherUsers(allUsers, socket.id));
+        socket.emit('usersUpdated', getRoomPeers(allUsers, socket.id));
       });
     });
 

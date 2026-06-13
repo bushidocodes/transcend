@@ -52,10 +52,21 @@ const createAndEmitUser = (socket, user) => {
 };
 
 const removeUserAndEmit = socket => {
-  return dispatch => {
+  return (dispatch, getState) => {
     const userId = socket.id;
+    // Capture the leaving user's room before we drop them from the store.
+    const leaving = getState().users.get(userId);
+    const scene = leaving ? leaving.get('scene') : undefined;
     dispatch(removeUser(userId));
-    socket.broadcast.emit('removeUser', userId);
+    // Only clients in the same room ever rendered this avatar, so only they need the
+    // removeUser (#57). Sockets in other rooms (or not yet placed) never saw it.
+    getState().sockets.forEach(peerSocket => {
+      if (peerSocket.id === userId) return;
+      const peer = getState().users.get(peerSocket.id);
+      if (peer && peer.get('scene') === scene) {
+        peerSocket.emit('removeUser', userId);
+      }
+    });
   };
 };
 
