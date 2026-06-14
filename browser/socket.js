@@ -8,7 +8,7 @@ import { putUserOnDOM, putUserBodyOnDOM, addFirstPersonProperties } from './util
 import './aframeComponents/publish-location';
 import './aframeComponents/webrtc-controls';
 import './aframeComponents/wall-collision';
-import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate } from './webRTC/client';
+import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate, joinChatRoom } from './webRTC/client';
 
 // Track the socket id our local avatar was rendered under so we can tear it down on a
 // reconnect (the id changes when the server hands us a new socket).
@@ -54,6 +54,12 @@ export function initSocket () {
       removeLocalAvatar();
       const scene = window.location.pathname.replace(/\//g, '') || 'root';
       socket.emit('joinScene', auth, scene);
+      // Also re-establish WebRTC audio. The chat-room join lives in <App>'s route-keyed effect
+      // (issue #70), which doesn't re-run on a socket reconnect, and the old peer connections
+      // were torn down on disconnect — so without this, avatars/positions recover but audio
+      // stays silent until a refresh. joinChatRoom reuses the existing mic stream and just
+      // re-emits, so the server re-pairs us with the room (issue #71).
+      joinChatRoom(scene);
     }
   });
 
