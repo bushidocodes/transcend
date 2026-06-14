@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { connect } from 'react-redux';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import '../../aframeComponents/scene-load';
 import '../../aframeComponents/aframe-minecraft';
 import AssetLoader from './AssetLoader';
 import LoadingSpinner from './LoadingSpinner';
 import { initSocket } from '../../socket';
+import { joinChatRoom, leaveChatRoom } from '../../webRTC/client';
 
 /* ----------------- COMPONENT ------------------ */
 
@@ -20,6 +21,7 @@ function App (props) {
   const [assetsReady, setAssetsReady] = useState(false);
   // joinScene must be emitted exactly once, even across re-renders.
   const joinedScene = useRef(false);
+  const location = useLocation();
 
   // Stage 2 (socket connection): open the socket as soon as <App> mounts — we're past auth via
   // RequireAuth, so this is the Stage 1 → Stage 2 boundary (issue #67). initSocket() is
@@ -50,6 +52,21 @@ function App (props) {
     assets.addEventListener('loaded', onLoaded);
     return () => assets.removeEventListener('loaded', onLoaded);
   }, []);
+
+  // Stage 5 (WebRTC peering): join the chat room for the current scene once it's ready, and
+  // leave it on room change / unmount. Centralizing this here (keyed on the route) makes audio
+  // peering a deliberate scene-ready stage instead of a side effect of whichever room component
+  // mounts, and derives the room from the path so it's consistent with the avatar scene (#70).
+  useEffect(() => {
+    if (!assetsReady) return;
+    // Only join once an actual room is selected (path like /vr/lobby). Skip the bare /vr index
+    // while it redirects to a room, so we don't briefly join a phantom 'vr' chat room.
+    const segments = location.pathname.split('/').filter(Boolean);
+    if (segments.length < 2) return;
+    const room = location.pathname.replace(/\//g, '') || 'root';
+    joinChatRoom(room);
+    return () => leaveChatRoom();
+  }, [assetsReady, location.pathname]);
 
   return (
     // AssetLoader is a stateless component containing the a-assets for all of the React components

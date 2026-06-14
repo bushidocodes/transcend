@@ -1,19 +1,10 @@
 import React from 'react';
-import { joinChatRoom, leaveChatRoom } from '../../webRTC/client.js';
 import Teleporter from './Teleporter';
 import Room from './Room';
 import gif from 'aframe-gif-shader';
 
+// WebRTC chat join/leave is handled centrally by <App> on scene change (issue #70).
 export default class Yoonah extends React.Component {
-
-  componentDidMount () {
-    joinChatRoom('yoonah');
-  }
-
-  componentWillUnmount () {
-    leaveChatRoom();
-  }
-
   render () {
     return (
       <a-entity>

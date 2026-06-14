@@ -1,18 +1,10 @@
 import React from 'react';
-import { joinChatRoom, leaveChatRoom } from '../../webRTC/client.js';
 import Teleporter from './Teleporter';
 import Room from './Room';
 
+// WebRTC chat join/leave is handled centrally by <App> on scene change (issue #70), so this
+// room is a pure render component.
 export default class Sean extends React.Component {
-
-  componentDidMount () {
-    joinChatRoom('sean');
-  }
-
-  componentWillUnmount () {
-    leaveChatRoom();
-  }
-
   render () {
     return (
       <a-entity>
