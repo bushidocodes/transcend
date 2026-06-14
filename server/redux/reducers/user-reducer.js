@@ -37,17 +37,13 @@ const removeUser = userId => {
 
 /* --------------- THUNK ACTION CREATORS --------------- */
 
-const createAndEmitUser = (socket, user) => {
+// Create and persist a user for the socket, in the given scene/room. No emit: the caller
+// (joinScene) follows up with a single sceneState message (issue #69).
+const createUser = (socket, user, scene) => {
   return dispatch => {
-    const userId = socket.id;
-    const displayName = user.displayName;
-    const skin = user.skin;
-    const newUser = Map(new User(userId, displayName, skin));
-    dispatch(addUser(newUser));
+    const newUser = Map(new User(socket.id, user.displayName, user.skin));
+    dispatch(addUser(scene ? newUser.set('scene', scene) : newUser));
     console.log('User created');
-    if (socket.sceneLoaded) {
-      socket.emit('renderAvatar', newUser);
-    }
   };
 };
 
@@ -84,7 +80,7 @@ function userReducer (state = initialState, action) {
       // unguarded merge turns a tick (which carries no displayName) into a brand-new
       // user record. After a server restart, reconnecting clients keep ticking under
       // their old socket id before re-registering, and those ghost records render with
-      // the default "John" nickname (issue #56). User creation is connectUser's job
+      // the default "John" nickname (issue #56). User creation is joinScene's job
       // alone (ADD_USER), so drop ticks for ids we don't already know about.
       if (!state.has(action.userData.get('id'))) return state;
       return state.mergeIn([action.userData.get('id')], action.userData);
@@ -101,7 +97,7 @@ module.exports = {
   ADD_USER,
   UPDATE_USER_DATA,
   REMOVE_USER,
-  createAndEmitUser,
+  createUser,
   updateUserData,
   removeUserAndEmit,
   userReducer
