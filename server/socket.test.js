@@ -1,13 +1,17 @@
 'use strict';
 
 /**
- * Integration tests for the socket.io multiplayer layer (PR #18).
+ * Integration tests for the socket.io multiplayer layer.
  *
- * Spins up a real HTTP + socket.io server using the actual server/socket.js
- * handler (including the Redux/Immutable store) and connects multiple
- * socket.io-client instances to simulate two users interacting in the VR
- * space — covering the full connect → avatar-create → position-sync → disconnect
- * lifecycle without needing a second human or a browser.
+ * Spins up a real HTTP + socket.io server using the actual server/socket.js handler (including
+ * the Redux/Immutable store) and connects multiple socket.io-client instances to simulate users
+ * interacting in the VR space.
+ *
+ * The Stage-3 handshake was collapsed (issue #69): a client now sends a single `joinScene`
+ * (identity + room) and the server replies with one `sceneState` ({ you, others, tickRate });
+ * the client then emits `ready` to begin receiving `usersUpdated` pushes. Room filtering (#58)
+ * means `sceneState.others` and `usersUpdated` only contain users in the requester's room, and
+ * `removeUser` is scoped to the departing user's room.
  */
 
 const http = require('http');
@@ -17,8 +21,6 @@ const { expect } = require('chai');
 
 let server, io, PORT;
 
-// Each test file gets its own server to isolate the singleton Redux store.
-// server.listen(0) lets the OS pick a free port.
 before(function (done) {
   server = http.createServer();
   io = new SocketIOServer(server, { cors: { origin: '*' } });
@@ -30,7 +32,6 @@ before(function (done) {
 });
 
 after(function (done) {
-  // io.close() disconnects all sockets and closes the underlying HTTP server.
   io.close(done);
 });
 
@@ -45,10 +46,6 @@ function connect () {
   });
 }
 
-/**
- * Returns a Promise that resolves with the first payload received for
- * `event` on `socket`, or rejects after `ms` milliseconds.
- */
 function waitFor (socket, event, ms) {
   ms = ms || 3000;
   return new Promise(function (resolve, reject) {
@@ -66,43 +63,38 @@ function sleep (ms) {
   return new Promise(function (r) { return setTimeout(r, ms); });
 }
 
-/**
- * Disconnect one or more clients and wait briefly for the server-side
- * disconnect handler to remove them from the Redux store.
- */
 function cleanup () {
   var clients = Array.prototype.slice.call(arguments);
   clients.forEach(function (c) { if (c && c.connected) c.disconnect(); });
   return sleep(200);
 }
 
-// -----------------------------------------------------------------
-// Full handshake helper
-// Connects a client, creates a user, and waits for renderAvatar.
-// Returns the renderAvatar payload.
-// -----------------------------------------------------------------
-function handshake (client, displayName, skin) {
-  var raPromise = waitFor(client, 'renderAvatar');
-  client.emit('connectUser', { displayName: displayName, skin: skin || 'default' });
-  client.emit('sceneLoad');
-  return raPromise;
+// Single-message join: emit joinScene and resolve with the sceneState reply.
+function handshake (client, displayName, scene, skin) {
+  var ss = waitFor(client, 'sceneState');
+  client.emit('joinScene', { displayName: displayName, skin: skin || 'default' }, scene || 'lobby');
+  return ss;
 }
 
 // -----------------------------------------------------------------
-// 1. User lifecycle
+// 1. Join / sceneState
 // -----------------------------------------------------------------
 
-describe('Socket.io – user lifecycle', function () {
+describe('Socket.io – joinScene / sceneState', function () {
 
-  it('emits renderAvatar after connectUser + sceneLoad', function () {
+  it('replies with sceneState (own avatar, empty others, a tick rate) after joinScene', function () {
     var client = connect();
     return waitFor(client, 'connect')
-      .then(function () { return handshake(client, 'Alice'); })
-      .then(function (user) {
-        expect(user.id).to.equal(client.id);
-        expect(user.displayName).to.equal('Alice');
-        expect(user.y).to.equal(1.3);
-        expect(user).to.include.all.keys('x', 'y', 'z', 'xrot', 'yrot', 'zrot', 'scene');
+      .then(function () { return handshake(client, 'Alice', 'lobby'); })
+      .then(function (state) {
+        expect(state).to.include.all.keys('you', 'others', 'tickRate');
+        expect(state.you.id).to.equal(client.id);
+        expect(state.you.displayName).to.equal('Alice');
+        expect(state.you.y).to.equal(1.3);
+        expect(state.you).to.include.all.keys('x', 'y', 'z', 'xrot', 'yrot', 'zrot', 'scene');
+        expect(state.you.scene).to.equal('lobby');     // joinScene records the room up front
+        expect(Object.keys(state.others)).to.have.length(0);
+        expect(state.tickRate).to.be.a('number').and.to.be.greaterThan(0);
         return cleanup(client);
       });
   });
@@ -110,120 +102,66 @@ describe('Socket.io – user lifecycle', function () {
   it('initial rotation fields are all zero', function () {
     var client = connect();
     return waitFor(client, 'connect')
-      .then(function () { return handshake(client, 'Bob', 'creeper'); })
-      .then(function (user) {
-        expect(user.xrot).to.equal(0);
-        expect(user.yrot).to.equal(0);
-        expect(user.zrot).to.equal(0);
-        return cleanup(client);
-      });
-  });
-
-  it('sceneLoad before connectUser does not crash and no renderAvatar fires', function () {
-    var client = connect();
-    return waitFor(client, 'connect')
-      .then(function () {
-        // Emit sceneLoad first — the server sets sceneLoaded=true but createdUser is
-        // still false, so renderAvatar must not fire.
-        client.emit('sceneLoad');
-        return sleep(150);
-      })
-      .then(function () {
-        // Now create the user — renderAvatar SHOULD fire now.
-        var ra = waitFor(client, 'renderAvatar');
-        client.emit('connectUser', { displayName: 'Charlie', skin: 'default' });
-        return ra;
-      })
-      .then(function (user) {
-        expect(user.displayName).to.equal('Charlie');
+      .then(function () { return handshake(client, 'Bob', 'lobby', 'creeper'); })
+      .then(function (state) {
+        expect(state.you.xrot).to.equal(0);
+        expect(state.you.yrot).to.equal(0);
+        expect(state.you.zrot).to.equal(0);
         return cleanup(client);
       });
   });
 });
 
 // -----------------------------------------------------------------
-// 2. getOthers
+// 2. sceneState.others (the room's existing users)
 // -----------------------------------------------------------------
 
-describe('Socket.io – getOthers', function () {
+describe('Socket.io – sceneState.others', function () {
 
-  it('returns all other users but excludes the requesting client', function () {
+  it('includes another user already in the room and excludes the requester', function () {
     var cA = connect();
     var cB = connect();
 
     return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
-      .then(function () {
-        return Promise.all([
-          handshake(cA, 'Alice'),
-          handshake(cB, 'Bob')
-        ]);
-      })
-      .then(function () {
-        var othersPromise = waitFor(cA, 'getOthersCallback');
-        cA.emit('getOthers');
-        return othersPromise;
-      })
-      .then(function (others) {
-        expect(others).to.have.property(cB.id);
-        expect(others).to.not.have.property(cA.id);
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function () { return handshake(cB, 'Bob', 'lobby'); })
+      .then(function (stateB) {
+        expect(stateB.others).to.have.property(cA.id);
+        expect(stateB.others).to.not.have.property(cB.id);
         return cleanup(cA, cB);
       });
   });
 
-  it('returns an empty object when no other users are connected', function () {
+  it('is empty when no other users are in the room', function () {
     var client = connect();
-
     return waitFor(client, 'connect')
-      .then(function () { return handshake(client, 'Lone Wolf'); })
-      .then(function () {
-        var othersPromise = waitFor(client, 'getOthersCallback');
-        client.emit('getOthers');
-        return othersPromise;
-      })
-      .then(function (others) {
-        // No one else in the session — filter should yield an empty object
-        var ids = Object.keys(others);
-        expect(ids).to.not.include(client.id);
+      .then(function () { return handshake(client, 'Lone Wolf', 'lobby'); })
+      .then(function (state) {
+        expect(Object.keys(state.others)).to.not.include(client.id);
+        expect(Object.keys(state.others)).to.have.length(0);
         return cleanup(client);
       });
   });
 });
 
 // -----------------------------------------------------------------
-// 3. Real-time position sync — the core PR #18 feature
-//
-// Server uses store.subscribe() to push usersUpdated to every subscriber
-// whenever any user's tick data lands in the Redux store.
+// 3. Real-time position sync (ready -> usersUpdated via store.subscribe)
 // -----------------------------------------------------------------
 
-describe('Socket.io – real-time position sync (PR #18: store.subscribe push)', function () {
+describe('Socket.io – real-time position sync', function () {
 
-  // Shared setup: connect two clients, do the full handshake for both,
-  // subscribe both to updates, then yield to the test body via callback.
+  // Connect two clients, join both into the SAME room, subscribe both via `ready`.
   function withTwoSubscribers (body) {
     var cA = connect();
     var cB = connect();
 
     return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function () { return handshake(cB, 'Bob', 'lobby'); })
       .then(function () {
-        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
-      })
-      .then(function () {
-        var gA = waitFor(cA, 'getOthersCallback');
-        var gB = waitFor(cB, 'getOthersCallback');
-        // Place both clients in the same room. The server now filters usersUpdated by room
-        // (issue #58), so peers must share a scene to see each other's ticks.
-        cA.emit('getOthers', 'lobby');
-        cB.emit('getOthers', 'lobby');
-        return Promise.all([gA, gB]);
-      })
-      .then(function () {
-        cA.emit('haveGottenOthers');
-        cB.emit('haveGottenOthers');
-        cA.emit('readyToReceiveUpdates');
-        cB.emit('readyToReceiveUpdates');
-        // Give the server a moment to register both subscriptions.
-        return sleep(80);
+        cA.emit('ready');
+        cB.emit('ready');
+        return sleep(80); // let both subscriptions register
       })
       .then(function () { return body(cA, cB); })
       .then(function () { return cleanup(cA, cB); });
@@ -232,14 +170,7 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
   it('client B receives usersUpdated when client A emits a tick', function () {
     return withTwoSubscribers(function (cA, cB) {
       var updatesForB = waitFor(cB, 'usersUpdated');
-
-      cA.emit('tick', {
-        id: cA.id,
-        x: 5, y: 1.3, z: -3,
-        xrot: 0, yrot: 90, zrot: 0,
-        skin: 'default', scene: 'lobby'
-      });
-
+      cA.emit('tick', { id: cA.id, x: 5, y: 1.3, z: -3, xrot: 0, yrot: 90, zrot: 0, skin: 'default', scene: 'lobby' });
       return updatesForB.then(function (users) {
         expect(users).to.have.property(cA.id);
         expect(users[cA.id].x).to.equal(5);
@@ -273,14 +204,7 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
   it('all six position/rotation fields are propagated accurately', function () {
     return withTwoSubscribers(function (cA, cB) {
       var updatesForB = waitFor(cB, 'usersUpdated');
-
-      cA.emit('tick', {
-        id: cA.id,
-        x: -7.5, y: 1.8, z: 12.3,
-        xrot: 5, yrot: 270, zrot: -2,
-        skin: 'steve', scene: 'lobby'
-      });
-
+      cA.emit('tick', { id: cA.id, x: -7.5, y: 1.8, z: 12.3, xrot: 5, yrot: 270, zrot: -2, skin: 'steve', scene: 'lobby' });
       return updatesForB.then(function (users) {
         var a = users[cA.id];
         expect(a.x).to.equal(-7.5);
@@ -298,10 +222,8 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
     return withTwoSubscribers(function (cA, cB) {
       var first = waitFor(cB, 'usersUpdated');
       cA.emit('tick', { id: cA.id, x: 1, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
-
       return first.then(function (users) {
         expect(users[cA.id].x).to.equal(1);
-
         var second = waitFor(cB, 'usersUpdated');
         cA.emit('tick', { id: cA.id, x: 99, y: 2.5, z: -50, xrot: 1, yrot: 180, zrot: 0, skin: 'default', scene: 'lobby' });
         return second;
@@ -315,34 +237,20 @@ describe('Socket.io – real-time position sync (PR #18: store.subscribe push)',
 });
 
 // -----------------------------------------------------------------
-// 3a. Room filtering (issue #58)
-//
-// The server now sends each client only the users in its own room (scene), and
-// scopes removeUser to the departing user's room. Scene is reported via getOthers
-// (and kept current by ticks).
+// 4. Room filtering (issue #58)
 // -----------------------------------------------------------------
 
 describe('Socket.io – room filtering (#58)', function () {
 
-  it('getOthersCallback excludes users in a different room', function () {
+  it('sceneState.others excludes a user in a different room', function () {
     var cA = connect();
     var cB = connect();
 
     return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
-      .then(function () {
-        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
-      })
-      .then(function () {
-        cB.emit('getOthers', 'spaceroom'); // place B in another room
-        return sleep(50);
-      })
-      .then(function () {
-        var othersForA = waitFor(cA, 'getOthersCallback');
-        cA.emit('getOthers', 'lobby');
-        return othersForA;
-      })
-      .then(function (others) {
-        expect(others).to.not.have.property(cB.id);
+      .then(function () { return handshake(cB, 'Bob', 'spaceroom'); })     // B in another room
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function (stateA) {
+        expect(stateA.others).to.not.have.property(cB.id);
         return cleanup(cA, cB);
       });
   });
@@ -352,14 +260,11 @@ describe('Socket.io – room filtering (#58)', function () {
     var cB = connect();
 
     return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function () { return handshake(cB, 'Bob', 'spaceroom'); })
       .then(function () {
-        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
-      })
-      .then(function () {
-        cA.emit('getOthers', 'lobby');     // A in lobby
-        cB.emit('getOthers', 'spaceroom'); // B in spaceroom
-        cA.emit('readyToReceiveUpdates');
-        cB.emit('readyToReceiveUpdates');
+        cA.emit('ready');
+        cB.emit('ready');
         return sleep(80);
       })
       .then(function () {
@@ -368,8 +273,7 @@ describe('Socket.io – room filtering (#58)', function () {
         return updatesForB;
       })
       .then(function (users) {
-        // B is in spaceroom, so A's lobby tick must not surface A in B's payload.
-        expect(users).to.not.have.property(cA.id);
+        expect(users).to.not.have.property(cA.id);   // A is in lobby, B is in spaceroom
         return cleanup(cA, cB);
       });
   });
@@ -380,15 +284,9 @@ describe('Socket.io – room filtering (#58)', function () {
     var cSpace = connect();
 
     return Promise.all([waitFor(cLobby1, 'connect'), waitFor(cLobby2, 'connect'), waitFor(cSpace, 'connect')])
-      .then(function () {
-        return Promise.all([handshake(cLobby1, 'L1'), handshake(cLobby2, 'L2'), handshake(cSpace, 'S')]);
-      })
-      .then(function () {
-        cLobby1.emit('getOthers', 'lobby');
-        cLobby2.emit('getOthers', 'lobby');
-        cSpace.emit('getOthers', 'spaceroom');
-        return sleep(60);
-      })
+      .then(function () { return handshake(cLobby1, 'L1', 'lobby'); })
+      .then(function () { return handshake(cLobby2, 'L2', 'lobby'); })
+      .then(function () { return handshake(cSpace, 'S', 'spaceroom'); })
       .then(function () {
         var leavingId = cLobby1.id;
         var sameRoomGotIt = waitFor(cLobby2, 'removeUser');
@@ -397,7 +295,7 @@ describe('Socket.io – room filtering (#58)', function () {
         cLobby1.disconnect();
         return sameRoomGotIt.then(function (removedId) {
           expect(removedId).to.equal(leavingId);
-          return sleep(120); // give any errant cross-room emit time to arrive
+          return sleep(120);
         }).then(function () {
           expect(spaceGotIt).to.equal(false);
           return cleanup(cLobby2, cSpace);
@@ -407,82 +305,70 @@ describe('Socket.io – room filtering (#58)', function () {
 });
 
 // -----------------------------------------------------------------
-// 3b. Tick guard — a position tick must never CREATE a user (issue #56)
-//
-// After a server restart, reconnecting clients keep emitting ticks under their
-// previous socket id before they re-register. immutable's mergeIn would otherwise
-// auto-vivify those ticks into displayName-less records that render as "John".
-// connectUser is the only thing allowed to create a user.
+// 5. Tick guard — a position tick must never CREATE a user (issue #56)
 // -----------------------------------------------------------------
 
 describe('Socket.io – tick guard (issue #56)', function () {
 
   it('a tick for an unregistered socket id does not create a ghost user', function () {
     var client = connect();
-    return waitFor(client, 'connect')
-      .then(function () { return handshake(client, 'Alice'); })
+    var observer = connect();
+
+    return Promise.all([waitFor(client, 'connect'), waitFor(observer, 'connect')])
+      .then(function () { return handshake(client, 'Alice', 'lobby'); })
       .then(function () {
-        // A tick arriving under an id that never sent connectUser — the post-restart
-        // ghost. Pre-fix this auto-created a user with no displayName ("John").
+        // A tick arriving under an id that never joined — the post-restart ghost.
         client.emit('tick', {
           id: 'ghost-stale-socket-id',
-          x: 1, y: 1.3, z: 2, xrot: 0, yrot: 0, zrot: 0,
-          skin: 'default', scene: 'lobby'
+          x: 1, y: 1.3, z: 2, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby'
         });
-        return sleep(100); // let the (dropped) dispatch settle
+        return sleep(100);
       })
       .then(function () {
-        var others = waitFor(client, 'getOthersCallback');
-        client.emit('getOthers');
-        return others;
+        // A fresh joiner in the same room would see the ghost in sceneState.others if it had
+        // been auto-created. It must not have been.
+        return handshake(observer, 'Observer', 'lobby');
       })
-      .then(function (others) {
-        // The ghost id must not have become a user; getOthers should not list it.
-        expect(others).to.not.have.property('ghost-stale-socket-id');
-        return cleanup(client);
+      .then(function (state) {
+        expect(state.others).to.not.have.property('ghost-stale-socket-id');
+        expect(state.others).to.have.property(client.id); // the real user is there
+        return cleanup(client, observer);
       });
   });
 });
 
 // -----------------------------------------------------------------
-// 4. Disconnect / cleanup
+// 6. Disconnect / cleanup
 // -----------------------------------------------------------------
 
 describe('Socket.io – disconnect cleanup', function () {
 
-  it('removes disconnected user from subsequent getOthers responses', function () {
+  it('removes a disconnected user from subsequent sceneState.others', function () {
     var cA = connect();
     var cB = connect();
     var savedAId;
 
     return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
-      .then(function () {
-        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
-      })
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
       .then(function () {
         savedAId = cA.id;
         cA.disconnect();
         return sleep(150);
       })
-      .then(function () {
-        var othersPromise = waitFor(cB, 'getOthersCallback');
-        cB.emit('getOthers');
-        return othersPromise;
-      })
-      .then(function (others) {
-        expect(others).to.not.have.property(savedAId);
+      .then(function () { return handshake(cB, 'Bob', 'lobby'); })
+      .then(function (stateB) {
+        expect(stateB.others).to.not.have.property(savedAId);
         return cleanup(cB);
       });
   });
 
-  it('broadcasts removeUser to all other connected clients on disconnect', function () {
+  it('sends removeUser to same-room clients on disconnect', function () {
     var cA = connect();
     var cB = connect();
 
     return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
-      .then(function () {
-        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
-      })
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function () { return handshake(cB, 'Bob', 'lobby'); })
       .then(function () {
         var savedAId = cA.id;
         var removePromise = waitFor(cB, 'removeUser');
@@ -495,27 +381,22 @@ describe('Socket.io – disconnect cleanup', function () {
   });
 
   it('unsubscribes from the store so a disconnected client no longer fires usersUpdated', function () {
-    // cA subscribes, then disconnects; cB ticks — cA must receive nothing.
     var cA = connect();
     var cB = connect();
 
     return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function () { return handshake(cB, 'Bob', 'lobby'); })
       .then(function () {
-        return Promise.all([handshake(cA, 'Alice'), handshake(cB, 'Bob')]);
-      })
-      .then(function () {
-        cA.emit('readyToReceiveUpdates');
+        cA.emit('ready');
         return sleep(80);
       })
       .then(function () {
-        // Disconnect cA — its store subscription must be torn down.
-        cA.disconnect();
+        cA.disconnect(); // its store subscription must be torn down
         return sleep(150);
       })
       .then(function () {
-        // cB subscribes and ticks; if cA's subscription still lived it would
-        // try to emit to a closed socket, which would throw on the server.
-        cB.emit('readyToReceiveUpdates');
+        cB.emit('ready');
         return sleep(50);
       })
       .then(function () {
@@ -524,31 +405,26 @@ describe('Socket.io – disconnect cleanup', function () {
         return updatesForB;
       })
       .then(function () {
-        // If we reach here without an error the server didn't crash from a
-        // stale subscription emitting to cA's closed socket.
+        // Reaching here without a server crash means cA's stale subscription wasn't emitting
+        // to a closed socket.
         return cleanup(cB);
       });
   });
 });
 
 // -----------------------------------------------------------------
-// 5. Single active session per account (#30)
-//
-// connectUser carries the authenticated account id (user.id). The server must
-// allow only one live socket per account: a second connectUser for the same
-// account disconnects the prior socket ("newest wins"), preventing ghost
-// avatars. Connections with no account id (anonymous) are exempt.
+// 7. Single active session per account (#30)
 // -----------------------------------------------------------------
 
 describe('Socket.io – single active session per account (#30)', function () {
 
-  it('disconnects the prior socket when the same account connects again', function () {
+  it('disconnects the prior socket when the same account joins again', function () {
     var first = connect();
     var second;
 
     return waitFor(first, 'connect')
       .then(function () {
-        first.emit('connectUser', { id: 42, displayName: 'Dup', skin: 'default' });
+        first.emit('joinScene', { id: 42, displayName: 'Dup', skin: 'default' }, 'lobby');
         return sleep(120);
       })
       .then(function () {
@@ -556,9 +432,8 @@ describe('Socket.io – single active session per account (#30)', function () {
         return waitFor(second, 'connect');
       })
       .then(function () {
-        // The server should drop `first` as soon as `second` claims account 42.
         var firstClosed = waitFor(first, 'disconnect');
-        second.emit('connectUser', { id: 42, displayName: 'Dup', skin: 'default' });
+        second.emit('joinScene', { id: 42, displayName: 'Dup', skin: 'default' }, 'lobby');
         return firstClosed;
       })
       .then(function () {
@@ -574,8 +449,8 @@ describe('Socket.io – single active session per account (#30)', function () {
 
     return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
       .then(function () {
-        a.emit('connectUser', { id: 1, displayName: 'A' });
-        b.emit('connectUser', { id: 2, displayName: 'B' });
+        a.emit('joinScene', { id: 1, displayName: 'A' }, 'lobby');
+        b.emit('joinScene', { id: 2, displayName: 'B' }, 'lobby');
         return sleep(150);
       })
       .then(function () {
@@ -591,8 +466,8 @@ describe('Socket.io – single active session per account (#30)', function () {
 
     return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
       .then(function () {
-        a.emit('connectUser', { displayName: 'Anon1' });
-        b.emit('connectUser', { displayName: 'Anon2' });
+        a.emit('joinScene', { displayName: 'Anon1' }, 'lobby');
+        b.emit('joinScene', { displayName: 'Anon2' }, 'lobby');
         return sleep(150);
       })
       .then(function () {
@@ -602,16 +477,16 @@ describe('Socket.io – single active session per account (#30)', function () {
       });
   });
 
-  it('broadcasts removeUser for the replaced ghost socket', function () {
-    var observer = connect(); // different account; stays connected to observe
+  it('sends removeUser for the replaced ghost socket to a same-room observer', function () {
+    var observer = connect(); // different account, same room; stays connected to observe
     var first = connect();
     var second;
     var firstId;
 
     return Promise.all([waitFor(observer, 'connect'), waitFor(first, 'connect')])
       .then(function () {
-        observer.emit('connectUser', { id: 999, displayName: 'Obs' });
-        first.emit('connectUser', { id: 7, displayName: 'Dup' });
+        observer.emit('joinScene', { id: 999, displayName: 'Obs' }, 'lobby');
+        first.emit('joinScene', { id: 7, displayName: 'Dup' }, 'lobby');
         return sleep(120);
       })
       .then(function () {
@@ -621,7 +496,7 @@ describe('Socket.io – single active session per account (#30)', function () {
       })
       .then(function () {
         var removed = waitFor(observer, 'removeUser');
-        second.emit('connectUser', { id: 7, displayName: 'Dup' });
+        second.emit('joinScene', { id: 7, displayName: 'Dup' }, 'lobby');
         return removed;
       })
       .then(function (removedId) {

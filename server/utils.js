@@ -13,7 +13,7 @@ function User (id, displayName, skin) {
 }
 
 // Returns the other users in the SAME room as the user identified by `id` (excluding that
-// user). Room identity is the `scene` field, which the client sets via getOthers and keeps
+// user). Room identity is the `scene` field, which the client sets via joinScene and keeps
 // fresh on every position tick. Filtering here (rather than on every client) keeps cross-room
 // position data off the wire entirely (issue #58). Two users who haven't reported a scene yet
 // both have '' and are treated as sharing the same (empty) not-yet-placed room.

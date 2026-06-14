@@ -1,11 +1,15 @@
 const chalk = require('chalk');
 const { Map } = require('immutable');
 const store = require('./redux/store');
-const { createAndEmitUser, updateUserData, removeUserAndEmit } = require('./redux/reducers/user-reducer');
+const { createUser, updateUserData, removeUserAndEmit } = require('./redux/reducers/user-reducer');
 const { addRoom, addSocketToRoom, removeSocketFromRoom } = require('./redux/reducers/room-reducer');
 const { addSocket, removeSocket } = require('./redux/reducers/socket-reducer');
 
 const { getRoomPeers } = require('./utils');
+
+// How often clients should publish their position: emit on every Nth animation frame. Delivered
+// to clients in the sceneState handshake so the server controls the update rate (issue #59/#69).
+const TICK_RATE = 3;
 
 module.exports = io => {
   io.on('connection', socket => {
@@ -13,23 +17,19 @@ module.exports = io => {
     let unsubscribe;
 
     console.log(chalk.yellow(`${socket.id} has connected`));
-    // These fix a race condition between scene loaded and user created
-    socket.sceneLoaded = false;
     socket.createdUser = false;
-    // When a socket client establishes a conenction, create and persist a user
-    //   for the client and return the user upon receipt of the sceneLoad event
     store.dispatch(addSocket(socket));
 
-    socket.on('connectUser', (user) => {
+    // joinScene is the single Stage 3 entry point (issue #69). It replaces the old
+    //   connectUser -> renderAvatar -> getOthers -> getOthersCallback chain: the client sends its
+    //   identity + room once (after login, once assets are ready), and the server creates the
+    //   user and returns everything needed to render the room in one message — the client's own
+    //   avatar, the other users already in that room (#58), and the tick rate to publish at.
+    //   A single entry point also removes the old sceneLoad/createdUser ordering race.
+    socket.on('joinScene', (user, scene) => {
       socket.createdUser = true;
-      // Enforce a single active session per user account. Without this, the same
-      // account can accumulate unlimited live sockets (a stale tab, or a crashed/
-      // dropped connection that hasn't TCP-timed-out yet), each spawning its own
-      // ghost avatar (see issue #30). "Newest session wins": disconnect any prior
-      // socket for this account before registering the new one. Disconnecting the
-      // old socket fires its own 'disconnect' handler below, which removes its user
-      // from the store and broadcasts 'removeUser', clearing the ghost avatar.
-      // Anonymous connections (no account id) are exempt so they don't evict each other.
+      // Single active session per account ("newest wins"): drop any prior socket for this
+      // account before registering the new one (issue #30). Anonymous (no id) are exempt.
       const accountId = user && user.id != null ? user.id : null;
       socket.accountId = accountId;
       if (accountId != null) {
@@ -41,55 +41,34 @@ module.exports = io => {
           }
         });
       }
-      store.dispatch(createAndEmitUser(socket, user));
-    });
-
-    socket.on('sceneLoad', () => {
-      console.log('Scene loaded');
-      socket.sceneLoaded = true;
-      if (socket.createdUser) {
-        const user = store.getState().users.get(socket.id);
-        socket.emit('renderAvatar', user);
-      }
-    });
-
-    // getOthers returns the users in the requesting client's room. The client passes its scene
-    //   so we can record it up front (a user's scene is otherwise only learned from the first
-    //   position tick, which hasn't happened yet at join time) and filter to that room (#58).
-    socket.on('getOthers', (scene) => {
-      if (scene) store.dispatch(updateUserData(Map({ id: socket.id, scene })));
+      store.dispatch(createUser(socket, user, scene));
       const allUsers = store.getState().users;
-      socket.emit('getOthersCallback', getRoomPeers(allUsers, socket.id));
+      socket.emit('sceneState', {
+        you: store.getState().users.get(socket.id),
+        others: getRoomPeers(allUsers, socket.id),
+        tickRate: TICK_RATE
+      });
     });
 
-    // Currently unused lifecycle hook that occurs after a client perform the initial
-    //   render of all of the avatars but before starting to emit avatar updates to
-    //   the server. This is intended to be used to allow the server the ability
-    //   to potentially throttle the client's rate of updates to the server.
-    // Note that the startTick event listener is located in the publish-location
-    //   A-Frame component located at /browser/aframeComponents/publish-location.js
-    socket.on('haveGottenOthers', () => {
-      socket.emit('startTick');
-    });
-
-    // readyToReceiveUpdates pushes the positions of the OTHER users in this client's room
-    //   (not every connected user) whenever the server's store updates (#58).
-    socket.on('readyToReceiveUpdates', () => {
+    // ready: the client has rendered the scene and wants live updates. Begin pushing the
+    //   positions of the OTHER users in its room whenever the store changes. Collapses the old
+    //   haveGottenOthers + readyToReceiveUpdates pair into one ack (#69).
+    socket.on('ready', () => {
       unsubscribe = store.subscribe(() => {
         const allUsers = store.getState().users;
         socket.emit('usersUpdated', getRoomPeers(allUsers, socket.id));
       });
     });
 
-    // On each tick update from a client, update the store, which trigger the subscriptions created for each
-    //   client in the event handler for 'readyToReceiveUpdates'
+    // On each tick update from a client, update the store, which triggers the subscriptions
+    //   created for each client in the 'ready' handler.
     socket.on('tick', userData => {
       userData = Map(userData);
       store.dispatch(updateUserData(userData));
     });
 
     // Explicit logout: remove the avatar and tear down subscriptions without closing the socket,
-    // so the client can re-register (via connectUser) on a subsequent login without reconnecting.
+    // so the client can re-register (via joinScene) on a subsequent login without reconnecting.
     socket.on('logoutUser', () => {
       if (socket.createdUser) {
         store.dispatch(removeUserAndEmit(socket));
@@ -110,7 +89,7 @@ module.exports = io => {
       store.dispatch(removeSocket(socket));
       if (unsubscribe) {
         // Conditional here to prevent a possible race condition where a user
-        // disconnects before `readyToReceiveUpdates` event
+        // disconnects before the `ready` event
         unsubscribe();
       }
     });

@@ -18,8 +18,8 @@ function App (props) {
   // direct URLs (race-immune), but the cat-room gif materials still reference assets by selector,
   // so waiting for a-assets 'loaded' before creating any room entity keeps those resolving too.
   const [assetsReady, setAssetsReady] = useState(false);
-  // connectUser must be emitted exactly once, even across re-renders.
-  const connectUserSent = useRef(false);
+  // joinScene must be emitted exactly once, even across re-renders.
+  const joinedScene = useRef(false);
 
   // Stage 2 (socket connection): open the socket as soon as <App> mounts — we're past auth via
   // RequireAuth, so this is the Stage 1 → Stage 2 boundary (issue #67). initSocket() is
@@ -29,15 +29,17 @@ function App (props) {
     initSocket();
   }, []);
 
-  // Stage 3 (get all data): announce ourselves with connectUser — but only after <a-assets>
-  // has finished loading (Stage 4). connectUser triggers this user's avatar render and the
-  // getOthers data chain, so gating it on assetsReady keeps the server from pushing user data
-  // at a scene that can't display it yet (issue #68). Guarded to emit exactly once.
+  // Stage 3 (get all data): join the scene once <a-assets> has finished loading (Stage 4). A
+  // single joinScene carries our identity + room and the server replies with one sceneState
+  // (our avatar + the room's other users + the tick rate), collapsing the old multi-hop
+  // handshake (issue #69). Gating on assetsReady keeps the server from sending scene data
+  // before the scene can display it (issue #68). Guarded to emit exactly once.
   useEffect(() => {
-    if (!assetsReady || connectUserSent.current) return;
+    if (!assetsReady || joinedScene.current) return;
     if (props.auth && props.auth.has('id')) {
-      connectUserSent.current = true;
-      initSocket().emit('connectUser', props.auth);
+      joinedScene.current = true;
+      const scene = window.location.pathname.replace(/\//g, '') || 'root';
+      initSocket().emit('joinScene', props.auth, scene);
     }
   }, [assetsReady, props.auth]);
 

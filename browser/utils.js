@@ -1,7 +1,7 @@
 // putUserOnDOM renders a user's avatar head. The server is now authoritative for room
 //   membership — it only sends users in the caller's room (issue #58) — so there is no longer
 //   a client-side scene guard here (the earlier #74/#87 isInCurrentScene check is obsolete).
-//   This also renders the local avatar (via renderAvatar), whose scene isn't set yet.
+//   This also renders the local avatar (via the sceneState handler), whose scene isn't set yet.
 export function putUserOnDOM (user) {
   console.log(`Putting user ${user} on the DOM`);
   const scene = document.getElementById('scene');

@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { fromJS } from 'immutable';
 import store from './redux/store';
 import { receiveUsers } from './redux/reducers/user-reducer';
+import { setTickRate } from './redux/reducers/config-reducer';
 import { putUserOnDOM, putUserBodyOnDOM, addFirstPersonProperties } from './utils';
 import './aframeComponents/publish-location';
 import './aframeComponents/webrtc-controls';
@@ -12,7 +13,7 @@ import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCan
 // Track the socket id our local avatar was rendered under so we can tear it down on a
 // reconnect (the id changes when the server hands us a new socket).
 let localAvatarId = null;
-// connectUser is emitted once by <App> on mount (browser/react/components/App.js). The
+// joinScene is emitted once by <App> on mount (browser/react/components/App.js). The
 // 'connect' event, however, also fires on every socket.io *re*connect, where <App> is
 // already mounted and will NOT re-emit it. Distinguish the two with this flag.
 let hasConnected = false;
@@ -38,55 +39,44 @@ export function initSocket () {
     console.log('You\'ve made a persistent two-way connection to the server!');
     if (!hasConnected) {
       hasConnected = true;
-      return; // initial connect — <App> handles the first connectUser on mount
+      return; // initial connect — <App> handles the first joinScene on mount
     }
     // Reconnect (typically the server restarted, possibly a network blip). The server lost
     // our in-memory user record and assigned us a new socket id. Because <App> stays mounted
-    // across a reconnect, connectUser never re-fires on its own, so the server only learns of
+    // across a reconnect, joinScene never re-fires on its own, so the server only learns of
     // us again from position ticks — which carry no displayName — and everyone (including us)
     // sees a default "John" ghost (issue #56). Re-register explicitly: drop the stale local
-    // avatar, then replay connectUser + sceneLoad so the server rebuilds the full record
-    // (displayName + skin) and emits renderAvatar to repopulate our avatar under the new id.
+    // avatar, then replay joinScene so the server rebuilds the full record and replies with a
+    // fresh sceneState that repopulates our avatar under the new id (issue #69).
     const auth = store.getState().auth;
     if (auth && typeof auth.has === 'function' && auth.has('id')) {
       console.log('Reconnected — re-registering this client with the server (issue #56)');
       removeLocalAvatar();
-      socket.emit('connectUser', auth);
-      // The server gates renderAvatar on socket.sceneLoaded, which is false on the fresh
-      // socket. The scene is already loaded client-side (scene-load won't re-init), so
-      // re-arm the server's flag manually; its sceneLoad handler then emits renderAvatar.
-      socket.emit('sceneLoad');
+      const scene = window.location.pathname.replace(/\//g, '') || 'root';
+      socket.emit('joinScene', auth, scene);
     }
   });
 
-  // Render the user returned by the server, add first person attributes (camera, controls,
-  //   and ticks pushed to server), then get other users in the scene
-  socket.on('renderAvatar', user => {
-    const avatar = putUserOnDOM(user);
+  // sceneState is the server's single reply to joinScene (issue #69): our own avatar, the other
+  //   users already in our room, and the tick rate to publish at. It replaces the old
+  //   renderAvatar + getOthersCallback pair. Render everything, store the tick rate (which
+  //   enables publish-location), then send one 'ready' ack so the server starts streaming
+  //   usersUpdated.
+  socket.on('sceneState', ({ you, others, tickRate }) => {
+    const avatar = putUserOnDOM(you);
     // Remember the id we rendered under (the server sends a plain object) so a later
     // reconnect can find and remove this exact avatar.
-    localAvatarId = (user && user.get) ? user.get('id') : (user && user.id);
-    addFirstPersonProperties(avatar, user);
-    // Tell the server our room so it can record it and return only this room's users (#58).
-    socket.emit('getOthers', window.location.pathname.replace(/\//g, '') || 'root');
-  });
+    localAvatarId = you && you.id;
+    addFirstPersonProperties(avatar, you);
 
-  // Perform an initial render the other users' avatars (after local filtering) and emit the following:
-  //     --haveGottenOthers: an event that causes the server to emit the startTick event, which causes
-  //       this client's publish-location components to begin broadcating real-time updates to the server.
-  //       While this likely seems unneccesary, the intention of this ping-pong is to provide
-  //       a hook for the server to throttle the frequency of client updates to the server.
-  //     --readyToReceiveUpdates: an event that tells the server to begin sending the ticks of other
-  //       users' avatars to this client. This only occurs after the initial render of the users is
-  //       complete, which should avoid potential jenk when joining a room with many avatars.
-  socket.on('getOthersCallback', users => {
-    console.log('Checking to see if anyone is here');
-    Object.keys(users).forEach(user => {
-      putUserOnDOM(users[user]);
-      putUserBodyOnDOM(users[user]);
+    // others is room-scoped already (#58); render each peer's head + body.
+    Object.keys(others || {}).forEach(id => {
+      putUserOnDOM(others[id]);
+      putUserBodyOnDOM(others[id]);
     });
-    socket.emit('haveGottenOthers');
-    socket.emit('readyToReceiveUpdates');
+
+    store.dispatch(setTickRate(tickRate));
+    socket.emit('ready');
   });
 
   // The server now sends usersUpdated with only the OTHER users in this client's room (#58),
