@@ -5,18 +5,10 @@ import Table from './Table';
 import Room from './Room';
 import '../../aframeComponents/scene-load';
 import { createArray } from '../../utils';
-import { joinChatRoom, leaveChatRoom } from '../../webRTC/client.js';
 import Teleporter from './Teleporter';
 
+// WebRTC chat join/leave is handled centrally by <App> on scene change (issue #70).
 export default class Lobby extends React.Component {
-  componentDidMount () {
-    joinChatRoom('lobby');
-  }
-
-  componentWillUnmount () {
-    leaveChatRoom();
-  }
-
   render () {
     return (
       <a-entity>
