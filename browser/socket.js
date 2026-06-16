@@ -142,7 +142,80 @@ export function initSocket () {
   // Removes all peer connections and audio Elements from the DoM
   socket.on('disconnect', disconnectUser);
 
+  // sessionReplaced: the server enforces a single active session per account ("newest wins",
+  //   issue #30). When this account logs in from another window, the server boots this socket
+  //   and emits sessionReplaced first. Without handling it, this tab becomes a zombie — booted
+  //   server-side and invisible to everyone, but the local first-person camera + publish-location
+  //   keep running, so it still *looks* like a live, movable session. Stop being a live session:
+  //   kill auto-reconnect (so we don't ping-pong with the newer tab), disconnect locally, drop our
+  //   avatar, and block the scene with an overlay that lets the user reclaim the session here.
+  socket.on('sessionReplaced', () => {
+    console.warn('This session was opened in another window; this tab has been disconnected.');
+    socket.io.opts.reconnection = false;
+    socket.disconnect();
+    removeLocalAvatar();
+    // Release the microphone. disconnectUser (on the 'disconnect' event) tears down the peer
+    // connections and remote <audio> tags, but not the local mic stream — and it must not, since
+    // a transient-reconnect reuses that same stream (see the reconnect handler above). This is the
+    // terminal path, so stop the mic here so the dead tab doesn't keep the input device open.
+    releaseLocalMedia();
+    showSessionReplacedOverlay();
+  });
+
   return window.socket;
+}
+
+// Full-screen blocking overlay shown when this session is replaced by a newer login. Built with
+// direct DOM (like removeLocalAvatar below) so it renders regardless of the current React route
+// and sits above the A-Frame canvas. Reloading re-runs the auth → joinScene flow, which makes
+// THIS tab the newest session and reclaims the account here.
+function showSessionReplacedOverlay () {
+  if (document.getElementById('session-replaced-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'session-replaced-overlay';
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    width: '100%',
+    height: '100%',
+    zIndex: '99999',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    padding: '24px',
+    background: 'rgba(0, 0, 0, 0.92)',
+    color: '#fff',
+    fontFamily: 'sans-serif'
+  });
+
+  const message = document.createElement('p');
+  message.textContent = 'This session was opened in another window.';
+  message.style.fontSize = '20px';
+  message.style.marginBottom = '20px';
+
+  const button = document.createElement('button');
+  button.textContent = 'Use it here';
+  Object.assign(button.style, {
+    fontSize: '16px',
+    padding: '10px 20px',
+    cursor: 'pointer'
+  });
+  button.addEventListener('click', () => window.location.reload());
+
+  overlay.appendChild(message);
+  overlay.appendChild(button);
+  document.body.appendChild(overlay);
+}
+
+// Stop the local microphone tracks so a terminated tab releases the input device. Safe only on a
+// terminal teardown (e.g. sessionReplaced) — NOT on a transient disconnect, where the stream is
+// reused on reconnect.
+function releaseLocalMedia () {
+  const stream = store.getState().webrtc.get('localMediaStream');
+  if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
 }
 
 // Remove the local (first-person) avatar, its child cursor, and the separate mutebutton

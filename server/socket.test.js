@@ -443,6 +443,140 @@ describe('Socket.io – single active session per account (#30)', function () {
       });
   });
 
+  it('emits sessionReplaced to the prior socket before disconnecting it', function () {
+    var first = connect();
+    var second;
+
+    return waitFor(first, 'connect')
+      .then(function () {
+        first.emit('joinScene', { id: 88, displayName: 'Dup', skin: 'default' }, 'lobby');
+        return sleep(120);
+      })
+      .then(function () {
+        second = connect();
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        // The replaced client must hear sessionReplaced — that's the signal the browser
+        // uses to stop being a live (locally-movable) zombie session and block its tab.
+        var replaced = waitFor(first, 'sessionReplaced');
+        second.emit('joinScene', { id: 88, displayName: 'Dup', skin: 'default' }, 'lobby');
+        return replaced;
+      })
+      .then(function () {
+        return cleanup(second);
+      });
+  });
+
+  it('carries the prior session position forward to the takeover tab in the same room', function () {
+    var first = connect();
+    var second;
+
+    return waitFor(first, 'connect')
+      .then(function () {
+        var ss = waitFor(first, 'sceneState');
+        first.emit('joinScene', { id: 55, displayName: 'Mover', skin: 'default' }, 'lobby');
+        return ss;
+      })
+      .then(function () {
+        // Walk the first session to a known spot.
+        first.emit('tick', { id: first.id, x: 7, y: 1.3, z: -4, xrot: 0, yrot: 123, zrot: 0, skin: 'default', scene: 'lobby' });
+        return sleep(80);
+      })
+      .then(function () {
+        second = connect();
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        var ss = waitFor(second, 'sceneState');
+        second.emit('joinScene', { id: 55, displayName: 'Mover', skin: 'default' }, 'lobby');
+        return ss;
+      })
+      .then(function (state) {
+        expect(state.you.x).to.equal(7);
+        expect(state.you.z).to.equal(-4);
+        expect(state.you.yrot).to.equal(123);
+        return cleanup(second);
+      });
+  });
+
+  it('does NOT carry position across a takeover into a different room', function () {
+    var first = connect();
+    var second;
+
+    return waitFor(first, 'connect')
+      .then(function () {
+        var ss = waitFor(first, 'sceneState');
+        first.emit('joinScene', { id: 56, displayName: 'Mover', skin: 'default' }, 'lobby');
+        return ss;
+      })
+      .then(function () {
+        first.emit('tick', { id: first.id, x: 7, y: 1.3, z: -4, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
+        return sleep(80);
+      })
+      .then(function () {
+        second = connect();
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        var ss = waitFor(second, 'sceneState');
+        second.emit('joinScene', { id: 56, displayName: 'Mover', skin: 'default' }, 'spaceroom');
+        return ss;
+      })
+      .then(function (state) {
+        expect(state.you.scene).to.equal('spaceroom');
+        // The lobby coordinates must not have leaked into the new room.
+        expect(state.you.x === 7 && state.you.z === -4).to.equal(false);
+        return cleanup(second);
+      });
+  });
+
+  it('shifts chat-room audio peering from the replaced tab to the takeover tab', function () {
+    var peer = connect();   // a DIFFERENT account — the other voice in the room
+    var x1 = connect();     // the account under test, tab 1
+    var x2;
+    var x1Id;
+
+    return Promise.all([waitFor(peer, 'connect'), waitFor(x1, 'connect')])
+      .then(function () {
+        // The peer joins the scene and the voice room first, alone.
+        peer.emit('joinScene', { id: 200, displayName: 'Peer' }, 'lobby');
+        peer.emit('joinChatRoom', 'lobby');
+        return sleep(80);
+      })
+      .then(function () {
+        x1Id = x1.id;
+        // Tab 1 joins the voice room → the peer is told to open an audio connection to tab 1.
+        var peerPairsX1 = waitFor(peer, 'addPeer');
+        x1.emit('joinScene', { id: 100, displayName: 'X' }, 'lobby');
+        x1.emit('joinChatRoom', 'lobby');
+        return peerPairsX1;
+      })
+      .then(function (add1) {
+        expect(add1.peer_id).to.equal(x1Id);          // peer's voice is wired to tab 1
+        // Tab 2 opens for the SAME account → server evicts tab 1, which must tear down its
+        // voice link: the peer is told to drop tab 1.
+        x2 = connect();
+        return waitFor(x2, 'connect').then(function () {
+          var peerDropsX1 = waitFor(peer, 'removePeer');
+          x2.emit('joinScene', { id: 100, displayName: 'X' }, 'lobby');
+          return peerDropsX1;
+        });
+      })
+      .then(function (drop) {
+        expect(drop.peer_id).to.equal(x1Id);          // peer tore down audio to tab 1
+        // Tab 2 joins the voice room → the peer is re-paired to tab 2.
+        var peerPairsX2 = waitFor(peer, 'addPeer');
+        x2.emit('joinChatRoom', 'lobby');
+        return peerPairsX2;
+      })
+      .then(function (add2) {
+        expect(add2.peer_id).to.equal(x2.id);         // peer's voice now flows to tab 2
+        expect(add2.peer_id).to.not.equal(x1Id);      // and NOT the dead tab 1
+        return cleanup(peer, x2);
+      });
+  });
+
   it('keeps both sockets when they belong to different accounts', function () {
     var a = connect();
     var b = connect();

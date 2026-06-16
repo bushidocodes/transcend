@@ -32,16 +32,33 @@ module.exports = io => {
       // account before registering the new one (issue #30). Anonymous (no id) are exempt.
       const accountId = user && user.id != null ? user.id : null;
       socket.accountId = accountId;
+      // When the new tab takes over an existing session in the SAME room, carry that session's
+      // position/rotation forward so the user resumes exactly where they were standing instead of
+      // respawning at a random point (new User() seeds a random x/z). A takeover into a DIFFERENT
+      // room is left to that room's own spawn. Captured before disconnect, which deletes the record.
+      let inheritedPosition = null;
       if (accountId != null) {
         store.getState().sockets.forEach(existing => {
           if (existing.id !== socket.id && existing.accountId === accountId) {
             console.log(chalk.red(`Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`));
+            const prev = store.getState().users.get(existing.id);
+            if (prev && prev.get('scene') === scene) {
+              inheritedPosition = {
+                x: prev.get('x'), y: prev.get('y'), z: prev.get('z'),
+                xrot: prev.get('xrot'), yrot: prev.get('yrot'), zrot: prev.get('zrot')
+              };
+            }
             existing.emit('sessionReplaced');
             existing.disconnect(true);
           }
         });
       }
       store.dispatch(createUser(socket, user, scene));
+      // Apply the inherited position over the fresh random spawn before building sceneState, so the
+      // takeover tab renders at the carried-forward location.
+      if (inheritedPosition) {
+        store.dispatch(updateUserData(Map(Object.assign({ id: socket.id }, inheritedPosition))));
+      }
       const allUsers = store.getState().users;
       socket.emit('sceneState', {
         you: store.getState().users.get(socket.id),

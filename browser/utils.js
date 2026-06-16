@@ -67,6 +67,21 @@ export function addFirstPersonProperties (avatar, user) {
   // the removed THREE.VRControls). pointerLockEnabled gives the FPS-style mouse capture; the
   // component also drives HMD/WebXR head pose automatically.
   avatar.setAttribute('look-controls', 'pointerLockEnabled: true');
+  // Seed the initial head facing from the inherited rotation. look-controls drives the camera
+  // orientation every frame from its internal yaw/pitch objects (both start at 0), overriding the
+  // entity's `rotation` attribute — so on a session takeover the head would otherwise always snap
+  // to facing forward even though position carried over. Seed those objects so the user resumes
+  // looking the same direction; publish-location then reports the matching yrot/xrot to peers.
+  const DEG2RAD = Math.PI / 180;
+  const seedLook = () => {
+    const lc = avatar.components && avatar.components['look-controls'];
+    if (!lc || !lc.yawObject) return false;
+    lc.yawObject.rotation.y = (user.yrot || 0) * DEG2RAD;
+    lc.pitchObject.rotation.x = (user.xrot || 0) * DEG2RAD;
+    return true;
+  };
+  // The component inits synchronously if the entity has already loaded; otherwise wait for it.
+  if (!seedLook()) avatar.addEventListener('loaded', seedLook, { once: true });
   avatar.setAttribute('wasd-controls', 'acceleration: 100');
   // Keep the player inside the room box so wasd-controls can't walk through the walls
   // (issue #55). Set after wasd-controls so this component's tick runs afterward and
