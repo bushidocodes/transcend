@@ -969,37 +969,80 @@ AFRAME.registerComponent('minecraft', {
   }
 });
 
-// This controls various body animations.  Currently not using this - JMD
+// Drives the Minecraft-style limb animations (arms + legs) from how the avatar actually moves
+// through the scene, giving every avatar a walk/run cycle instead of a static body.
+//
+// The old version only switched animations when the (long-disabled) minecraft-controls component
+// was present, so the body was permanently stuck in 'stand' and only the head moved. Instead of
+// reading local key state — which doesn't exist for remote avatars — we infer movement from the
+// entity's own world-position change. That works identically for the local player and for peers,
+// whose positions are streamed in via usersUpdated (socket.js), so it needs no protocol change.
+//
+// Remote positions arrive in discrete bursts (only every config.tickRate frames), so per-frame
+// speed is spiky: zero on most frames, a large spike on the update frame. To get a stable signal
+// we average horizontal displacement over a short sampling window and pick the animation from that
+// average speed.
+
+// Tunables (metres / metres-per-second). Adjust after a visual pass.
+const BODY_ANIM_SAMPLE_MS = 200; // window over which average speed is computed
+const BODY_ANIM_WALK_SPEED = 0.15; // above this -> walk
+const BODY_ANIM_RUN_SPEED = 2.5; // above this -> run
 
 AFRAME.registerComponent('minecraft-body-anim', {
   schema: {
     type: 'string',
-    default: 'wave'
+    default: 'stand'
   },
   init: function () {
     const character = this.el.components.minecraft.character;
     this.bodyAnims = new THREEx.MinecraftCharBodyAnimations(character);
+    // Only the 'body' half of an avatar carries visible arms/legs (the 'head' entity adds an
+    // off-scene rootBody). Skip the movement math entirely on non-body entities.
+    this.isBody = this.el.components.minecraft.data.component === 'body';
+
+    this._pos = new THREE.Vector3();
+    this._lastPos = new THREE.Vector3();
+    this._primed = false;
+    this._distAccum = 0;
+    this._timeAccum = 0;
+    this._speed = 0;
+    this._currentAnim = null;
+    this.bodyAnims.start('stand');
+    this._currentAnim = 'stand';
   },
   tick: function (now, delta) {
-    // force the animation according to controls
-    const minecraftControls = this.el.components['minecraft-controls'];
-    if (minecraftControls) {
-      const input = minecraftControls.controls.input;
-      if (input.up || input.down) {
-        this.bodyAnims.start('run');
-      } else if (input.strafeLeft || input.strafeRight) {
-        this.bodyAnims.start('strafe');
-      } else {
-        this.bodyAnims.start('stand');
-      }
+    if (!this.isBody || !delta) return;
+
+    // Horizontal displacement since the last frame (ignore y so jumps/gravity don't read as walking).
+    this.el.object3D.getWorldPosition(this._pos);
+    if (!this._primed) {
+      // First frame: seed lastPos so the 0,0,0 default doesn't register as a huge initial jump.
+      this._lastPos.copy(this._pos);
+      this._primed = true;
     }
-    // update the animation
+    const dx = this._pos.x - this._lastPos.x;
+    const dz = this._pos.z - this._lastPos.z;
+    this._lastPos.copy(this._pos);
+
+    // Average speed over a short window to smooth out the bursty per-tick position updates.
+    this._distAccum += Math.sqrt(dx * dx + dz * dz);
+    this._timeAccum += delta;
+    if (this._timeAccum >= BODY_ANIM_SAMPLE_MS) {
+      this._speed = this._distAccum / (this._timeAccum / 1000);
+      this._distAccum = 0;
+      this._timeAccum = 0;
+    }
+
+    let anim = 'stand';
+    if (this._speed > BODY_ANIM_RUN_SPEED) anim = 'run';
+    else if (this._speed > BODY_ANIM_WALK_SPEED) anim = 'walk';
+
+    if (anim !== this._currentAnim) {
+      this.bodyAnims.start(anim);
+      this._currentAnim = anim;
+    }
+    // Advance the active animation's tweens.
     this.bodyAnims.update(delta / 1000, now / 1000);
-  },
-  update: function () {
-    if (Object.keys(this.data).length === 0) return;
-    console.assert(this.bodyAnims.names().indexOf(this.data) !== -1);
-    this.bodyAnims.start(this.data);
   }
 });
 
