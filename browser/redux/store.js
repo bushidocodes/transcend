@@ -1,6 +1,5 @@
 import { createStore, applyMiddleware, combineReducers } from 'redux';
 
-// import { createLogger } from 'redux-logger';
 import { thunk as thunkMiddleware } from 'redux-thunk';
 
 import userReducer from './reducers/user-reducer';
@@ -21,6 +20,5 @@ export default createStore(
   rootReducer,
   applyMiddleware(
     thunkMiddleware
-    // createLogger({ collapsed: true })
   )
 );
