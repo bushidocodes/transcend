@@ -11,7 +11,7 @@ const server = http.createServer();
 const express = require('express');
 const app = express();
 const { resolve } = require('path');
-const chalk = require('chalk');
+const { styleText } = require('node:util');
 const passport = require('passport');
 
 // Custom Middleware to redirect HTTP to https using request headers appended
@@ -22,14 +22,14 @@ const forceSSL = function (req, res, next) {
   if (req.headers['x-forwarded-proto'] !== 'https') {
     const clientIP = req.headers['x-forwarded-for'];
     const redirectTarget = ['https://', req.get('Host'), req.url].join('');
-    console.log(chalk.blue(`Redirecting ${clientIP} to ${redirectTarget}`));
+    console.log(styleText('blue', `Redirecting ${clientIP} to ${redirectTarget}`));
     return res.redirect(redirectTarget);
   }
   return next();
 };
 
 if (process.env.NODE_ENV === 'production') {
-  console.log(chalk.blue('Production Environment detected, so redirect to HTTPS'));
+  console.log(styleText('blue', 'Production Environment detected, so redirect to HTTPS'));
   app.use(forceSSL);
 }
 
@@ -46,10 +46,10 @@ if (process.env.NODE_ENV !== 'production') {
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
   if (process.env.NODE_ENV === 'production') {
-    console.error(chalk.red('FATAL: SESSION_SECRET is required in production. Generate one with `openssl rand -hex 32`.'));
+    console.error(styleText('red', 'FATAL: SESSION_SECRET is required in production. Generate one with `openssl rand -hex 32`.'));
     process.exit(1);
   }
-  console.warn(chalk.yellow('WARNING: SESSION_SECRET is not set — using an insecure development fallback. Set it before deploying (e.g. `openssl rand -hex 32`).'));
+  console.warn(styleText('yellow', 'WARNING: SESSION_SECRET is not set — using an insecure development fallback. Set it before deploying (e.g. `openssl rand -hex 32`).'));
 }
 app.use(require('cookie-session')({
   name: 'session',
@@ -101,11 +101,11 @@ app.get('/{*path}', (req, res) => {
 
 const port = process.env.PORT || 1337;
 server.listen(port, () => {
-  console.log(chalk.blue(`--- Listening on port ${port} ---`));
+  console.log(styleText('blue', `--- Listening on port ${port} ---`));
 });
 
 app.use('/', (err, req, res, next) => {
-  console.log(chalk.red('Houston, we have a problem'));
-  console.log(chalk.red(`ERROR: ${err.message}`));
+  console.log(styleText('red', 'Houston, we have a problem'));
+  console.log(styleText('red', `ERROR: ${err.message}`));
   res.sendStatus(err.status || 500);
 });
