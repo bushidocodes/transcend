@@ -7,8 +7,8 @@
     "build": "webpack",
     "build-watch": "webpack -w",
     "seed": "node db/seed.js",
-    "server": "nodemon server/index.js",
-    "start": "webpack && nodemon server/index.js",
+    "server": "node --watch server/index.js",
+    "start": "webpack && node --watch server/index.js",
     "test": "cross-env NODE_ENV=testing mocha --require @babel/register browser/**/*.test.js browser/**/*.test.jsx db/**/*.test.js server/**/*.test.js",
     "test-watch": "cross-env NODE_ENV=testing mocha --require @babel/register --watch browser/**/*.test.js browser/**/*.test.jsx db/**/*.test.js server/**/*.test.js"
   },
@@ -49,7 +49,6 @@
     "@emotion/react": "^11.0.0",
     "@emotion/styled": "^11.0.0",
     "prop-types": "^15.8.1",
-    "nodemon": "^1.11.0",
     "passport": "^0.7.0",
     "passport-google-oauth": "^2.0.0",
     "passport-local": "^1.0.0",
