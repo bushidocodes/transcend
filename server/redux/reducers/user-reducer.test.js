@@ -1,9 +1,6 @@
 const { Map } = require('immutable');
-const chai = require('chai');
-const { expect } = require('chai');
-const chaiImmutable = require('chai-immutable');
 
-chai.use(chaiImmutable);
+// describe/it/expect/beforeEach are Vitest globals; toEqualImmutable is registered in test/setup.js.
 
 const {
   ADD_USER,
@@ -79,7 +76,7 @@ describe('userReducer', () => {
 
     const nextState = userReducer(emptyInitialState, action);
 
-    expect(nextState).to.equal(Map({
+    expect(nextState).toEqualImmutable(Map({
       number1: Map({
         id: 'number1',
         color: 'blue',
@@ -101,7 +98,7 @@ describe('userReducer', () => {
 
     const nextState = userReducer(populatedState, action);
 
-    expect(nextState).to.equal(Map({
+    expect(nextState).toEqualImmutable(Map({
       number1: user,
       number2: user2,
       number3: Map({
@@ -125,7 +122,7 @@ describe('userReducer', () => {
 
     const nextState = userReducer(populatedState, action);
 
-    expect(nextState).to.equal(Map({
+    expect(nextState).toEqualImmutable(Map({
       number1: Map({
         id: 'number1',
         color: 'blue',
@@ -148,7 +145,7 @@ describe('userReducer', () => {
 
     const nextState = userReducer(populatedState, action);
 
-    expect(nextState).to.equal(Map({
+    expect(nextState).toEqualImmutable(Map({
       number2: user2
     }));
   });
@@ -161,7 +158,7 @@ describe('userReducer', () => {
 
     const nextState = userReducer(emptyInitialState, action);
 
-    expect(nextState).to.equal(Map({}));
+    expect(nextState).toEqualImmutable(Map({}));
   });
 
   it('returns initial populated state when action doesn\'t match', () => {
@@ -172,7 +169,7 @@ describe('userReducer', () => {
 
     const nextState = userReducer(populatedState, action);
 
-    expect(nextState).to.equal(Map({
+    expect(nextState).toEqualImmutable(Map({
       number1: user,
       number2: user2
     }));

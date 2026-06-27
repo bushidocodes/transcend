@@ -15,7 +15,7 @@
  * exported function with a fake, manually-fired Image so the race is deterministic.
  */
 
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import { loadSkinInto } from './loadSkinInto';
 
 // A minimal stand-in for the browser's Image: records each instance so the test
@@ -55,8 +55,8 @@ describe('loadSkinInto – skin texture race guard (issue #50)', function () {
     // the real skin (the bug). With it, the stale load is dropped.
     imgA.onload();
 
-    expect(host.texture.image).to.equal(imgB);
-    expect(host.texture.image.src).to.equal('real.png');
+    expect(host.texture.image).toBe(imgB);
+    expect(host.texture.image.src).toBe('real.png');
   });
 
   it('the newest load wins even when loads complete in request order', function () {
@@ -71,8 +71,8 @@ describe('loadSkinInto – skin texture race guard (issue #50)', function () {
     imgA.onload(); // stale completes first (it applies, harmlessly)...
     imgB.onload(); // ...newest completes last and wins
 
-    expect(host.texture.image).to.equal(imgB);
-    expect(host.texture.image.src).to.equal('real.png');
+    expect(host.texture.image).toBe(imgB);
+    expect(host.texture.image.src).toBe('real.png');
   });
 
   it('a normal single load applies its image, flags needsUpdate, and fires onLoad', function () {
@@ -84,8 +84,8 @@ describe('loadSkinInto – skin texture race guard (issue #50)', function () {
     loadSkinInto(host, 'real.png', h => { callbackArg = h; }, Img);
     created[0].onload();
 
-    expect(host.texture.image).to.equal(created[0]);
-    expect(host.texture.needsUpdate).to.equal(true);
-    expect(callbackArg).to.equal(host);
+    expect(host.texture.image).toBe(created[0]);
+    expect(host.texture.needsUpdate).toBe(true);
+    expect(callbackArg).toBe(host);
   });
 });
