@@ -1,4 +1,4 @@
-const chalk = require('chalk');
+const { styleText } = require('node:util');
 const { Map } = require('immutable');
 const store = require('./redux/store');
 const { createUser, updateUserData, removeUserAndEmit } = require('./redux/reducers/user-reducer');
@@ -16,7 +16,7 @@ module.exports = io => {
 
     let unsubscribe;
 
-    console.log(chalk.yellow(`${socket.id} has connected`));
+    console.log(styleText('yellow', `${socket.id} has connected`));
     socket.createdUser = false;
     store.dispatch(addSocket(socket));
 
@@ -40,7 +40,7 @@ module.exports = io => {
       if (accountId != null) {
         store.getState().sockets.forEach(existing => {
           if (existing.id !== socket.id && existing.accountId === accountId) {
-            console.log(chalk.red(`Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`));
+            console.log(styleText('red', `Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`));
             const prev = store.getState().users.get(existing.id);
             if (prev && prev.get('scene') === scene) {
               inheritedPosition = {
@@ -100,7 +100,7 @@ module.exports = io => {
     //   clients, and remove the socket from any socket.io rooms or WebRTC P2P connections
     socket.on('disconnect', () => {
       store.dispatch(removeUserAndEmit(socket));
-      console.log(chalk.magenta(`${socket.id} has disconnected`));
+      console.log(styleText('magenta', `${socket.id} has disconnected`));
       leaveChatRoom();
       console.log(`[${socket.id}] disconnected`);
       store.dispatch(removeSocket(socket));
