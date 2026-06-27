@@ -1,6 +1,12 @@
-const debug = require('debug')('sql');
 const chalk = require('chalk');
 const Sequelize = require('sequelize');
+
+// SQL query logging (replaces the `debug` dep): set DEBUG=sql (or DEBUG=*) to print
+// each query Sequelize runs. Disabled otherwise, matching `debug('sql')`'s no-op behaviour.
+const debugEnabled = (process.env.DEBUG || '')
+  .split(/[,\s]+/)
+  .some(ns => ns === 'sql' || ns === '*');
+const sqlLogging = debugEnabled ? msg => console.error(`sql ${msg}`) : false;
 
 const name = process.env.DATABASE_NAME || ('transcend' + (process.env.NODE_ENV === 'testing' ? '_test' : ''));
 const defaultUrl = `postgres://localhost:5432/${name}`;
@@ -14,7 +20,7 @@ console.log(chalk.blue(`Opening database connection to ${url}`));
 
 // Create the database instance
 const db = module.exports = new Sequelize(url, {
-  logging: debug, // export DEBUG=sql in the environment to get SQL queries
+  logging: sqlLogging, // export DEBUG=sql in the environment to get SQL queries
   define: {
     underscored: true,       // use snake_case rather than camelCase column names
     freezeTableName: true,   // don't change table names from the one specified

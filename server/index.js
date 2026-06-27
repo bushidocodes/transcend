@@ -1,4 +1,11 @@
-require('dotenv').config();
+// Load environment variables from a .env file if present, using Node's built-in loader
+// (replaces the `dotenv` dep). Like dotenv, this does not override variables already set
+// in the environment, so an inline `DATABASE_URL=… node server/index.js` still wins.
+try {
+  process.loadEnvFile();
+} catch {
+  // No .env file — rely on the real environment.
+}
 const http = require('http');
 const server = http.createServer();
 const express = require('express');
