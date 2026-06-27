@@ -55,7 +55,7 @@ export function joinChatRoom (room, errorback) {
   console.log('Requesting access to local audio / video inputs');
   // navigator.mediaDevices.getUserMedia (Promise-based) replaces the removed callback-style
   // navigator.getUserMedia / webkitGetUserMedia (issue #77).
-  navigator.mediaDevices.getUserMedia({ 'audio': true, 'video': false })
+  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     // On Success
     .then(stream => {
       console.log('Access granted to audio');
@@ -96,16 +96,16 @@ export async function addPeerConn (config) {
   // Create a webRTC peer connection to the ICE servers. Unprefixed RTCPeerConnection
   // replaces the removed webkitRTCPeerConnection; the legacy second constraints argument
   // (DtlsSrtpKeyAgreement) is obsolete now that DTLS-SRTP is mandatory (issue #77).
-  const peerConnection = new RTCPeerConnection({ 'iceServers': iceServers });
+  const peerConnection = new RTCPeerConnection({ iceServers });
 
   // I'm not 100% sure what this does, but it sets up ice candidates ¯\_(ツ)_/¯
   peerConnection.onicecandidate = function (event) {
     if (event.candidate) {
       signalingSocket.emit('relayICECandidate', {
-        'peer_id': peerId,
-        'ice_candidate': {
-          'sdpMLineIndex': event.candidate.sdpMLineIndex,
-          'candidate': event.candidate.candidate
+        peer_id: peerId,
+        ice_candidate: {
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+          candidate: event.candidate.candidate
         }
       });
     }
@@ -146,7 +146,7 @@ export async function addPeerConn (config) {
       const localDescription = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(localDescription);
       signalingSocket.emit('relaySessionDescription',
-        { 'peer_id': peerId, 'session_description': localDescription });
+        { peer_id: peerId, session_description: localDescription });
       console.log('Offer setLocalDescription succeeded');
     } catch (error) {
       console.error('Error creating/sending offer: ', error);
@@ -185,7 +185,7 @@ export async function setRemoteAnswer (config) {
       const localDescription = await peer.createAnswer();
       await peer.setLocalDescription(localDescription);
       signalingSocket.emit('relaySessionDescription',
-        { 'peer_id': peerId, 'session_description': localDescription });
+        { peer_id: peerId, session_description: localDescription });
       console.log('Answer setLocalDescription succeeded');
     }
   } catch (error) {

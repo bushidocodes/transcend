@@ -91,25 +91,25 @@ passport.use(
     clientSecret: process.env.CLIENT_SECRET,
     callbackURL: '/api/auth/google/callback'
   },
-    // Google will send back the token and profile
-    function (token, refreshToken, profile, done) {
-      // Google sends back info
-      const info = {
-        name: profile.displayName,
-        email: profile.emails[0].value
-      };
+  // Google will send back the token and profile
+  function (token, refreshToken, profile, done) {
+    // Google sends back info
+    const info = {
+      name: profile.displayName,
+      email: profile.emails[0].value
+    };
       // Put info in db
-      User.findOrCreate({
-        where: {
-          googleId: profile.id
-        },
-        defaults: info
-      })
-        .then(([user]) => {
-          done(null, user);
-        })
-        .catch(done);
+    User.findOrCreate({
+      where: {
+        googleId: profile.id
+      },
+      defaults: info
     })
+      .then(([user]) => {
+        done(null, user);
+      })
+      .catch(done);
+  })
 );
 
 // Google OAuth cont. - handle the callback after Google has authenticated the user

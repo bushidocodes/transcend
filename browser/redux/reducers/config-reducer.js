@@ -20,7 +20,6 @@ const initialState = { tickRate: null };
 
 export default function configReducer (state = initialState, action) {
   switch (action.type) {
-
     case SET_TICK_RATE:
       return { ...state, tickRate: action.tickRate };
 

@@ -47,7 +47,6 @@ export const clearPeers = () => {
 
 export default function webrtcReducer (state = initialState, action) {
   switch (action.type) {
-
     case SET_USER_MEDIA:
       return state.set('localMediaStream', action.stream);
 

@@ -13,9 +13,9 @@ const defaultUrl = `postgres://localhost:5432/${name}`;
 
 // When testing, prefer DATABASE_TEST_URL so a shell-exported DATABASE_URL
 // (pointing at the live dev DB) can't accidentally wipe it via force-sync.
-const url = (process.env.NODE_ENV === 'testing' ? process.env.DATABASE_TEST_URL : null)
-  || process.env.DATABASE_URL
-  || defaultUrl;
+const url = (process.env.NODE_ENV === 'testing' ? process.env.DATABASE_TEST_URL : null) ||
+  process.env.DATABASE_URL ||
+  defaultUrl;
 console.log(styleText('blue', `Opening database connection to ${url}`));
 
 // Create the database instance
@@ -38,11 +38,11 @@ function sync (force = process.env.NODE_ENV === 'testing', retries = 0, maxRetri
     .catch(fail => {
       // Don't do this auto-create nonsense in prod, or if we've retried too many times
       if (process.env.NODE_ENV === 'production' || retries > maxRetries) {
-        console.error(styleText('red', `********** database error ***********`));
+        console.error(styleText('red', '********** database error ***********'));
         console.error(styleText('red', `Couldn't connect to ${url}`));
         console.error();
         console.error(styleText('red', String(fail)));
-        console.error(styleText('red', `*************************************`));
+        console.error(styleText('red', '*************************************'));
         return;
       }
       // Otherwise, do this autocreate nonsense

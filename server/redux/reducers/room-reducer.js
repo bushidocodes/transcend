@@ -50,7 +50,6 @@ const roomReducer = (state = initialState, action) => {
   }
 };
 
-
 module.exports = {
   addRoom,
   addSocketToRoom,

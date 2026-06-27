@@ -70,7 +70,6 @@ const removeUserAndEmit = socket => {
 
 function userReducer (state = initialState, action) {
   switch (action.type) {
-
     case ADD_USER:
       return state.set(action.user.get('id'), action.user);
 

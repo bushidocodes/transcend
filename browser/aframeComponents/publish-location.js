@@ -31,7 +31,7 @@ export default AFRAME.registerComponent('publish-location', {
       skin: el.getAttribute('skin'),
       scene: window.location.pathname.replace(/\//g, '') || 'root' // room name, or root for the lobby
     };
-    const mutebutton = document.getElementById(`mutebutton`);
+    const mutebutton = document.getElementById('mutebutton');
     mutebutton.setAttribute('position', `${userPosition.x} 0.1 ${userPosition.z - 1}`);
     socket.emit('tick', userPosition);
   }

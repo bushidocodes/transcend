@@ -1,7 +1,6 @@
 import React from 'react';
 import '../../aframeComponents/wearable-skin';
 export default (props) => {
-
   return (
     <a-entity
       geometry="primitive: cylinder; radius:0.5; height:1.5"

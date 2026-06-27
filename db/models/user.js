@@ -31,7 +31,7 @@ User.prototype.authenticate = function (plaintext) {
     bcrypt.compare(plaintext, this.password_digest,
       (err, result) =>
         err ? reject(err) : resolve(result))
-    );
+  );
 };
 
 // Never serialize the password hash (or the virtual plaintext password) to clients. This is

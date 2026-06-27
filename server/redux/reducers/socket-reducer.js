@@ -38,7 +38,6 @@ const socketReducer = (state = initialState, action) => {
   }
 };
 
-
 module.exports = {
   addSocket,
   removeSocket,
