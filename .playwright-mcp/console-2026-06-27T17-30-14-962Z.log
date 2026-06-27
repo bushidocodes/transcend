@@ -1,0 +1,13 @@
+[     258ms] [LOG] A-Frame Version: 1.7.0 (Date 2025-03-12, Commit #1b9650f1) @ http://localhost:4000/bundle.js:13845
+[     258ms] [LOG] THREE Version (https://github.com/supermedium/three.js): 173 @ http://localhost:4000/bundle.js:13845
+[     283ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:4000/bundle.js:56245
+[     339ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://www.chromium.org/developers/design-documents/create-amazing-password-forms) %o @ http://localhost:4000/signup:0
+[     343ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:4000/bundle.js:59039
+[     344ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:4000/bundle.js:59039
+[   10493ms] [LOG] Unexpected token 'C', "Created" is not valid JSON @ http://localhost:4000/bundle.js:17066
+[   10698ms] [LOG] You've made a persistent two-way connection to the server! @ http://localhost:4000/bundle.js:17413
+[   11031ms] [LOG] scene-load component initialized @ http://localhost:4000/bundle.js:15136
+[   11050ms] [LOG] {users: Map, auth: Map, isLoaded: true, webrtc: Map, config: Object} @ http://localhost:4000/bundle.js:17904
+[   11050ms] [LOG] Requesting access to local audio / video inputs @ http://localhost:4000/bundle.js:17918
+[   11229ms] [LOG] Putting user [object Object] on the DOM @ http://localhost:4000/bundle.js:17728
+[   11230ms] [LOG] avatar:  JSHandle@node @ http://localhost:4000/bundle.js:17774

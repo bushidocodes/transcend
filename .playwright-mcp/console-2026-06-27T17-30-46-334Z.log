@@ -1,0 +1,12 @@
+[      87ms] [LOG] A-Frame Version: 1.7.0 (Date 2025-03-12, Commit #1b9650f1) @ http://localhost:4000/bundle.js:13845
+[      87ms] [LOG] THREE Version (https://github.com/supermedium/three.js): 173 @ http://localhost:4000/bundle.js:13845
+[      88ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:4000/bundle.js:56245
+[     134ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:4000/bundle.js:59039
+[     135ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:4000/bundle.js:59039
+[     261ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://www.chromium.org/developers/design-documents/create-amazing-password-forms) %o @ http://localhost:4000/login:0
+[   11895ms] [LOG] You've made a persistent two-way connection to the server! @ http://localhost:4000/bundle.js:17413
+[   12212ms] [LOG] scene-load component initialized @ http://localhost:4000/bundle.js:15136
+[   12227ms] [LOG] {users: Map, auth: Map, isLoaded: true, webrtc: Map, config: Object} @ http://localhost:4000/bundle.js:17904
+[   12228ms] [LOG] Requesting access to local audio / video inputs @ http://localhost:4000/bundle.js:17918
+[   12332ms] [LOG] Putting user [object Object] on the DOM @ http://localhost:4000/bundle.js:17728
+[   12332ms] [LOG] avatar:  JSHandle@node @ http://localhost:4000/bundle.js:17774

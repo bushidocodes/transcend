@@ -48,8 +48,12 @@ export const signup = (name, displayName, email, password) => {
       headers: jsonHeaders,
       body: JSON.stringify({ name, displayName, email, password }),
     })
-      .then(handleJson)
-      .then(() => dispatch(login(email, password)))
+      .then(response => {
+        // The server replies 201 with a plain-text "Created" body (no JSON), so don't
+        // parse it — just confirm success before logging in.
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return dispatch(login(email, password));
+      })
       .catch(err => console.log(err.message));
 };
 

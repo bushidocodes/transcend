@@ -1,0 +1,26 @@
+- generic [active] [ref=e1]:
+  - text: 
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Transcend" [level=1] [ref=e5]
+      - generic [ref=e6]: Virtual Teams
+      - generic [ref=e7]: Shared VR Experiences
+      - generic [ref=e8]: Real Friends
+      - link " View on GitHub" [ref=e9] [cursor=pointer]:
+        - /url: https://github.com/TranscendVR/transcend
+        - generic [ref=e10]: 
+        - text: View on GitHub
+    - generic [ref=e11]:
+      - link "Sign Up" [ref=e13] [cursor=pointer]:
+        - /url: /signup
+        - button "Sign Up" [ref=e14]
+      - paragraph [ref=e17]: or
+      - generic [ref=e19]:
+        - textbox "email" [ref=e21]
+        - textbox "password" [ref=e23]
+        - button "Log In" [ref=e24]
+      - paragraph [ref=e27]: or
+      - link " Log in with Google" [ref=e30] [cursor=pointer]:
+        - /url: /api/auth/google/login
+        - generic [ref=e31]: 
+        - text: Log in with Google
