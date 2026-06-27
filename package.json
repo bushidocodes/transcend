@@ -4,13 +4,14 @@
   "description": "A social and educational VR environment.",
   "main": "server/index.js",
   "scripts": {
-    "build": "webpack",
-    "build-watch": "webpack -w",
+    "build": "node build.mjs",
+    "build-watch": "node build.mjs --watch",
+    "build-prod": "cross-env NODE_ENV=production node build.mjs",
     "seed": "node db/seed.js",
     "server": "node --watch server/index.js",
-    "start": "webpack && node --watch server/index.js",
-    "test": "cross-env NODE_ENV=testing mocha --require @babel/register browser/**/*.test.js browser/**/*.test.jsx db/**/*.test.js server/**/*.test.js",
-    "test-watch": "cross-env NODE_ENV=testing mocha --require @babel/register --watch browser/**/*.test.js browser/**/*.test.jsx db/**/*.test.js server/**/*.test.js"
+    "start": "node build.mjs && node --watch server/index.js",
+    "test": "cross-env NODE_ENV=testing mocha --require esbuild-register browser/**/*.test.js browser/**/*.test.jsx db/**/*.test.js server/**/*.test.js",
+    "test-watch": "cross-env NODE_ENV=testing mocha --require esbuild-register --watch browser/**/*.test.js browser/**/*.test.jsx db/**/*.test.js server/**/*.test.js"
   },
   "repository": {
     "type": "git",
@@ -29,12 +30,6 @@
   "dependencies": {
     "aframe": "^1.7.0",
     "aframe-gif-shader": "0.9.1",
-    "@babel/core": "^7.0.0",
-    "@babel/plugin-proposal-class-properties": "^7.0.0",
-    "@babel/plugin-proposal-decorators": "^7.0.0",
-    "@babel/preset-env": "^7.0.0",
-    "@babel/preset-react": "^7.0.0",
-    "babel-loader": "^8.0.0",
     "bcryptjs": "^3.0.0",
     "cookie-session": "^2.0.0-alpha.2",
     "cross-env": "^3.1.4",
@@ -56,13 +51,12 @@
     "redux-thunk": "^3.1.0",
     "sequelize": "^6.0.0",
     "socket.io": "^4.7.0",
-    "socket.io-client": "^4.7.0",
-    "webpack": "^5.0.0",
-    "webpack-cli": "^5.0.0"
+    "socket.io-client": "^4.7.0"
   },
   "devDependencies": {
-    "@babel/register": "^7.0.0",
     "babel-eslint": "^10.1.0",
+    "esbuild": "^0.25.0",
+    "esbuild-register": "^3.6.0",
     "chai": "^3.5.0",
     "chai-immutable": "^1.6.0",
     "esl": "^5.2.2",
