@@ -13,7 +13,6 @@ const TICK_RATE = 3;
 
 module.exports = io => {
   io.on('connection', socket => {
-
     let unsubscribe;
 
     console.log(styleText('yellow', `${socket.id} has connected`));
@@ -44,8 +43,12 @@ module.exports = io => {
             const prev = store.getState().users.get(existing.id);
             if (prev && prev.get('scene') === scene) {
               inheritedPosition = {
-                x: prev.get('x'), y: prev.get('y'), z: prev.get('z'),
-                xrot: prev.get('xrot'), yrot: prev.get('yrot'), zrot: prev.get('zrot')
+                x: prev.get('x'),
+                y: prev.get('y'),
+                z: prev.get('z'),
+                xrot: prev.get('xrot'),
+                yrot: prev.get('yrot'),
+                zrot: prev.get('zrot')
               };
             }
             existing.emit('sessionReplaced');
@@ -121,8 +124,8 @@ module.exports = io => {
       }
       const roomOnState = store.getState().rooms.get(room);
       roomOnState.valueSeq().forEach(peer => {
-        peer.emit('addPeer', { 'peer_id': socket.id, 'should_create_offer': false });
-        socket.emit('addPeer', { 'peer_id': peer.id, 'should_create_offer': true });
+        peer.emit('addPeer', { peer_id: socket.id, should_create_offer: false });
+        socket.emit('addPeer', { peer_id: peer.id, should_create_offer: true });
       });
       store.dispatch(addSocketToRoom(room, socket));
       socket.join(room);
@@ -139,8 +142,8 @@ module.exports = io => {
         store.dispatch(removeSocketFromRoom(room, socket));
         const roomOnState = store.getState().rooms.get(room);
         roomOnState.valueSeq().forEach(peer => {
-          peer.emit('removePeer', { 'peer_id': socket.id });
-          socket.emit('removePeer', { 'peer_id': peer.id });
+          peer.emit('removePeer', { peer_id: socket.id });
+          socket.emit('removePeer', { peer_id: peer.id });
         });
         socket.currentChatRoom = null;
       } else {
@@ -156,7 +159,7 @@ module.exports = io => {
       console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
       const sockets = store.getState().sockets;
       if (sockets.has(peerId)) {
-        sockets.get(peerId).emit('iceCandidate', { 'peer_id': socket.id, 'ice_candidate': iceCandidate });
+        sockets.get(peerId).emit('iceCandidate', { peer_id: socket.id, ice_candidate: iceCandidate });
       }
     });
 
@@ -168,7 +171,7 @@ module.exports = io => {
       const sockets = store.getState().sockets;
 
       if (sockets.has(peerId)) {
-        sockets.get(peerId).emit('sessionDescription', { 'peer_id': socket.id, 'session_description': sessionDescription });
+        sockets.get(peerId).emit('sessionDescription', { peer_id: socket.id, session_description: sessionDescription });
       }
     });
   });

@@ -14,7 +14,6 @@ export const setAsLoaded = () => {
 
 export default function configReducer (state = false, action) {
   switch (action.type) {
-
     case SET_AS_LOADED:
       return true;
 

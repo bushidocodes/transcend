@@ -1,5 +1,4 @@
 import { Map } from 'immutable';
-import store from '../store';
 
 /* --------------- HELPERS --------------- */
 
@@ -36,7 +35,7 @@ export const login = (username, password) => {
         const user = Map(data);
         dispatch(authenticated(user));
       })
-      .catch(err => {
+      .catch(() => {
         dispatch(authenticated(Map({})));
       });
 };

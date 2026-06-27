@@ -1,5 +1,3 @@
-/* global socket */
-
 import AFRAME from 'aframe';
 import store from '../redux/store';
 

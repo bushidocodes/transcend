@@ -141,7 +141,6 @@ export default class Lobby extends React.Component {
         <Chair x="5.75" y="0" z="0.3" />
         <Chair x="4.25" y="0" z="0.3" />
 
-
         {/* Whiteboards */}
         <a-entity geometry="primitive: plane; height: 3; width: 4.5"
           material="color: white" position="-10 2.5 24.70" rotation="0 180 0"></a-entity>
@@ -160,5 +159,3 @@ export default class Lobby extends React.Component {
     );
   }
 }
-
-

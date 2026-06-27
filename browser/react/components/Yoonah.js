@@ -1,7 +1,7 @@
 import React from 'react';
 import Teleporter from './Teleporter';
 import Room from './Room';
-import gif from 'aframe-gif-shader';
+import 'aframe-gif-shader'; // registers the `gif` A-Frame shader referenced in JSX below (side-effect)
 
 // WebRTC chat join/leave is handled centrally by <App> on scene change (issue #70).
 export default class Yoonah extends React.Component {

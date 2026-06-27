@@ -10,7 +10,7 @@ import { joinChatRoom, leaveChatRoom } from '../../webRTC/client';
 
 /* ----------------- COMPONENT ------------------ */
 
-const style = { 'width': '100%', 'height': '100%' };
+const style = { width: '100%', height: '100%' };
 
 function App (props) {
   // Gate the room (Outlet) on <a-assets> finishing. Under React 18 + A-Frame 1.7, an entity that
@@ -74,9 +74,10 @@ function App (props) {
     //   direct child of a-scene.
     // The LoadingSpinner hides the a-scene by pushing it below the visible screen until loaded
     <div style={style}>
-      {!props.isLoaded ? (
+      {!props.isLoaded
+        ? (
         <LoadingSpinner />
-      )
+          )
         : null
       }
       <a-scene id="scene" scene-load>

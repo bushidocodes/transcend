@@ -65,8 +65,8 @@ beforeEach(() => {
   emptyInitialState = Map({});
 
   populatedState = Map({
-    'number1': user,
-    'number2': user2
+    number1: user,
+    number2: user2
   });
 });
 
@@ -74,13 +74,13 @@ describe('userReducer', () => {
   it('adds a user to an initial empty state of users', () => {
     const action = {
       type: ADD_USER,
-      user: user
+      user
     };
 
     const nextState = userReducer(emptyInitialState, action);
 
     expect(nextState).to.equal(Map({
-      'number1': Map({
+      number1: Map({
         id: 'number1',
         color: 'blue',
         x: 0,
@@ -102,9 +102,9 @@ describe('userReducer', () => {
     const nextState = userReducer(populatedState, action);
 
     expect(nextState).to.equal(Map({
-      'number1': user,
-      'number2': user2,
-      'number3': Map({
+      number1: user,
+      number2: user2,
+      number3: Map({
         id: 'number3',
         color: 'yellow',
         x: 2,
@@ -126,7 +126,7 @@ describe('userReducer', () => {
     const nextState = userReducer(populatedState, action);
 
     expect(nextState).to.equal(Map({
-      'number1': Map({
+      number1: Map({
         id: 'number1',
         color: 'blue',
         x: 1,
@@ -136,7 +136,7 @@ describe('userReducer', () => {
         yrot: 1,
         zrot: 1
       }),
-      'number2': user2
+      number2: user2
     }));
   });
 
@@ -149,7 +149,7 @@ describe('userReducer', () => {
     const nextState = userReducer(populatedState, action);
 
     expect(nextState).to.equal(Map({
-      'number2': user2
+      number2: user2
     }));
   });
 
@@ -173,8 +173,8 @@ describe('userReducer', () => {
     const nextState = userReducer(populatedState, action);
 
     expect(nextState).to.equal(Map({
-      'number1': user,
-      'number2': user2
+      number1: user,
+      number2: user2
     }));
   });
 });

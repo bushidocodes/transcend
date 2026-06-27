@@ -21,7 +21,6 @@ export const receiveUsers = users => {
 
 export default function userReducer (state = initialState, action) {
   switch (action.type) {
-
     case RECEIVE_USERS:
       return action.users;
 
