@@ -1,6 +1,14 @@
 import { Map } from 'immutable';
-import axios from 'axios';
 import store from '../store';
+
+/* --------------- HELPERS --------------- */
+
+const jsonHeaders = { 'Content-Type': 'application/json' };
+
+const handleJson = response => {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+};
 
 /* --------------- INITIAL STATE --------------- */
 
@@ -18,9 +26,14 @@ export const authenticated = user => ({
 
 export const login = (username, password) => {
   return dispatch =>
-    axios.post('/api/auth/local/login', { username, password })
-      .then(response => {
-        const user = Map(response.data);
+    fetch('/api/auth/local/login', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ username, password }),
+    })
+      .then(handleJson)
+      .then(data => {
+        const user = Map(data);
         dispatch(authenticated(user));
       })
       .catch(err => {
@@ -30,22 +43,32 @@ export const login = (username, password) => {
 
 export const signup = (name, displayName, email, password) => {
   return dispatch =>
-    axios.post('/api/auth/local/signup', { name, displayName, email, password })
-      .then(response => dispatch(login(email, password)))
+    fetch('/api/auth/local/signup', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ name, displayName, email, password }),
+    })
+      .then(response => {
+        // The server replies 201 with a plain-text "Created" body (no JSON), so don't
+        // parse it — just confirm success before logging in.
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return dispatch(login(email, password));
+      })
       .catch(err => console.log(err.message));
 };
 
 export const logout = () =>
   dispatch =>
-    axios.post('/api/auth/logout')
+    fetch('/api/auth/logout', { method: 'POST' })
       .then(() => dispatch(whoami()))
       .catch(() => dispatch(whoami()));
 
 export const whoami = () => {
   return dispatch =>
-    axios.get('/api/auth/whoami')
-      .then(response => {
-        const user = Map(response.data);
+    fetch('/api/auth/whoami')
+      .then(handleJson)
+      .then(data => {
+        const user = Map(data);
         dispatch(authenticated(user));
       })
       .catch(failed => dispatch(authenticated(Map({}))));

@@ -34,7 +34,6 @@
     "@babel/plugin-proposal-decorators": "^7.0.0",
     "@babel/preset-env": "^7.0.0",
     "@babel/preset-react": "^7.0.0",
-    "axios": "^1.0.0",
     "babel-loader": "^8.0.0",
     "bcryptjs": "^3.0.0",
     "chalk": "^4.0.0",
