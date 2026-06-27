@@ -17,23 +17,22 @@
 const http = require('http');
 const { Server: SocketIOServer } = require('socket.io');
 const socketClient = require('socket.io-client');
-const { expect } = require('chai');
+
+// describe/it/expect/beforeAll/afterAll are provided as globals by Vitest (test.globals).
 
 let server, io, PORT;
 
-before(function (done) {
+beforeAll(() => new Promise(resolve => {
   server = http.createServer();
   io = new SocketIOServer(server, { cors: { origin: '*' } });
   require('./socket')(io);
   server.listen(0, function () {
     PORT = server.address().port;
-    done();
+    resolve();
   });
-});
+}));
 
-after(function (done) {
-  io.close(done);
-});
+afterAll(() => new Promise(resolve => io.close(resolve)));
 
 // -----------------------------------------------------------------
 // Helpers
@@ -86,14 +85,15 @@ describe('Socket.io – joinScene / sceneState', function () {
     return waitFor(client, 'connect')
       .then(function () { return handshake(client, 'Alice', 'lobby'); })
       .then(function (state) {
-        expect(state).to.include.all.keys('you', 'others', 'tickRate');
-        expect(state.you.id).to.equal(client.id);
-        expect(state.you.displayName).to.equal('Alice');
-        expect(state.you.y).to.equal(1.3);
-        expect(state.you).to.include.all.keys('x', 'y', 'z', 'xrot', 'yrot', 'zrot', 'scene');
-        expect(state.you.scene).to.equal('lobby');     // joinScene records the room up front
-        expect(Object.keys(state.others)).to.have.length(0);
-        expect(state.tickRate).to.be.a('number').and.to.be.greaterThan(0);
+        expect(Object.keys(state)).toEqual(expect.arrayContaining(['you', 'others', 'tickRate']));
+        expect(state.you.id).toBe(client.id);
+        expect(state.you.displayName).toBe('Alice');
+        expect(state.you.y).toBe(1.3);
+        expect(Object.keys(state.you)).toEqual(expect.arrayContaining(['x', 'y', 'z', 'xrot', 'yrot', 'zrot', 'scene']));
+        expect(state.you.scene).toBe('lobby');     // joinScene records the room up front
+        expect(Object.keys(state.others)).toHaveLength(0);
+        expect(typeof state.tickRate).toBe('number');
+        expect(state.tickRate).toBeGreaterThan(0);
         return cleanup(client);
       });
   });
@@ -103,9 +103,9 @@ describe('Socket.io – joinScene / sceneState', function () {
     return waitFor(client, 'connect')
       .then(function () { return handshake(client, 'Bob', 'lobby', 'creeper'); })
       .then(function (state) {
-        expect(state.you.xrot).to.equal(0);
-        expect(state.you.yrot).to.equal(0);
-        expect(state.you.zrot).to.equal(0);
+        expect(state.you.xrot).toBe(0);
+        expect(state.you.yrot).toBe(0);
+        expect(state.you.zrot).toBe(0);
         return cleanup(client);
       });
   });
@@ -124,8 +124,8 @@ describe('Socket.io – sceneState.others', function () {
       .then(function () { return handshake(cA, 'Alice', 'lobby'); })
       .then(function () { return handshake(cB, 'Bob', 'lobby'); })
       .then(function (stateB) {
-        expect(stateB.others).to.have.property(cA.id);
-        expect(stateB.others).to.not.have.property(cB.id);
+        expect(stateB.others).toHaveProperty(cA.id);
+        expect(stateB.others).not.toHaveProperty(cB.id);
         return cleanup(cA, cB);
       });
   });
@@ -135,8 +135,8 @@ describe('Socket.io – sceneState.others', function () {
     return waitFor(client, 'connect')
       .then(function () { return handshake(client, 'Lone Wolf', 'lobby'); })
       .then(function (state) {
-        expect(Object.keys(state.others)).to.not.include(client.id);
-        expect(Object.keys(state.others)).to.have.length(0);
+        expect(Object.keys(state.others)).not.toContain(client.id);
+        expect(Object.keys(state.others)).toHaveLength(0);
         return cleanup(client);
       });
   });
@@ -169,10 +169,10 @@ describe('Socket.io – real-time position sync', function () {
       const updatesForB = waitFor(cB, 'usersUpdated');
       cA.emit('tick', { id: cA.id, x: 5, y: 1.3, z: -3, xrot: 0, yrot: 90, zrot: 0, skin: 'default', scene: 'lobby' });
       return updatesForB.then(function (users) {
-        expect(users).to.have.property(cA.id);
-        expect(users[cA.id].x).to.equal(5);
-        expect(users[cA.id].z).to.equal(-3);
-        expect(users[cA.id].yrot).to.equal(90);
+        expect(users).toHaveProperty(cA.id);
+        expect(users[cA.id].x).toBe(5);
+        expect(users[cA.id].z).toBe(-3);
+        expect(users[cA.id].yrot).toBe(90);
       });
     });
   });
@@ -182,7 +182,7 @@ describe('Socket.io – real-time position sync', function () {
       const updatesForB = waitFor(cB, 'usersUpdated');
       cA.emit('tick', { id: cA.id, x: 1, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
       return updatesForB.then(function (users) {
-        expect(users).to.not.have.property(cB.id);
+        expect(users).not.toHaveProperty(cB.id);
       });
     });
   });
@@ -192,8 +192,8 @@ describe('Socket.io – real-time position sync', function () {
       const updatesForA = waitFor(cA, 'usersUpdated');
       cB.emit('tick', { id: cB.id, x: 2, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
       return updatesForA.then(function (users) {
-        expect(users).to.not.have.property(cA.id);
-        expect(users).to.have.property(cB.id);
+        expect(users).not.toHaveProperty(cA.id);
+        expect(users).toHaveProperty(cB.id);
       });
     });
   });
@@ -204,13 +204,13 @@ describe('Socket.io – real-time position sync', function () {
       cA.emit('tick', { id: cA.id, x: -7.5, y: 1.8, z: 12.3, xrot: 5, yrot: 270, zrot: -2, skin: 'steve', scene: 'lobby' });
       return updatesForB.then(function (users) {
         const a = users[cA.id];
-        expect(a.x).to.equal(-7.5);
-        expect(a.y).to.equal(1.8);
-        expect(a.z).to.equal(12.3);
-        expect(a.xrot).to.equal(5);
-        expect(a.yrot).to.equal(270);
-        expect(a.zrot).to.equal(-2);
-        expect(a.scene).to.equal('lobby');
+        expect(a.x).toBe(-7.5);
+        expect(a.y).toBe(1.8);
+        expect(a.z).toBe(12.3);
+        expect(a.xrot).toBe(5);
+        expect(a.yrot).toBe(270);
+        expect(a.zrot).toBe(-2);
+        expect(a.scene).toBe('lobby');
       });
     });
   });
@@ -220,14 +220,14 @@ describe('Socket.io – real-time position sync', function () {
       const first = waitFor(cB, 'usersUpdated');
       cA.emit('tick', { id: cA.id, x: 1, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
       return first.then(function (users) {
-        expect(users[cA.id].x).to.equal(1);
+        expect(users[cA.id].x).toBe(1);
         const second = waitFor(cB, 'usersUpdated');
         cA.emit('tick', { id: cA.id, x: 99, y: 2.5, z: -50, xrot: 1, yrot: 180, zrot: 0, skin: 'default', scene: 'lobby' });
         return second;
       }).then(function (users) {
-        expect(users[cA.id].x).to.equal(99);
-        expect(users[cA.id].y).to.equal(2.5);
-        expect(users[cA.id].yrot).to.equal(180);
+        expect(users[cA.id].x).toBe(99);
+        expect(users[cA.id].y).toBe(2.5);
+        expect(users[cA.id].yrot).toBe(180);
       });
     });
   });
@@ -246,7 +246,7 @@ describe('Socket.io – room filtering (#58)', function () {
       .then(function () { return handshake(cB, 'Bob', 'spaceroom'); })     // B in another room
       .then(function () { return handshake(cA, 'Alice', 'lobby'); })
       .then(function (stateA) {
-        expect(stateA.others).to.not.have.property(cB.id);
+        expect(stateA.others).not.toHaveProperty(cB.id);
         return cleanup(cA, cB);
       });
   });
@@ -269,7 +269,7 @@ describe('Socket.io – room filtering (#58)', function () {
         return updatesForB;
       })
       .then(function (users) {
-        expect(users).to.not.have.property(cA.id);   // A is in lobby, B is in spaceroom
+        expect(users).not.toHaveProperty(cA.id);   // A is in lobby, B is in spaceroom
         return cleanup(cA, cB);
       });
   });
@@ -290,10 +290,10 @@ describe('Socket.io – room filtering (#58)', function () {
         cSpace.once('removeUser', function () { spaceGotIt = true; });
         cLobby1.disconnect();
         return sameRoomGotIt.then(function (removedId) {
-          expect(removedId).to.equal(leavingId);
+          expect(removedId).toBe(leavingId);
           return sleep(120);
         }).then(function () {
-          expect(spaceGotIt).to.equal(false);
+          expect(spaceGotIt).toBe(false);
           return cleanup(cLobby2, cSpace);
         });
       });
@@ -332,8 +332,8 @@ describe('Socket.io – tick guard (issue #56)', function () {
         return handshake(observer, 'Observer', 'lobby');
       })
       .then(function (state) {
-        expect(state.others).to.not.have.property('ghost-stale-socket-id');
-        expect(state.others).to.have.property(client.id); // the real user is there
+        expect(state.others).not.toHaveProperty('ghost-stale-socket-id');
+        expect(state.others).toHaveProperty(client.id); // the real user is there
         return cleanup(client, observer);
       });
   });
@@ -358,7 +358,7 @@ describe('Socket.io – disconnect cleanup', function () {
       })
       .then(function () { return handshake(cB, 'Bob', 'lobby'); })
       .then(function (stateB) {
-        expect(stateB.others).to.not.have.property(savedAId);
+        expect(stateB.others).not.toHaveProperty(savedAId);
         return cleanup(cB);
       });
   });
@@ -375,7 +375,7 @@ describe('Socket.io – disconnect cleanup', function () {
         const removePromise = waitFor(cB, 'removeUser');
         cA.disconnect();
         return removePromise.then(function (removedId) {
-          expect(removedId).to.equal(savedAId);
+          expect(removedId).toBe(savedAId);
           return cleanup(cB);
         });
       });
@@ -437,8 +437,8 @@ describe('Socket.io – single active session per account (#30)', function () {
         return firstClosed;
       })
       .then(function () {
-        expect(first.connected).to.equal(false);
-        expect(second.connected).to.equal(true);
+        expect(first.connected).toBe(false);
+        expect(second.connected).toBe(true);
         return cleanup(second);
       });
   });
@@ -493,9 +493,9 @@ describe('Socket.io – single active session per account (#30)', function () {
         return ss;
       })
       .then(function (state) {
-        expect(state.you.x).to.equal(7);
-        expect(state.you.z).to.equal(-4);
-        expect(state.you.yrot).to.equal(123);
+        expect(state.you.x).toBe(7);
+        expect(state.you.z).toBe(-4);
+        expect(state.you.yrot).toBe(123);
         return cleanup(second);
       });
   });
@@ -524,9 +524,9 @@ describe('Socket.io – single active session per account (#30)', function () {
         return ss;
       })
       .then(function (state) {
-        expect(state.you.scene).to.equal('spaceroom');
+        expect(state.you.scene).toBe('spaceroom');
         // The lobby coordinates must not have leaked into the new room.
-        expect(state.you.x === 7 && state.you.z === -4).to.equal(false);
+        expect(state.you.x === 7 && state.you.z === -4).toBe(false);
         return cleanup(second);
       });
   });
@@ -553,7 +553,7 @@ describe('Socket.io – single active session per account (#30)', function () {
         return peerPairsX1;
       })
       .then(function (add1) {
-        expect(add1.peer_id).to.equal(x1Id);          // peer's voice is wired to tab 1
+        expect(add1.peer_id).toBe(x1Id);          // peer's voice is wired to tab 1
         // Tab 2 opens for the SAME account → server evicts tab 1, which must tear down its
         // voice link: the peer is told to drop tab 1.
         x2 = connect();
@@ -564,15 +564,15 @@ describe('Socket.io – single active session per account (#30)', function () {
         });
       })
       .then(function (drop) {
-        expect(drop.peer_id).to.equal(x1Id);          // peer tore down audio to tab 1
+        expect(drop.peer_id).toBe(x1Id);          // peer tore down audio to tab 1
         // Tab 2 joins the voice room → the peer is re-paired to tab 2.
         const peerPairsX2 = waitFor(peer, 'addPeer');
         x2.emit('joinChatRoom', 'lobby');
         return peerPairsX2;
       })
       .then(function (add2) {
-        expect(add2.peer_id).to.equal(x2.id);         // peer's voice now flows to tab 2
-        expect(add2.peer_id).to.not.equal(x1Id);      // and NOT the dead tab 1
+        expect(add2.peer_id).toBe(x2.id);         // peer's voice now flows to tab 2
+        expect(add2.peer_id).not.toBe(x1Id);      // and NOT the dead tab 1
         return cleanup(peer, x2);
       });
   });
@@ -588,8 +588,8 @@ describe('Socket.io – single active session per account (#30)', function () {
         return sleep(150);
       })
       .then(function () {
-        expect(a.connected).to.equal(true);
-        expect(b.connected).to.equal(true);
+        expect(a.connected).toBe(true);
+        expect(b.connected).toBe(true);
         return cleanup(a, b);
       });
   });
@@ -605,8 +605,8 @@ describe('Socket.io – single active session per account (#30)', function () {
         return sleep(150);
       })
       .then(function () {
-        expect(a.connected).to.equal(true);
-        expect(b.connected).to.equal(true);
+        expect(a.connected).toBe(true);
+        expect(b.connected).toBe(true);
         return cleanup(a, b);
       });
   });
@@ -634,7 +634,7 @@ describe('Socket.io – single active session per account (#30)', function () {
         return removed;
       })
       .then(function (removedId) {
-        expect(removedId).to.equal(firstId);
+        expect(removedId).toBe(firstId);
         return cleanup(observer, second);
       });
   });

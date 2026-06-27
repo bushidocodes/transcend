@@ -37,10 +37,23 @@ export default [
     languageOptions: { globals: { ...globals.node } },
   },
 
-  // Test files use Mocha's BDD globals (describe/it/before/after).
+  // Test files use Vitest's globals (test.globals in vitest.config.mjs). toEqualImmutable is a
+  // custom matcher registered in test/setup.js.
   {
     files: ['**/*.test.js', '**/*.test.jsx'],
-    languageOptions: { globals: { ...globals.mocha } },
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+      },
+    },
   },
 
   // Preserve the prior config's leniency on these two so they nudge rather than block.
