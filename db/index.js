@@ -18,7 +18,9 @@ const url = (process.env.NODE_ENV === 'testing' ? process.env.DATABASE_TEST_URL 
   defaultUrl;
 console.log(styleText('blue', `Opening database connection to ${url}`));
 
-// Create the database instance
+// Create the database instance. The resolved URL is exported for the one other consumer of
+// this database: the express-session Postgres store (server/index.js, issue #122), so the
+// env-precedence logic above isn't duplicated there.
 const db = module.exports = new Sequelize(url, {
   logging: sqlLogging, // export DEBUG=sql in the environment to get SQL queries
   define: {
@@ -27,6 +29,8 @@ const db = module.exports = new Sequelize(url, {
     timestamps: true         // automatically include timestamp columns
   }
 });
+
+db.connectionUrl = url;
 
 // Pull in our models
 require('./models');

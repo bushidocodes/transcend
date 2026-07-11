@@ -31,6 +31,9 @@ const forceSSL = function (req, res, next) {
 
 if (process.env.NODE_ENV === 'production') {
   console.log(styleText('blue', 'Production Environment detected, so redirect to HTTPS'));
+  // TLS terminates at the platform's proxy/ELB; trust X-Forwarded-* so express sees the
+  // original protocol — forceSSL reads it, and the session cookie's `secure` flag needs it.
+  app.set('trust proxy', 1);
   app.use(forceSSL);
 }
 
@@ -52,21 +55,31 @@ if (!sessionSecret) {
   }
   console.warn(styleText('yellow', 'WARNING: SESSION_SECRET is not set — using an insecure development fallback. Set it before deploying (e.g. `openssl rand -hex 32`).'));
 }
-app.use(require('cookie-session')({
+// Server-side sessions (issue #122): express-session + a Postgres store replace
+// cookie-session. The whole session used to live in a signed client cookie, which meant no
+// server-side revocation (a stolen or replaced session couldn't be invalidated) and no real
+// regenerate()/save() — a hand-written shim no-op'd exactly the calls Passport 0.6+ makes to
+// prevent session fixation. Now only the session id travels in the cookie, the data lives in
+// Postgres (a `session` table, auto-created; expired rows are pruned by the store), Passport's
+// regenerate() genuinely rotates the id on login, and deleting a row revokes that session.
+const session = require('express-session');
+const PgSessionStore = require('connect-pg-simple')(session);
+app.use(session({
+  store: new PgSessionStore({
+    conString: db.connectionUrl,
+    createTableIfMissing: true
+  }),
   name: 'session',
-  keys: [sessionSecret || 'insecure-dev-only-secret']
+  secret: sessionSecret || 'insecure-dev-only-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  }
 }));
-
-// Shim for passport 0.6+ compatibility with cookie-session (which lacks regenerate/save)
-app.use((req, res, next) => {
-  if (req.session && !req.session.regenerate) {
-    req.session.regenerate = (cb) => { cb(); };
-  }
-  if (req.session && !req.session.save) {
-    req.session.save = (cb) => { cb(); };
-  }
-  next();
-});
 
 // Body parsing middleware
 app.use(express.urlencoded({ extended: true }));
