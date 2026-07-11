@@ -7,6 +7,7 @@ import { addFirstPersonProperties } from './utils';
 import { currentRoom } from './navigate';
 import * as avatars from './avatars';
 import './aframeComponents/publish-location';
+import './aframeComponents/remote-pose';
 import './aframeComponents/webrtc-controls';
 import './aframeComponents/wall-collision';
 import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate, joinChatRoom } from './webRTC/client';

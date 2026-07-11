@@ -8,6 +8,10 @@
  */
 
 let avatars;
+let poseBuffer;
+
+// The latest pose a remote-pose component would render, once the stream has settled.
+const latestPose = id => poseBuffer.samplePose(id, Number.MAX_SAFE_INTEGER);
 
 const user = (id, overrides) => Object.assign({
   id,
@@ -26,9 +30,10 @@ const body = id => document.getElementById(`${id}-body`);
 
 beforeEach(async () => {
   document.body.innerHTML = '<div id="scene"></div>';
-  // Fresh module per test: the manager's registry is module state.
+  // Fresh modules per test: the manager's registry and the pose buffer are module state.
   vi.resetModules();
   avatars = await import('./avatars');
+  poseBuffer = await import('./pose-buffer');
 });
 
 describe('AvatarManager – sync', () => {
@@ -42,16 +47,23 @@ describe('AvatarManager – sync', () => {
     expect(head('a').getAttribute('rotation')).toBe('0 90 0');
     expect(body('a').getAttribute('rotation')).toBe('0 90 0');
     expect(head('b').getAttribute('skin')).toBe('woody');
+    // Both entities carry the interpolation component (#125), and the buffer is seeded.
+    expect(head('a').getAttribute('remote-pose')).toContain('userId: a');
+    expect(body('a').getAttribute('remote-pose')).toContain('part: body');
+    expect(latestPose('a').yrot).toBe(90);
   });
 
-  it('updates pose in place on subsequent syncs (no duplicate entities)', () => {
+  it('feeds pose updates into the interpolation buffer without duplicating entities (#125)', () => {
     avatars.sync({ a: user('a') });
+    const el = head('a');
     avatars.sync({ a: user('a', { x: 9, z: -4, yrot: 180 }) });
 
     expect(document.querySelectorAll('a-minecraft').length).toBe(2); // one head + one body
-    expect(head('a').getAttribute('position')).toBe('9 1.3 -4');
-    expect(head('a').getAttribute('rotation')).toBe('0 180 0');
-    expect(body('a').getAttribute('position')).toBe('9 1.3 -4');
+    expect(head('a')).toBe(el); // same entity — rendering happens per-frame via remote-pose
+    const pose = latestPose('a');
+    expect(pose.x).toBe(9);
+    expect(pose.z).toBe(-4);
+    expect(pose.yrot).toBe(180);
   });
 
   it('redraws (removes and recreates) an avatar whose skin changed', () => {
@@ -98,7 +110,7 @@ describe('AvatarManager – sync', () => {
     const el = head('a');
     avatars.sync({ a: user('a', { skin: undefined, x: 5 }) });
     expect(head('a')).toBe(el);
-    expect(head('a').getAttribute('position')).toBe('5 1.3 2');
+    expect(latestPose('a').x).toBe(5);
   });
 });
 
@@ -108,6 +120,7 @@ describe('AvatarManager – remove', () => {
     avatars.remove('a');
     expect(head('a')).toBeNull();
     expect(body('a')).toBeNull();
+    expect(latestPose('a')).toBeNull(); // the interpolation buffer is dropped too (#125)
     expect(() => avatars.remove('nobody')).not.toThrow();
   });
 });
