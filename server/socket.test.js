@@ -639,3 +639,65 @@ describe('Socket.io – single active session per account (#30)', function () {
       });
   });
 });
+
+// -----------------------------------------------------------------
+// 8. Malformed payloads must not crash the server (issue #112)
+// -----------------------------------------------------------------
+
+describe('Socket.io – malformed payload safety (issue #112)', function () {
+  // Fire a hostile/malformed message from one client, then prove the server process is still
+  // alive by completing a fresh, fully valid handshake on a second connection. Before the
+  // guarded registration path, each of these threw inside the handler and the uncaught
+  // exception took the whole server process down.
+  function serverSurvives (fire) {
+    const attacker = connect();
+    const probe = connect();
+    return Promise.all([waitFor(attacker, 'connect'), waitFor(probe, 'connect')])
+      .then(function () {
+        fire(attacker);
+        return sleep(150);
+      })
+      .then(function () { return handshake(probe, 'Probe', 'lobby'); })
+      .then(function (state) {
+        expect(state.you.id).toBe(probe.id);
+        return { state, attacker, probe };
+      });
+  }
+
+  it('joinScene with a null user is dropped and does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('joinScene', null, 'lobby'); })
+      .then(function ({ state, attacker, probe }) {
+        // The malformed join must not have created a user either.
+        expect(state.others).not.toHaveProperty(attacker.id);
+        return cleanup(attacker, probe);
+      });
+  });
+
+  it('joinScene with a non-string scene is dropped', function () {
+    return serverSurvives(function (c) { c.emit('joinScene', { displayName: 'X' }, { evil: true }); })
+      .then(function ({ state, attacker, probe }) {
+        expect(state.others).not.toHaveProperty(attacker.id);
+        return cleanup(attacker, probe);
+      });
+  });
+
+  it('tick with a null payload does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('tick', null); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+
+  it('relayICECandidate with a null config does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('relayICECandidate', null); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+
+  it('relaySessionDescription with a null config does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('relaySessionDescription', null); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+
+  it('joinChatRoom with a non-string room is dropped', function () {
+    return serverSurvives(function (c) { c.emit('joinChatRoom', { room: 'lobby' }); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+});
