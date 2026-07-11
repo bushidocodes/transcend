@@ -31,6 +31,9 @@
   },
   "homepage": "https://github.com/TranscendVR/transcend#readme",
   "dependencies": {
+    "@emotion/react": "^11.0.0",
+    "@emotion/styled": "^11.0.0",
+    "@mui/material": "^5.0.0",
     "aframe": "^1.7.0",
     "aframe-gif-shader": "0.9.1",
     "bcryptjs": "^3.0.0",
@@ -39,9 +42,6 @@
     "express": "^5.0.0",
     "font-awesome": "^4.7.0",
     "immutable": "^4.0.0",
-    "@mui/material": "^5.0.0",
-    "@emotion/react": "^11.0.0",
-    "@emotion/styled": "^11.0.0",
     "passport": "^0.7.0",
     "passport-google-oauth": "^2.0.0",
     "passport-local": "^1.0.0",
@@ -62,8 +62,9 @@
     "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.0.0",
     "globals": "^15.0.0",
-    "neostandard": "^0.12.0",
+    "happy-dom": "^20.10.6",
     "morgan": "^1.11.0",
+    "neostandard": "^0.12.0",
     "vitest": "^3.0.0"
   }
 }

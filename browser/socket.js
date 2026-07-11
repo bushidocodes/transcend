@@ -1,19 +1,15 @@
 /* global socket */
 import { io } from 'socket.io-client';
-import { fromJS } from 'immutable';
 import { EVENTS } from '../shared/protocol';
 import store from './redux/store';
-import { receiveUsers } from './redux/reducers/user-reducer';
 import { setTickRate } from './redux/reducers/config-reducer';
-import { putUserOnDOM, putUserBodyOnDOM, addFirstPersonProperties } from './utils';
+import { addFirstPersonProperties } from './utils';
+import * as avatars from './avatars';
 import './aframeComponents/publish-location';
 import './aframeComponents/webrtc-controls';
 import './aframeComponents/wall-collision';
 import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate, joinChatRoom } from './webRTC/client';
 
-// Track the socket id our local avatar was rendered under so we can tear it down on a
-// reconnect (the id changes when the server hands us a new socket).
-let localAvatarId = null;
 // joinScene is emitted once by <App> on mount (browser/react/components/App.js). The
 // 'connect' event, however, also fires on every socket.io *re*connect, where <App> is
 // already mounted and will NOT re-emit it. Distinguish the two with this flag.
@@ -52,7 +48,7 @@ export function initSocket () {
     const auth = store.getState().auth;
     if (auth && typeof auth.has === 'function' && auth.has('id')) {
       console.log('Reconnected — re-registering this client with the server (issue #56)');
-      removeLocalAvatar();
+      avatars.removeLocal();
       const scene = window.location.pathname.replace(/\//g, '') || 'root';
       socket.emit(EVENTS.JOIN_SCENE, auth, scene);
       // Also re-establish WebRTC audio. The chat-room join lives in <App>'s route-keyed effect
@@ -70,63 +66,20 @@ export function initSocket () {
   //   enables publish-location), then send one 'ready' ack so the server starts streaming
   //   usersUpdated.
   socket.on(EVENTS.SCENE_STATE, ({ you, others, tickRate }) => {
-    const avatar = putUserOnDOM(you);
-    // Remember the id we rendered under (the server sends a plain object) so a later
-    // reconnect can find and remove this exact avatar.
-    localAvatarId = you && you.id;
+    const avatar = avatars.setLocal(you);
     addFirstPersonProperties(avatar, you);
-
-    // others is room-scoped already (#58); render each peer's head + body.
-    Object.keys(others || {}).forEach(id => {
-      putUserOnDOM(others[id]);
-      putUserBodyOnDOM(others[id]);
-    });
-
+    // others is room-scoped already (#58); render each peer (and drop any stragglers from a
+    // previous session/room — sync reconciles removals too).
+    avatars.sync(others);
     store.dispatch(setTickRate(tickRate));
     socket.emit(EVENTS.READY);
   });
 
-  // The server now sends usersUpdated with only the OTHER users in this client's room (#58),
-  //   so the client no longer filters by scene. Add new avatars, update existing ones, and
-  //   reconcile removals: any avatar on the DOM that's absent from this room-scoped payload has
-  //   left the room (or we changed rooms), so it's dropped. The avatar components (head and
-  //   body) are added, updated, or deleted depending on the state of the client's DOM.
-  socket.on(EVENTS.USERS_UPDATED, users => {
-    store.dispatch(receiveUsers(fromJS(users)));
-    const receivedUsers = store.getState().users;
-    const liveIds = new Set();
-    receivedUsers.valueSeq().forEach(user => {
-      liveIds.add(user.get('id'));
-      const avatarHead = document.getElementById(user.get('id'));
-      const avatarBody = document.getElementById(`${user.get('id')}-body`);
-      // If a user's avatar is NOT on the DOM already, add it
-      if (avatarHead === null) {
-        const userObj = user.toJS();
-        putUserOnDOM(userObj);
-        putUserBodyOnDOM(userObj);
-        // If the user's avatar is on the DOM, but not the right skin, remove and redraw it
-      } else if (avatarHead.getAttribute('skin') !== user.get('skin')) {
-        removeUser(user.get('id'));
-        const userObj = user.toJS();
-        putUserOnDOM(userObj);
-        putUserBodyOnDOM(userObj);
-        // Otherwise, just update the avatar's position attributes
-      } else {
-        avatarHead.setAttribute('position', `${user.get('x')} ${user.get('y')} ${user.get('z')}`);
-        avatarHead.setAttribute('rotation', `${user.get('xrot')} ${user.get('yrot')} ${user.get('zrot')}`);
-        avatarBody.setAttribute('position', `${user.get('x')} ${user.get('y')} ${user.get('z')}`);
-        avatarBody.setAttribute('rotation', `0 ${user.get('yrot')} 0`);
-      }
-    });
-    // Drop any other-user avatar that's no longer in our room's payload (they left, or we did).
-    document.querySelectorAll('a-minecraft[id]').forEach(el => {
-      const id = el.getAttribute('id');
-      if (!id || id.endsWith('-body') || id === window.socket.id) return;
-      if (!liveIds.has(id)) removeUser(id);
-    });
-  });
+  // The server sends usersUpdated with only the OTHER users in this client's room (#58);
+  //   AvatarManager reconciles the scene against it (add/update/redraw/remove, issue #118).
+  socket.on(EVENTS.USERS_UPDATED, users => avatars.sync(users));
 
-  socket.on(EVENTS.REMOVE_USER, userId => removeUser(userId));
+  socket.on(EVENTS.REMOVE_USER, userId => avatars.remove(userId));
 
   // Adds a Peer to our DoM as their own Audio Element
   socket.on(EVENTS.ADD_PEER, addPeerConn);
@@ -154,7 +107,7 @@ export function initSocket () {
     console.warn('This session was opened in another window; this tab has been disconnected.');
     socket.io.opts.reconnection = false;
     socket.disconnect();
-    removeLocalAvatar();
+    avatars.removeLocal();
     // Release the microphone. disconnectUser (on the 'disconnect' event) tears down the peer
     // connections and remote <audio> tags, but not the local mic stream — and it must not, since
     // a transient-reconnect reuses that same stream (see the reconnect handler above). This is the
@@ -217,36 +170,6 @@ function showSessionReplacedOverlay () {
 function releaseLocalMedia () {
   const stream = store.getState().webrtc.get('localMediaStream');
   if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
-}
-
-// Remove the local (first-person) avatar, its child cursor, and the separate mutebutton
-// entity so a reconnect can rebuild them cleanly under the new socket id without leaving
-// a duplicate camera or a duplicate #mutebutton on the DOM.
-function removeLocalAvatar () {
-  let head = localAvatarId ? document.getElementById(localAvatarId) : null;
-  // Fall back to the publish-location marker in case the id was never captured.
-  if (!head) head = document.querySelector('a-minecraft[publish-location]');
-  if (head && head.parentNode) head.parentNode.removeChild(head);
-  const mutebutton = document.getElementById('mutebutton');
-  if (mutebutton && mutebutton.parentNode) mutebutton.parentNode.removeChild(mutebutton);
-  localAvatarId = null;
-}
-
-// Remove the avatar of userID from the A-Frame scene and DOM.
-function removeUser (userId) {
-  console.log('Removing user ', userId);
-  const scene = document.getElementById('scene');
-  const headToBeRemoved = document.getElementById(userId);
-  console.log(`Attempting to remove ${userId}-body`);
-  const bodyToBeRemoved = document.getElementById(`${userId}-body`);
-  if (headToBeRemoved) {
-    scene.remove(headToBeRemoved);
-    headToBeRemoved.parentNode.removeChild(headToBeRemoved);
-  }
-  if (bodyToBeRemoved) {
-    scene.remove(bodyToBeRemoved);
-    bodyToBeRemoved.parentNode.removeChild(bodyToBeRemoved);
-  }
 }
 
 export default initSocket;
