@@ -4,7 +4,8 @@ const User = require('./user');
 // describe/it/expect/beforeAll are provided as globals by Vitest (test.globals).
 
 describe('User', () => {
-  beforeAll(() => db.didSync);
+  // prepare() force-syncs the dedicated test DB (NODE_ENV=testing) — the one remaining sync().
+  beforeAll(() => db.prepare());
 
   describe('authenticate(plaintext: String) ~> Boolean', () => {
     it('resolves true if the password matches', () =>

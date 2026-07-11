@@ -35,32 +35,66 @@ db.connectionUrl = url;
 // Pull in our models
 require('./models');
 
-// Sync the db, creating it if necessary
-function sync (force = process.env.NODE_ENV === 'testing', retries = 0, maxRetries = 5) {
-  return db.sync({ force })
-    .then(ok => console.log(styleText('blue', `Synced models to db ${url}`)))
-    .catch(fail => {
-      // Don't do this auto-create nonsense in prod, or if we've retried too many times
-      if (process.env.NODE_ENV === 'production' || retries > maxRetries) {
-        console.error(styleText('red', '********** database error ***********'));
-        console.error(styleText('red', `Couldn't connect to ${url}`));
-        console.error();
-        console.error(styleText('red', String(fail)));
-        console.error(styleText('red', '*************************************'));
-        // Rethrow so didSync rejects (issue #121): a server that can't reach its database
-        // must fail fast at boot, not sit up permanently broken failing every /login.
-        throw fail;
-      }
-      // Otherwise, do this autocreate nonsense
-      console.log(styleText('blue', `${retries ? `[retry ${retries}]` : ''} Creating database ${name}...`));
-      return new Promise((resolve, reject) =>
-        require('child_process').exec(`createdb "${name}"`, resolve)
-      ).then(() => sync(true, retries + 1));
-    });
+// Dev/test convenience: create the target database if it doesn't exist, connecting to the
+// server's maintenance DB at the SAME host/port as the configured URL. This replaces the old
+// `createdb` child-process retry loop, which shelled out with no host/port and so targeted
+// whatever PGHOST/PGPORT defaulted to — not necessarily the database DATABASE_URL points at
+// (issue #133). Never runs in production.
+async function ensureDatabaseExists () {
+  const { Client } = require('pg');
+  const dbName = new URL(url).pathname.slice(1);
+  const adminUrl = new URL(url);
+  adminUrl.pathname = '/postgres';
+  const client = new Client({ connectionString: adminUrl.toString() });
+  await client.connect();
+  try {
+    const existing = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [dbName]);
+    if (existing.rowCount === 0) {
+      console.log(styleText('blue', `Creating database ${dbName}...`));
+      await client.query(`CREATE DATABASE "${dbName.replace(/"/g, '""')}"`);
+    }
+  } finally {
+    await client.end();
+  }
 }
 
-db.didSync = sync();
-// Consumers that care (the server boot gate, seed, the model tests) handle didSync's
-// rejection themselves; this no-op catch only stops an unhandled-rejection crash in modules
-// that require the db without awaiting it. It does not consume the rejection for awaiters.
-db.didSync.catch(() => {});
+// Bring the database to a usable state (issue #133):
+// - testing: force-sync the dedicated test DB from the models — the ONLY remaining sync() —
+//   so the suite always starts from a clean slate;
+// - everywhere else: run pending umzug migrations (migrations/*.js). Production boot never
+//   calls sync(); schema changes to a live database ship as migrations.
+async function doPrepare () {
+  if (process.env.NODE_ENV === 'testing') {
+    await db.sync({ force: true });
+    console.log(styleText('blue', `Force-synced test db ${url}`));
+    return;
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    // Best-effort: if this fails (e.g. auth), fall through and let the migrator surface the
+    // real connection error.
+    await ensureDatabaseExists().catch(() => {});
+  }
+  const createMigrator = require('./migrator');
+  await createMigrator(db).up();
+  console.log(styleText('blue', `Migrations up to date on ${url}`));
+}
+
+// Lazy and memoized (replaces the old eager `didSync` floating promise, #121/#133): nothing
+// touches the network until a caller actually asks — so requiring the db (models in unit
+// tests, the migration CLI) starts no connection. The server boot gate awaits this before
+// listen and exits non-zero on rejection; the caller owns the promise, so there's no
+// unhandled-rejection swallow-catch anymore.
+let prepared = null;
+db.prepare = () => {
+  if (!prepared) {
+    prepared = doPrepare().catch(fail => {
+      console.error(styleText('red', '********** database error ***********'));
+      console.error(styleText('red', `Couldn't prepare ${url}`));
+      console.error();
+      console.error(styleText('red', String(fail)));
+      console.error(styleText('red', '*************************************'));
+      throw fail;
+    });
+  }
+  return prepared;
+};
