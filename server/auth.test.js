@@ -116,3 +116,27 @@ describe('POST /local/signup – mass assignment guard (issue #114)', function (
     expect(mockUser.create).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /local/signup – email and password required (issue #139)', function () {
+  it('rejects a missing email', async function () {
+    const res = await signup({ password: 'secret', displayName: 'NoMail' });
+    expect(res.status).toBe(400);
+    expect(mockUser.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a blank or non-email email', async function () {
+    const blank = await signup({ email: '   ', password: 'secret', displayName: 'Blank' });
+    expect(blank.status).toBe(400);
+    const noAt = await signup({ email: 'not-an-email', password: 'secret', displayName: 'NoAt' });
+    expect(noAt.status).toBe(400);
+    expect(mockUser.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing or empty password', async function () {
+    const missing = await signup({ email: 'x@example.com', displayName: 'NoPass' });
+    expect(missing.status).toBe(400);
+    const empty = await signup({ email: 'x@example.com', password: '', displayName: 'NoPass' });
+    expect(empty.status).toBe(400);
+    expect(mockUser.create).not.toHaveBeenCalled();
+  });
+});
