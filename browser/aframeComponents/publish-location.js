@@ -19,17 +19,17 @@ export default AFRAME.registerComponent('publish-location', {
     this.frame += 1;
     if (this.frame % tickRate !== 0) return;
 
+    // Pose only (issue #113): the server keys the update on the socket's own identity and
+    // ignores everything else, so id no longer rides along, and skin/scene travel via the
+    // dedicated changeSkin/changeScene events instead of every tick.
     const el = this.el;
     const userPosition = {
-      id: el.getAttribute('id'),
       x: el.getAttribute('position').x,
       y: el.getAttribute('position').y,
       z: el.getAttribute('position').z,
       xrot: el.getAttribute('rotation').x,
       yrot: el.getAttribute('rotation').y,
-      zrot: el.getAttribute('rotation').z,
-      skin: el.getAttribute('skin'),
-      scene: window.location.pathname.replace(/\//g, '') || 'root' // room name, or root for the lobby
+      zrot: el.getAttribute('rotation').z
     };
     const mutebutton = document.getElementById('mutebutton');
     mutebutton.setAttribute('position', `${userPosition.x} 0.1 ${userPosition.z - 1}`);

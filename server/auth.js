@@ -5,18 +5,9 @@ const GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 
 const User = require('../db').model('users');
 
-// The complete set of selectable skins, mirroring the Mannequins offered in the
-// ChangingRoom (browser/react/components/ChangingRoom.js). Each value is the basename of a
-// file in public/images/ and is interpolated into a `skinUrl: ../../images/${skin}.png`
-// A-Frame component string rendered on every client, so it must be validated server-side
-// (issue #79) — otherwise an authenticated user could persist an arbitrary string (path
-// traversal, A-Frame component injection seen by other users, unbounded length).
-const VALID_SKINS = new Set([
-  '3djesus', 'agentsmith', 'batman', 'char', 'god', 'Iron-Man-Minecraft-Skin', 'jetienne',
-  'Joker', 'Mario', 'martialartist', 'robocop', 'Sonicthehedgehog', 'woody', 'powerRanger',
-  'catwoman', 'blackWidow', 'evilQueen', 'graceHopper', 'princessBelle', 'skaterGirl',
-  'katnissEverdeen', 'theflash', 'Superman', 'Spiderman'
-]);
+// Shared with the changeSkin socket event (see server/validSkins.js for why validation
+// is required — issue #79).
+const VALID_SKINS = require('./validSkins');
 
 passport.serializeUser((user, done) => {
   done(null, user.id);

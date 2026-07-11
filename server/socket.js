@@ -6,6 +6,7 @@ const { addRoom, addSocketToRoom, removeSocketFromRoom } = require('./redux/redu
 const { addSocket, removeSocket } = require('./redux/reducers/socket-reducer');
 
 const { getRoomPeers } = require('./utils');
+const VALID_SKINS = require('./validSkins');
 
 // How often clients should publish their position: emit on every Nth animation frame. Delivered
 // to clients in the sceneState handshake so the server controls the update rate (issue #59/#69).
@@ -37,6 +38,12 @@ const isObject = value => typeof value === 'object' && value !== null;
 // a missing scene; createUser treats it as "not yet placed").
 const validJoinScene = (user, scene) => isObject(user) && (scene == null || typeof scene === 'string');
 const validRoom = room => typeof room === 'string';
+
+// The only fields a position tick may update (issue #113). Identity comes from the transport
+// (socket.id), never from the payload — otherwise any client could impersonate any peer, since
+// socket ids are broadcast to the whole room via usersUpdated. displayName/skin/scene must
+// never ride in on a tick either: skin/scene changes are their own events below.
+const POSE_FIELDS = ['x', 'y', 'z', 'xrot', 'yrot', 'zrot'];
 
 module.exports = io => {
   io.on('connection', socket => {
@@ -108,10 +115,29 @@ module.exports = io => {
     });
 
     // On each tick update from a client, update the store, which triggers the subscriptions
-    //   created for each client in the 'ready' handler.
+    //   created for each client in the 'ready' handler. The payload's id is ignored — the
+    //   record is keyed on socket.id — and only finite numeric pose fields are merged, so a
+    //   tick can only ever move the sender's own avatar (issue #113).
     on(socket, 'tick', isObject, userData => {
-      userData = Map(userData);
-      store.dispatch(updateUserData(userData));
+      if (!socket.createdUser) return;
+      const pose = { id: socket.id };
+      POSE_FIELDS.forEach(field => {
+        if (Number.isFinite(userData[field])) pose[field] = userData[field];
+      });
+      store.dispatch(updateUserData(Map(pose)));
+    });
+
+    // Skin and scene changes used to ride on every tick, which is what made the tick an
+    // injection surface (#113). They are explicit messages now, validated server-side and
+    // applied to the sender's own record only.
+    on(socket, 'changeSkin', skin => typeof skin === 'string' && VALID_SKINS.has(skin), skin => {
+      if (!socket.createdUser) return;
+      store.dispatch(updateUserData(Map({ id: socket.id, skin })));
+    });
+
+    on(socket, 'changeScene', validRoom, scene => {
+      if (!socket.createdUser) return;
+      store.dispatch(updateUserData(Map({ id: socket.id, scene })));
     });
 
     // Explicit logout: remove the avatar and tear down subscriptions without closing the socket,

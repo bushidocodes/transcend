@@ -64,6 +64,11 @@ function App (props) {
     const segments = location.pathname.split('/').filter(Boolean);
     if (segments.length < 2) return;
     const room = location.pathname.replace(/\//g, '') || 'root';
+    // Tell the server which VR room this avatar is in. Room membership used to piggyback on
+    // every position tick, but the server no longer merges `scene` from ticks (issue #113),
+    // so a route change must announce itself. Before the initial joinScene this is a no-op
+    // (the server drops it and joinScene carries the starting scene).
+    initSocket().emit('changeScene', room);
     joinChatRoom(room);
     return () => leaveChatRoom();
   }, [assetsReady, location.pathname]);
