@@ -1,16 +1,15 @@
 const { styleText } = require('node:util');
-const { Map } = require('immutable');
-const store = require('./redux/store');
-const { createUser, updateUserData, removeUserAndEmit } = require('./redux/reducers/user-reducer');
-const { addRoom, addSocketToRoom, removeSocketFromRoom } = require('./redux/reducers/room-reducer');
-const { addSocket, removeSocket } = require('./redux/reducers/socket-reducer');
-
-const { getRoomPeers } = require('./utils');
+const GameState = require('./game-state');
 const VALID_SKINS = require('./validSkins');
 
 // How often clients should publish their position: emit on every Nth animation frame. Delivered
 // to clients in the sceneState handshake so the server controls the update rate (issue #59/#69).
 const TICK_RATE = 3;
+
+// How often the server pushes room snapshots to clients (issue #115). The SERVER sets the
+// broadcast rate — 20 Hz — independent of how many clients are ticking or how fast; incoming
+// ticks only accumulate into GameState between beats.
+const BROADCAST_INTERVAL_MS = 50;
 
 // socket.io does not catch exceptions thrown inside an event handler — an uncaught throw
 // becomes an uncaught exception on the server process and takes it down for EVERY connected
@@ -33,25 +32,93 @@ function on (socket, event, validate, handler) {
 
 const isObject = value => typeof value === 'object' && value !== null;
 
-// Per-event payload validators (#112). `user` must be an object — createUser dereferences
+// Per-event payload validators (#112). `user` must be an object — joinScene dereferences
 // it — and a scene/room must be a string, since it's used as a room key (joinScene tolerates
-// a missing scene; createUser treats it as "not yet placed").
+// a missing scene; addUser treats it as "not yet placed").
 const validJoinScene = (user, scene) => isObject(user) && (scene == null || typeof scene === 'string');
 const validRoom = room => typeof room === 'string';
 
-// The only fields a position tick may update (issue #113). Identity comes from the transport
-// (socket.id), never from the payload — otherwise any client could impersonate any peer, since
-// socket ids are broadcast to the whole room via usersUpdated. displayName/skin/scene must
-// never ride in on a tick either: skin/scene changes are their own events below.
-const POSE_FIELDS = ['x', 'y', 'z', 'xrot', 'yrot', 'zrot'];
+// Scenes and voice-chat rooms both live in socket.io's own room registry now (issue #116),
+// under distinct prefixes so a chat room named after a scene can't receive scene broadcasts.
+const sceneRoomOf = scene => `scene:${scene}`;
+const chatRoomOf = room => `chat:${room}`;
 
 module.exports = io => {
-  io.on('connection', socket => {
-    let unsubscribe;
+  // Durable domain state only — plain user records keyed by socket id (issue #116). The
+  // socket registry is io.sockets.sockets and room membership is socket.io rooms; neither is
+  // duplicated into application state anymore.
+  const gameState = new GameState();
 
+  // Scenes whose users changed since the last broadcast beat. Marking dirty (instead of
+  // broadcasting unconditionally) means quiet rooms generate no traffic, and a burst of ticks
+  // inside one beat coalesces into a single snapshot per room.
+  const dirtyScenes = new Set();
+  const markDirty = scene => {
+    if (scene !== undefined) dirtyScenes.add(scene);
+  };
+
+  // Fixed-rate, room-scoped broadcast loop (issue #115). This replaces the old per-socket
+  // store.subscribe fan-out, which re-filtered the whole user map and emitted for EVERY
+  // subscriber on EVERY dispatch — N ticking clients cost N×tickrate dispatches × N
+  // subscriptions × O(N) filtering. Here each dirty scene is filtered ONCE per beat, and each
+  // member gets that snapshot minus its own record (the local avatar is driven by the
+  // first-person camera, not by server echo).
+  const broadcastTimer = setInterval(() => {
+    for (const scene of dirtyScenes) {
+      const members = io.sockets.adapter.rooms.get(sceneRoomOf(scene));
+      if (members) {
+        const snapshot = gameState.usersInScene(scene);
+        for (const id of members) {
+          const member = io.sockets.sockets.get(id);
+          if (!member) continue;
+          const others = Object.assign({}, snapshot);
+          delete others[id];
+          member.emit('usersUpdated', others);
+        }
+      }
+    }
+    dirtyScenes.clear();
+  }, BROADCAST_INTERVAL_MS);
+  // Don't let the broadcast loop hold the process open once the server itself is closed.
+  broadcastTimer.unref();
+
+  // Emit to every connected socket whose user record is in `scene` — not just the ready ones
+  // in the scene broadcast room — because removeUser must also reach clients that joined but
+  // haven't acked ready yet. Only clients in the same room ever rendered the avatar, so only
+  // they need the event (#57).
+  const emitToScene = (scene, excludeId, event, payload) => {
+    for (const [id, peer] of io.sockets.sockets) {
+      if (id === excludeId) continue;
+      const user = gameState.getUser(id);
+      if (user && user.scene === scene) peer.emit(event, payload);
+    }
+  };
+
+  io.on('connection', socket => {
     console.log(styleText('yellow', `${socket.id} has connected`));
     socket.createdUser = false;
-    store.dispatch(addSocket(socket));
+
+    // Membership in the per-scene broadcast room, granted on 'ready' (a client must not be
+    // streamed usersUpdated before it has rendered the scene) and moved on changeScene.
+    function joinSceneRoom (scene) {
+      socket.sceneRoom = sceneRoomOf(scene);
+      socket.join(socket.sceneRoom);
+    }
+    function leaveSceneRoom () {
+      if (socket.sceneRoom) {
+        socket.leave(socket.sceneRoom);
+        socket.sceneRoom = null;
+      }
+    }
+
+    // Shared by logoutUser and disconnect: drop the user record, tell the room the avatar is
+    // gone, and refresh that room's snapshot.
+    function removeUserFromWorld () {
+      const removed = gameState.removeUser(socket.id);
+      if (!removed) return;
+      emitToScene(removed.scene, socket.id, 'removeUser', socket.id);
+      markDirty(removed.scene);
+    }
 
     // joinScene is the single Stage 3 entry point (issue #69). It replaces the old
     //   connectUser -> renderAvatar -> getOthers -> getOthersCallback chain: the client sends its
@@ -71,60 +138,59 @@ module.exports = io => {
       // room is left to that room's own spawn. Captured before disconnect, which deletes the record.
       let inheritedPosition = null;
       if (accountId != null) {
-        store.getState().sockets.forEach(existing => {
+        // io.sockets.sockets is the socket registry (issue #116); Map iteration is safe under
+        // the delete that disconnect() performs.
+        for (const existing of io.sockets.sockets.values()) {
           if (existing.id !== socket.id && existing.accountId === accountId) {
             console.log(styleText('red', `Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`));
-            const prev = store.getState().users.get(existing.id);
-            if (prev && prev.get('scene') === scene) {
+            const prev = gameState.getUser(existing.id);
+            if (prev && prev.scene === scene) {
               inheritedPosition = {
-                x: prev.get('x'),
-                y: prev.get('y'),
-                z: prev.get('z'),
-                xrot: prev.get('xrot'),
-                yrot: prev.get('yrot'),
-                zrot: prev.get('zrot')
+                x: prev.x,
+                y: prev.y,
+                z: prev.z,
+                xrot: prev.xrot,
+                yrot: prev.yrot,
+                zrot: prev.zrot
               };
             }
             existing.emit('sessionReplaced');
             existing.disconnect(true);
           }
-        });
+        }
       }
-      store.dispatch(createUser(socket, user, scene));
-      // Apply the inherited position over the fresh random spawn before building sceneState, so the
-      // takeover tab renders at the carried-forward location.
-      if (inheritedPosition) {
-        store.dispatch(updateUserData(Map(Object.assign({ id: socket.id }, inheritedPosition))));
-      }
-      const allUsers = store.getState().users;
+      // A re-join (reconnect, or login after logout) may land in a different scene; drop any
+      // stale broadcast-room membership until the client acks ready again.
+      leaveSceneRoom();
+      const me = gameState.addUser(socket.id, user, scene);
+      // Apply the inherited position over the fresh random spawn before building sceneState, so
+      // the takeover tab renders at the carried-forward location.
+      if (inheritedPosition) gameState.updatePose(socket.id, inheritedPosition);
+      markDirty(me.scene);
       socket.emit('sceneState', {
-        you: store.getState().users.get(socket.id),
-        others: getRoomPeers(allUsers, socket.id),
+        you: me,
+        others: gameState.peersOf(socket.id),
         tickRate: TICK_RATE
       });
     });
 
-    // ready: the client has rendered the scene and wants live updates. Begin pushing the
-    //   positions of the OTHER users in its room whenever the store changes. Collapses the old
-    //   haveGottenOthers + readyToReceiveUpdates pair into one ack (#69).
+    // ready: the client has rendered the scene and wants live updates. Join the scene's
+    //   broadcast room so the fixed-rate loop above starts including this socket. Collapses the
+    //   old haveGottenOthers + readyToReceiveUpdates pair into one ack (#69).
     on(socket, 'ready', null, () => {
-      unsubscribe = store.subscribe(() => {
-        const allUsers = store.getState().users;
-        socket.emit('usersUpdated', getRoomPeers(allUsers, socket.id));
-      });
+      const me = gameState.getUser(socket.id);
+      if (me) joinSceneRoom(me.scene);
     });
 
-    // On each tick update from a client, update the store, which triggers the subscriptions
-    //   created for each client in the 'ready' handler. The payload's id is ignored — the
-    //   record is keyed on socket.id — and only finite numeric pose fields are merged, so a
-    //   tick can only ever move the sender's own avatar (issue #113).
+    // On each tick update from a client, fold the pose into GameState and mark the room dirty;
+    //   the broadcast loop pushes the next snapshot on its own clock. The payload's id is
+    //   ignored — the record is keyed on socket.id — and GameState.updatePose merges only
+    //   finite numeric pose fields onto an existing record, so a tick can only ever move the
+    //   sender's own avatar and can never create one (issues #56/#113).
     on(socket, 'tick', isObject, userData => {
       if (!socket.createdUser) return;
-      const pose = { id: socket.id };
-      POSE_FIELDS.forEach(field => {
-        if (Number.isFinite(userData[field])) pose[field] = userData[field];
-      });
-      store.dispatch(updateUserData(Map(pose)));
+      const me = gameState.updatePose(socket.id, userData);
+      if (me) markDirty(me.scene);
     });
 
     // Skin and scene changes used to ride on every tick, which is what made the tick an
@@ -132,72 +198,81 @@ module.exports = io => {
     // applied to the sender's own record only.
     on(socket, 'changeSkin', skin => typeof skin === 'string' && VALID_SKINS.has(skin), skin => {
       if (!socket.createdUser) return;
-      store.dispatch(updateUserData(Map({ id: socket.id, skin })));
+      const me = gameState.setSkin(socket.id, skin);
+      if (me) markDirty(me.scene);
     });
 
     on(socket, 'changeScene', validRoom, scene => {
       if (!socket.createdUser) return;
-      store.dispatch(updateUserData(Map({ id: socket.id, scene })));
+      const change = gameState.setScene(socket.id, scene);
+      if (!change) return;
+      // The old room's next snapshot no longer contains the mover (clients reconcile the
+      // removal); the new room's next snapshot picks them up.
+      markDirty(change.from);
+      markDirty(scene);
+      if (socket.sceneRoom) {
+        leaveSceneRoom();
+        joinSceneRoom(scene);
+      }
     });
 
-    // Explicit logout: remove the avatar and tear down subscriptions without closing the socket,
-    // so the client can re-register (via joinScene) on a subsequent login without reconnecting.
+    // Explicit logout: remove the avatar and leave the broadcast/chat rooms without closing the
+    // socket, so the client can re-register (via joinScene) on a subsequent login without
+    // reconnecting.
     on(socket, 'logoutUser', null, () => {
       if (socket.createdUser) {
-        store.dispatch(removeUserAndEmit(socket));
+        removeUserFromWorld();
         leaveChatRoom();
-        if (unsubscribe) { unsubscribe(); unsubscribe = undefined; }
+        leaveSceneRoom();
         socket.createdUser = false;
         socket.accountId = null;
       }
     });
 
-    // When a socket disconnects, removes the user from the store, broadcast 'removeUser' to all
-    //   clients, and remove the socket from any socket.io rooms or WebRTC P2P connections
+    // When a socket disconnects, remove the user record, broadcast 'removeUser' to the room,
+    //   and tear down any WebRTC P2P pairings. socket.io itself has already dropped the socket
+    //   from its registry and every room by the time this fires.
     on(socket, 'disconnect', null, () => {
-      store.dispatch(removeUserAndEmit(socket));
+      removeUserFromWorld();
       console.log(styleText('magenta', `${socket.id} has disconnected`));
       leaveChatRoom();
       console.log(`[${socket.id}] disconnected`);
-      store.dispatch(removeSocket(socket));
-      if (unsubscribe) {
-        // Conditional here to prevent a possible race condition where a user
-        // disconnects before the `ready` event
-        unsubscribe();
-      }
     });
 
     // joinChatRoom joins a socket.io room and tells all clients in that room to establish a WebRTC
-    //   connetions with the person entering the room.
+    //   connetions with the person entering the room. socket.io's own room registry replaces the
+    //   old room reducer (issue #116): enumerate the existing members BEFORE joining so we don't
+    //   pair the newcomer with itself.
     on(socket, 'joinChatRoom', validRoom, function (room) {
       console.log(`[${socket.id}] join ${room}`);
-      if (!(store.getState().rooms.has(room))) {
-        console.log(`Adding ${room} to state`);
-        store.dispatch(addRoom(room));
-      }
-      const roomOnState = store.getState().rooms.get(room);
-      roomOnState.valueSeq().forEach(peer => {
+      const peers = io.sockets.adapter.rooms.get(chatRoomOf(room)) || new Set();
+      for (const peerId of peers) {
+        const peer = io.sockets.sockets.get(peerId);
+        if (!peer) continue;
         peer.emit('addPeer', { peer_id: socket.id, should_create_offer: false });
-        socket.emit('addPeer', { peer_id: peer.id, should_create_offer: true });
-      });
-      store.dispatch(addSocketToRoom(room, socket));
-      socket.join(room);
+        socket.emit('addPeer', { peer_id: peerId, should_create_offer: true });
+      }
+      socket.join(chatRoomOf(room));
       socket.currentChatRoom = room;
     });
 
     // leaveChatRoom leaves the current socket.io room and tells all clients to tear down WebRTC
-    //   connections with the person leaving the room.
+    //   connections with the person leaving the room. Leave FIRST so the enumeration below is
+    //   exactly "everyone else still in the room" — and on disconnect, where socket.io has
+    //   already removed us from every room, leave() is a harmless no-op and the enumeration
+    //   still yields the surviving peers.
     function leaveChatRoom () {
       const room = socket.currentChatRoom;
       if (room) {
         console.log(`[${socket.id}] leaveChatRoom ${room}`);
-        socket.leave(room);
-        store.dispatch(removeSocketFromRoom(room, socket));
-        const roomOnState = store.getState().rooms.get(room);
-        roomOnState.valueSeq().forEach(peer => {
+        socket.leave(chatRoomOf(room));
+        const peers = io.sockets.adapter.rooms.get(chatRoomOf(room)) || new Set();
+        for (const peerId of peers) {
+          const peer = io.sockets.sockets.get(peerId);
+          if (!peer) continue;
           peer.emit('removePeer', { peer_id: socket.id });
-          socket.emit('removePeer', { peer_id: peer.id });
-        });
+          socket.emit('removePeer', { peer_id: peerId });
+        }
         socket.currentChatRoom = null;
       } else {
         console.log('Not currently in room, so nothing to leave');
@@ -210,10 +285,8 @@ module.exports = io => {
       const peerId = config.peer_id;
       const iceCandidate = config.ice_candidate;
       console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
-      const sockets = store.getState().sockets;
-      if (sockets.has(peerId)) {
-        sockets.get(peerId).emit('iceCandidate', { peer_id: socket.id, ice_candidate: iceCandidate });
-      }
+      const peer = io.sockets.sockets.get(peerId);
+      if (peer) peer.emit('iceCandidate', { peer_id: socket.id, ice_candidate: iceCandidate });
     });
 
     // Send the answer back to the new user in order to complete the handshake
@@ -221,11 +294,8 @@ module.exports = io => {
       const peerId = config.peer_id;
       const sessionDescription = config.session_description;
       console.log(`[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`);
-      const sockets = store.getState().sockets;
-
-      if (sockets.has(peerId)) {
-        sockets.get(peerId).emit('sessionDescription', { peer_id: socket.id, session_description: sessionDescription });
-      }
+      const peer = io.sockets.sockets.get(peerId);
+      if (peer) peer.emit('sessionDescription', { peer_id: socket.id, session_description: sessionDescription });
     });
   });
 };
