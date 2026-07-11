@@ -18,6 +18,7 @@ import Signup from './components/Login/Signup';
 // The socket itself is created lazily by <App> after login (issue #67), not at import time.
 import '../socket';
 import { whoami, logout } from '../redux/reducers/auth';
+import { EVENTS } from '../../shared/protocol';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { setNavigateFn } from '../navigate';
 
@@ -61,7 +62,7 @@ function Logout () {
   useEffect(() => {
     // The socket only exists if the user reached the VR section and <App> initialized it.
     // Guard the emit so logging out from a state where it was never created can't throw.
-    if (window.socket) window.socket.emit('logoutUser');
+    if (window.socket) window.socket.emit(EVENTS.LOGOUT_USER);
     dispatch(logout()).then(() => navigate('/', { replace: true }));
   }, []);
 

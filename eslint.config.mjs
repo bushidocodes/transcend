@@ -31,9 +31,10 @@ export default [
     },
   },
 
-  // Server and db code runs in Node.
+  // Server and db code runs in Node. shared/ is CommonJS consumed by both the server
+  // (require) and the browser bundle (esbuild interop), so it lints as Node too.
   {
-    files: ['server/**/*.js', 'db/**/*.js', 'build.mjs'],
+    files: ['server/**/*.js', 'db/**/*.js', 'shared/**/*.js', 'build.mjs'],
     languageOptions: { globals: { ...globals.node } },
   },
 
