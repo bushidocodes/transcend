@@ -4,8 +4,8 @@
  * Integration tests for the socket.io multiplayer layer.
  *
  * Spins up a real HTTP + socket.io server using the actual server/socket.js handler (including
- * the Redux/Immutable store) and connects multiple socket.io-client instances to simulate users
- * interacting in the VR space.
+ * the GameState container and the fixed-rate broadcast loop) and connects multiple
+ * socket.io-client instances to simulate users interacting in the VR space.
  *
  * The Stage-3 handshake was collapsed (issue #69): a client now sends a single `joinScene`
  * (identity + room) and the server replies with one `sceneState` ({ you, others, tickRate });
@@ -143,7 +143,7 @@ describe('Socket.io – sceneState.others', function () {
 });
 
 // -----------------------------------------------------------------
-// 3. Real-time position sync (ready -> usersUpdated via store.subscribe)
+// 3. Real-time position sync (ready -> usersUpdated via the fixed-rate broadcast loop, #115)
 // -----------------------------------------------------------------
 
 describe('Socket.io – real-time position sync', function () {
@@ -264,12 +264,18 @@ describe('Socket.io – room filtering (#58)', function () {
         return sleep(80);
       })
       .then(function () {
-        const updatesForB = waitFor(cB, 'usersUpdated');
+        // Broadcasts are room-scoped and only fire for rooms whose state changed (#115), so B
+        // may legitimately receive NOTHING here. Collect whatever does arrive and assert A's
+        // tick never crossed the room boundary.
+        const receivedByB = [];
+        cB.on('usersUpdated', function (users) { receivedByB.push(users); });
         cA.emit('tick', { id: cA.id, x: 1, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
-        return updatesForB;
+        return sleep(250).then(function () { return receivedByB; });
       })
-      .then(function (users) {
-        expect(users).not.toHaveProperty(cA.id);   // A is in lobby, B is in spaceroom
+      .then(function (receivedByB) {
+        receivedByB.forEach(function (users) {
+          expect(users).not.toHaveProperty(cA.id);   // A is in lobby, B is in spaceroom
+        });
         return cleanup(cA, cB);
       });
   });
@@ -381,7 +387,7 @@ describe('Socket.io – disconnect cleanup', function () {
       });
   });
 
-  it('unsubscribes from the store so a disconnected client no longer fires usersUpdated', function () {
+  it('keeps broadcasting to the survivors after a subscribed client disconnects', function () {
     const cA = connect();
     const cB = connect();
 
@@ -393,7 +399,7 @@ describe('Socket.io – disconnect cleanup', function () {
         return sleep(80);
       })
       .then(function () {
-        cA.disconnect(); // its store subscription must be torn down
+        cA.disconnect(); // socket.io drops it from the scene broadcast room
         return sleep(150);
       })
       .then(function () {
@@ -406,9 +412,73 @@ describe('Socket.io – disconnect cleanup', function () {
         return updatesForB;
       })
       .then(function () {
-        // Reaching here without a server crash means cA's stale subscription wasn't emitting
-        // to a closed socket.
+        // Reaching here without a server crash means the broadcast loop handled the departed
+        // socket cleanly and kept streaming to the survivor.
         return cleanup(cB);
+      });
+  });
+});
+
+// -----------------------------------------------------------------
+// 6b. Fixed-rate broadcast loop (issue #115)
+// -----------------------------------------------------------------
+
+describe('Socket.io – fixed-rate broadcast loop (issue #115)', function () {
+  it('a quiet room receives no usersUpdated traffic', function () {
+    const cA = connect();
+    const cB = connect();
+
+    return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function () { return handshake(cB, 'Bob', 'lobby'); })
+      .then(function () {
+        cA.emit('ready');
+        cB.emit('ready');
+        // Let the join-triggered snapshots flush before we start counting.
+        return sleep(200);
+      })
+      .then(function () {
+        const received = [];
+        cB.on('usersUpdated', function (users) { received.push(users); });
+        return sleep(300).then(function () { return received; });
+      })
+      .then(function (received) {
+        // Nobody ticked, so the room never went dirty and the loop stayed silent — the old
+        // per-dispatch subscription fan-out is gone.
+        expect(received).toHaveLength(0);
+        return cleanup(cA, cB);
+      });
+  });
+
+  it('a burst of ticks inside one broadcast interval coalesces into fewer snapshots', function () {
+    const cA = connect();
+    const cB = connect();
+
+    return Promise.all([waitFor(cA, 'connect'), waitFor(cB, 'connect')])
+      .then(function () { return handshake(cA, 'Alice', 'lobby'); })
+      .then(function () { return handshake(cB, 'Bob', 'lobby'); })
+      .then(function () {
+        cA.emit('ready');
+        cB.emit('ready');
+        return sleep(200); // flush join-triggered snapshots
+      })
+      .then(function () {
+        const received = [];
+        cB.on('usersUpdated', function (users) { received.push(users); });
+        // 20 back-to-back ticks. Under the old per-dispatch fan-out B would get ~20
+        // usersUpdated; under a 50ms broadcast clock they collapse into a handful of beats.
+        for (let i = 1; i <= 20; i++) {
+          cA.emit('tick', { x: i, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0 });
+        }
+        return sleep(400).then(function () { return received; });
+      })
+      .then(function (received) {
+        expect(received.length).toBeGreaterThan(0);
+        expect(received.length).toBeLessThan(10);
+        // The final snapshot carries the latest accumulated position.
+        const last = received[received.length - 1];
+        expect(last[cA.id].x).toBe(20);
+        return cleanup(cA, cB);
       });
   });
 });
