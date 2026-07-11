@@ -6,10 +6,44 @@ const { addRoom, addSocketToRoom, removeSocketFromRoom } = require('./redux/redu
 const { addSocket, removeSocket } = require('./redux/reducers/socket-reducer');
 
 const { getRoomPeers } = require('./utils');
+const VALID_SKINS = require('./validSkins');
 
 // How often clients should publish their position: emit on every Nth animation frame. Delivered
 // to clients in the sceneState handshake so the server controls the update rate (issue #59/#69).
 const TICK_RATE = 3;
+
+// socket.io does not catch exceptions thrown inside an event handler — an uncaught throw
+// becomes an uncaught exception on the server process and takes it down for EVERY connected
+// user, so one malformed message is a remote denial-of-service (issue #112). Register every
+// handler through this guarded path instead: `validate` (when given) must accept the payload
+// or the message is dropped, and the handler body is caught and logged rather than crashing.
+function on (socket, event, validate, handler) {
+  socket.on(event, (...args) => {
+    try {
+      if (validate && !validate(...args)) {
+        console.log(styleText('red', `[${socket.id}] dropped malformed '${event}' payload`));
+        return;
+      }
+      handler(...args);
+    } catch (err) {
+      console.error(styleText('red', `[${socket.id}] handler for '${event}' threw:`), err);
+    }
+  });
+}
+
+const isObject = value => typeof value === 'object' && value !== null;
+
+// Per-event payload validators (#112). `user` must be an object — createUser dereferences
+// it — and a scene/room must be a string, since it's used as a room key (joinScene tolerates
+// a missing scene; createUser treats it as "not yet placed").
+const validJoinScene = (user, scene) => isObject(user) && (scene == null || typeof scene === 'string');
+const validRoom = room => typeof room === 'string';
+
+// The only fields a position tick may update (issue #113). Identity comes from the transport
+// (socket.id), never from the payload — otherwise any client could impersonate any peer, since
+// socket ids are broadcast to the whole room via usersUpdated. displayName/skin/scene must
+// never ride in on a tick either: skin/scene changes are their own events below.
+const POSE_FIELDS = ['x', 'y', 'z', 'xrot', 'yrot', 'zrot'];
 
 module.exports = io => {
   io.on('connection', socket => {
@@ -25,7 +59,7 @@ module.exports = io => {
     //   user and returns everything needed to render the room in one message — the client's own
     //   avatar, the other users already in that room (#58), and the tick rate to publish at.
     //   A single entry point also removes the old sceneLoad/createdUser ordering race.
-    socket.on('joinScene', (user, scene) => {
+    on(socket, 'joinScene', validJoinScene, (user, scene) => {
       socket.createdUser = true;
       // Single active session per account ("newest wins"): drop any prior socket for this
       // account before registering the new one (issue #30). Anonymous (no id) are exempt.
@@ -73,7 +107,7 @@ module.exports = io => {
     // ready: the client has rendered the scene and wants live updates. Begin pushing the
     //   positions of the OTHER users in its room whenever the store changes. Collapses the old
     //   haveGottenOthers + readyToReceiveUpdates pair into one ack (#69).
-    socket.on('ready', () => {
+    on(socket, 'ready', null, () => {
       unsubscribe = store.subscribe(() => {
         const allUsers = store.getState().users;
         socket.emit('usersUpdated', getRoomPeers(allUsers, socket.id));
@@ -81,15 +115,34 @@ module.exports = io => {
     });
 
     // On each tick update from a client, update the store, which triggers the subscriptions
-    //   created for each client in the 'ready' handler.
-    socket.on('tick', userData => {
-      userData = Map(userData);
-      store.dispatch(updateUserData(userData));
+    //   created for each client in the 'ready' handler. The payload's id is ignored — the
+    //   record is keyed on socket.id — and only finite numeric pose fields are merged, so a
+    //   tick can only ever move the sender's own avatar (issue #113).
+    on(socket, 'tick', isObject, userData => {
+      if (!socket.createdUser) return;
+      const pose = { id: socket.id };
+      POSE_FIELDS.forEach(field => {
+        if (Number.isFinite(userData[field])) pose[field] = userData[field];
+      });
+      store.dispatch(updateUserData(Map(pose)));
+    });
+
+    // Skin and scene changes used to ride on every tick, which is what made the tick an
+    // injection surface (#113). They are explicit messages now, validated server-side and
+    // applied to the sender's own record only.
+    on(socket, 'changeSkin', skin => typeof skin === 'string' && VALID_SKINS.has(skin), skin => {
+      if (!socket.createdUser) return;
+      store.dispatch(updateUserData(Map({ id: socket.id, skin })));
+    });
+
+    on(socket, 'changeScene', validRoom, scene => {
+      if (!socket.createdUser) return;
+      store.dispatch(updateUserData(Map({ id: socket.id, scene })));
     });
 
     // Explicit logout: remove the avatar and tear down subscriptions without closing the socket,
     // so the client can re-register (via joinScene) on a subsequent login without reconnecting.
-    socket.on('logoutUser', () => {
+    on(socket, 'logoutUser', null, () => {
       if (socket.createdUser) {
         store.dispatch(removeUserAndEmit(socket));
         leaveChatRoom();
@@ -101,7 +154,7 @@ module.exports = io => {
 
     // When a socket disconnects, removes the user from the store, broadcast 'removeUser' to all
     //   clients, and remove the socket from any socket.io rooms or WebRTC P2P connections
-    socket.on('disconnect', () => {
+    on(socket, 'disconnect', null, () => {
       store.dispatch(removeUserAndEmit(socket));
       console.log(styleText('magenta', `${socket.id} has disconnected`));
       leaveChatRoom();
@@ -116,7 +169,7 @@ module.exports = io => {
 
     // joinChatRoom joins a socket.io room and tells all clients in that room to establish a WebRTC
     //   connetions with the person entering the room.
-    socket.on('joinChatRoom', function (room) {
+    on(socket, 'joinChatRoom', validRoom, function (room) {
       console.log(`[${socket.id}] join ${room}`);
       if (!(store.getState().rooms.has(room))) {
         console.log(`Adding ${room} to state`);
@@ -150,10 +203,10 @@ module.exports = io => {
         console.log('Not currently in room, so nothing to leave');
       }
     }
-    socket.on('leaveChatRoom', () => leaveChatRoom());
+    on(socket, 'leaveChatRoom', null, () => leaveChatRoom());
 
     // If any user is an Ice Candidate, tells other users to set up a ICE connection with them
-    socket.on('relayICECandidate', function (config) {
+    on(socket, 'relayICECandidate', isObject, function (config) {
       const peerId = config.peer_id;
       const iceCandidate = config.ice_candidate;
       console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
@@ -164,7 +217,7 @@ module.exports = io => {
     });
 
     // Send the answer back to the new user in order to complete the handshake
-    socket.on('relaySessionDescription', function (config) {
+    on(socket, 'relaySessionDescription', isObject, function (config) {
       const peerId = config.peer_id;
       const sessionDescription = config.session_description;
       console.log(`[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`);

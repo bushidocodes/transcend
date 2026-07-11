@@ -33,10 +33,12 @@ export function putUserBodyOnDOM (user) {
 
 export function changeUserSkin (skin) {
   const avatarHead = document.getElementById(window.socket.id);
-  // Just stuff the shortform skin name on the DOM to emit in publish-location
-  // I consider this a 'hack' until we change how we update user locations
   avatarHead.setAttribute('skin', skin);
   avatarHead.setAttribute('minecraft', `skinUrl: ../../images/${skin}.png;`);
+  // Tell the server (and thus everyone else in the room) about the new skin. Skins used to
+  // piggyback on every position tick via the DOM attribute above; the server no longer merges
+  // skin from ticks (issue #113), so this is the one live-update path peers see.
+  window.socket.emit('changeSkin', skin);
   // Commented out because we're just floating heads
   // const avatarBody = document.getElementById(`${window.socket.id}-body`);
   // avatarBody.setAttribute('minecraft', `skinUrl: ../../images/${skin}.png;  component: body; heightMeter: 0.4`);

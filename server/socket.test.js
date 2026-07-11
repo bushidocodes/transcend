@@ -639,3 +639,235 @@ describe('Socket.io – single active session per account (#30)', function () {
       });
   });
 });
+
+// -----------------------------------------------------------------
+// 8. Malformed payloads must not crash the server (issue #112)
+// -----------------------------------------------------------------
+
+describe('Socket.io – malformed payload safety (issue #112)', function () {
+  // Fire a hostile/malformed message from one client, then prove the server process is still
+  // alive by completing a fresh, fully valid handshake on a second connection. Before the
+  // guarded registration path, each of these threw inside the handler and the uncaught
+  // exception took the whole server process down.
+  function serverSurvives (fire) {
+    const attacker = connect();
+    const probe = connect();
+    return Promise.all([waitFor(attacker, 'connect'), waitFor(probe, 'connect')])
+      .then(function () {
+        fire(attacker);
+        return sleep(150);
+      })
+      .then(function () { return handshake(probe, 'Probe', 'lobby'); })
+      .then(function (state) {
+        expect(state.you.id).toBe(probe.id);
+        return { state, attacker, probe };
+      });
+  }
+
+  it('joinScene with a null user is dropped and does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('joinScene', null, 'lobby'); })
+      .then(function ({ state, attacker, probe }) {
+        // The malformed join must not have created a user either.
+        expect(state.others).not.toHaveProperty(attacker.id);
+        return cleanup(attacker, probe);
+      });
+  });
+
+  it('joinScene with a non-string scene is dropped', function () {
+    return serverSurvives(function (c) { c.emit('joinScene', { displayName: 'X' }, { evil: true }); })
+      .then(function ({ state, attacker, probe }) {
+        expect(state.others).not.toHaveProperty(attacker.id);
+        return cleanup(attacker, probe);
+      });
+  });
+
+  it('tick with a null payload does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('tick', null); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+
+  it('relayICECandidate with a null config does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('relayICECandidate', null); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+
+  it('relaySessionDescription with a null config does not crash the server', function () {
+    return serverSurvives(function (c) { c.emit('relaySessionDescription', null); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+
+  it('joinChatRoom with a non-string room is dropped', function () {
+    return serverSurvives(function (c) { c.emit('joinChatRoom', { room: 'lobby' }); })
+      .then(function ({ attacker, probe }) { return cleanup(attacker, probe); });
+  });
+});
+
+// -----------------------------------------------------------------
+// 9. Tick identity & field whitelist (issue #113)
+// -----------------------------------------------------------------
+
+describe('Socket.io – tick identity & field whitelist (issue #113)', function () {
+  // Identity comes from the transport: a tick naming another socket's id must move the
+  // SENDER's avatar, never the named victim's.
+  it('a tick carrying another socket\'s id has no effect on that user', function () {
+    const victim = connect();
+    const attacker = connect();
+    const observer = connect();
+
+    return Promise.all([waitFor(victim, 'connect'), waitFor(attacker, 'connect'), waitFor(observer, 'connect')])
+      .then(function () { return handshake(victim, 'Alice', 'lobby'); })
+      .then(function () { return handshake(attacker, 'Mallory', 'lobby'); })
+      .then(function () {
+        // The victim walks to a known spot under its own identity.
+        victim.emit('tick', { x: 5, y: 1.3, z: -3, xrot: 0, yrot: 90, zrot: 0 });
+        return sleep(80);
+      })
+      .then(function () {
+        // The attacker knows the victim's socket id (it's broadcast in usersUpdated) and
+        // tries to teleport them.
+        attacker.emit('tick', { id: victim.id, x: 999, y: 999, z: 999, xrot: 0, yrot: 0, zrot: 0 });
+        return sleep(80);
+      })
+      .then(function () { return handshake(observer, 'Obs', 'lobby'); })
+      .then(function (state) {
+        expect(state.others[victim.id].x).toBe(5);      // unmoved
+        expect(state.others[victim.id].z).toBe(-3);
+        expect(state.others[attacker.id].x).toBe(999);  // the attacker only moved themselves
+        return cleanup(victim, attacker, observer);
+      });
+  });
+
+  it('a tick cannot change displayName, skin, or scene', function () {
+    const client = connect();
+    const observer = connect();
+
+    return Promise.all([waitFor(client, 'connect'), waitFor(observer, 'connect')])
+      .then(function () { return handshake(client, 'Alice', 'lobby', 'batman'); })
+      .then(function () {
+        client.emit('tick', {
+          x: 3,
+          y: 1.3,
+          z: 0,
+          xrot: 0,
+          yrot: 0,
+          zrot: 0,
+          displayName: 'Hacked',
+          skin: 'god',
+          scene: 'spaceroom'
+        });
+        return sleep(80);
+      })
+      .then(function () { return handshake(observer, 'Obs', 'lobby'); })
+      .then(function (state) {
+        const seen = state.others[client.id];
+        expect(seen.x).toBe(3);                    // pose merged
+        expect(seen.displayName).toBe('Alice');    // identity fields untouched
+        expect(seen.skin).toBe('batman');
+        expect(seen.scene).toBe('lobby');
+        return cleanup(client, observer);
+      });
+  });
+
+  it('non-finite pose values are dropped', function () {
+    const client = connect();
+    const observer = connect();
+
+    return Promise.all([waitFor(client, 'connect'), waitFor(observer, 'connect')])
+      .then(function () { return handshake(client, 'Alice', 'lobby'); })
+      .then(function () {
+        client.emit('tick', { x: 5, y: 1.3, z: -3, xrot: 0, yrot: 0, zrot: 0 });
+        return sleep(80);
+      })
+      .then(function () {
+        client.emit('tick', { x: 'not-a-number', y: null, yrot: 42 });
+        return sleep(80);
+      })
+      .then(function () { return handshake(observer, 'Obs', 'lobby'); })
+      .then(function (state) {
+        const seen = state.others[client.id];
+        expect(seen.x).toBe(5);      // garbage x/y ignored
+        expect(seen.y).toBe(1.3);
+        expect(seen.yrot).toBe(42);  // the one finite field still merged
+        return cleanup(client, observer);
+      });
+  });
+
+  it('a tick from a socket that never joined a scene is ignored', function () {
+    const lurker = connect();
+    const observer = connect();
+
+    return Promise.all([waitFor(lurker, 'connect'), waitFor(observer, 'connect')])
+      .then(function () {
+        lurker.emit('tick', { x: 1, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0 });
+        return sleep(80);
+      })
+      .then(function () { return handshake(observer, 'Obs', 'lobby'); })
+      .then(function (state) {
+        expect(state.others).not.toHaveProperty(lurker.id);
+        return cleanup(lurker, observer);
+      });
+  });
+});
+
+// -----------------------------------------------------------------
+// 10. changeSkin / changeScene — the explicit events that replaced
+//     skin/scene riding on ticks (issue #113)
+// -----------------------------------------------------------------
+
+describe('Socket.io – changeSkin / changeScene (issue #113)', function () {
+  it('changeSkin with a whitelisted skin propagates to peers', function () {
+    const client = connect();
+    const observer = connect();
+
+    return Promise.all([waitFor(client, 'connect'), waitFor(observer, 'connect')])
+      .then(function () { return handshake(client, 'Alice', 'lobby', '3djesus'); })
+      .then(function () {
+        client.emit('changeSkin', 'batman');
+        return sleep(80);
+      })
+      .then(function () { return handshake(observer, 'Obs', 'lobby'); })
+      .then(function (state) {
+        expect(state.others[client.id].skin).toBe('batman');
+        return cleanup(client, observer);
+      });
+  });
+
+  it('changeSkin with a non-whitelisted skin is dropped', function () {
+    const client = connect();
+    const observer = connect();
+
+    return Promise.all([waitFor(client, 'connect'), waitFor(observer, 'connect')])
+      .then(function () { return handshake(client, 'Alice', 'lobby', '3djesus'); })
+      .then(function () {
+        client.emit('changeSkin', '../../evil; injected: true');
+        return sleep(80);
+      })
+      .then(function () { return handshake(observer, 'Obs', 'lobby'); })
+      .then(function (state) {
+        expect(state.others[client.id].skin).toBe('3djesus');
+        return cleanup(client, observer);
+      });
+  });
+
+  it('changeScene moves the sender to the new room (and out of the old one)', function () {
+    const mover = connect();
+    const obsLobby = connect();
+    const obsSpace = connect();
+
+    return Promise.all([waitFor(mover, 'connect'), waitFor(obsLobby, 'connect'), waitFor(obsSpace, 'connect')])
+      .then(function () { return handshake(mover, 'Mover', 'lobby'); })
+      .then(function () {
+        mover.emit('changeScene', 'spaceroom');
+        return sleep(80);
+      })
+      .then(function () { return handshake(obsLobby, 'ObsL', 'lobby'); })
+      .then(function (lobbyState) {
+        expect(lobbyState.others).not.toHaveProperty(mover.id);
+        return handshake(obsSpace, 'ObsS', 'spaceroom');
+      })
+      .then(function (spaceState) {
+        expect(spaceState.others).toHaveProperty(mover.id);
+        return cleanup(mover, obsLobby, obsSpace);
+      });
+  });
+});
