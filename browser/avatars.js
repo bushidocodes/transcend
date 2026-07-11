@@ -11,6 +11,8 @@
 // camera/controls rig — see addFirstPersonProperties in browser/utils.js — plus the separate
 // #mutebutton entity). REMOTE avatars are everyone else: a floating head plus a body entity.
 
+import { pushPose, dropPose } from './pose-buffer';
+
 // id -> { head, body } for every remote avatar currently rendered.
 const remotes = new Map();
 // The first-person avatar, or null before joinScene / after teardown.
@@ -53,7 +55,15 @@ function createBody (user) {
 }
 
 function addRemote (user) {
-  remotes.set(user.id, { head: createHead(user), body: createBody(user) });
+  const head = createHead(user);
+  const body = createBody(user);
+  // Remote entities render from the snapshot-interpolation buffer every frame (issue #125);
+  // the pose attributes set at creation are just the spawn placement until the stream starts.
+  // The component is registered via socket.js (this module stays A-Frame-free for its tests).
+  head.setAttribute('remote-pose', `userId: ${user.id}; part: head`);
+  body.setAttribute('remote-pose', `userId: ${user.id}; part: body`);
+  pushPose(user.id, user);
+  remotes.set(user.id, { head, body });
 }
 
 // Render (or re-render) the local first-person avatar and return its head entity so the
@@ -93,6 +103,7 @@ export function remove (id) {
   destroy(entry.head);
   destroy(entry.body);
   remotes.delete(id);
+  dropPose(id);
 }
 
 // Reconcile the remote avatars against a room-scoped `id -> user` payload (sceneState.others
@@ -114,10 +125,10 @@ export function sync (users) {
       remove(id);
       addRemote(user);
     } else {
-      entry.head.setAttribute('position', `${user.x} ${user.y} ${user.z}`);
-      entry.head.setAttribute('rotation', `${user.xrot} ${user.yrot} ${user.zrot}`);
-      entry.body.setAttribute('position', `${user.x} ${user.y} ${user.z}`);
-      entry.body.setAttribute('rotation', `0 ${user.yrot} 0`);
+      // Pose updates only feed the interpolation buffer (issue #125); the remote-pose
+      // component renders from it every frame, ~100ms in the past, gliding between
+      // snapshots instead of stepping at the broadcast rate.
+      pushPose(id, user);
     }
   });
   for (const id of [...remotes.keys()]) {
