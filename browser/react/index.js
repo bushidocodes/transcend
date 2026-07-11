@@ -21,8 +21,27 @@ import { whoami, logout } from '../redux/reducers/auth';
 import { EVENTS } from '../../shared/protocol';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { setNavigateFn } from '../navigate';
+import { ROOMS, DEFAULT_ROOM } from '../rooms';
 
 const theme = createTheme();
+
+// Which component renders each room in the manifest (browser/rooms.js). The manifest is pure
+// data (see its header for why), so the component wiring lives here with the router — and the
+// two lists are asserted in agreement at startup so they can't silently drift.
+const ROOM_COMPONENTS = {
+  lobby: Lobby,
+  thebasement: Sean,
+  spaceroom: Beth,
+  catroom: Yoonah,
+  gameroom: Joey,
+  thegap: ChangingRoom
+};
+ROOMS.forEach(({ path }) => {
+  if (!ROOM_COMPONENTS[path]) throw new Error(`Room '${path}' is in the manifest but has no component`);
+});
+Object.keys(ROOM_COMPONENTS).forEach(path => {
+  if (!ROOMS.some(room => room.path === path)) throw new Error(`Room component '${path}' is not in the manifest`);
+});
 
 // Hide the pre-bundle loading placeholder once React takes over
 const prebundle = document.getElementById('prebundleContent');
@@ -84,15 +103,14 @@ createRoot(document.getElementById('react-app')).render(
 
           <Route path="/logout" element={<Logout />} />
 
-          {/* VR section — RequireAuth checks session before rendering App */}
+          {/* VR section — RequireAuth checks session before rendering App. One route per
+              manifest entry (issue #119). */}
           <Route path="/vr" element={<RequireAuth><App /></RequireAuth>}>
-            <Route index element={<Navigate to="lobby" replace />} />
-            <Route path="lobby" element={<Lobby />} />
-            <Route path="thebasement" element={<Sean />} />
-            <Route path="spaceroom" element={<Beth />} />
-            <Route path="catroom" element={<Yoonah />} />
-            <Route path="gameroom" element={<Joey />} />
-            <Route path="thegap" element={<ChangingRoom />} />
+            <Route index element={<Navigate to={DEFAULT_ROOM} replace />} />
+            {ROOMS.map(({ path }) => {
+              const RoomComponent = ROOM_COMPONENTS[path];
+              return <Route key={path} path={path} element={<RoomComponent />} />;
+            })}
           </Route>
         </Routes>
       </BrowserRouter>

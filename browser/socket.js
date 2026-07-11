@@ -4,6 +4,7 @@ import { EVENTS } from '../shared/protocol';
 import store from './redux/store';
 import { setTickRate } from './redux/reducers/config-reducer';
 import { addFirstPersonProperties } from './utils';
+import { currentRoom } from './navigate';
 import * as avatars from './avatars';
 import './aframeComponents/publish-location';
 import './aframeComponents/webrtc-controls';
@@ -46,10 +47,10 @@ export function initSocket () {
     // avatar, then replay joinScene so the server rebuilds the full record and replies with a
     // fresh sceneState that repopulates our avatar under the new id (issue #69).
     const auth = store.getState().auth;
-    if (auth && typeof auth.has === 'function' && auth.has('id')) {
+    const scene = currentRoom();
+    if (scene && auth && typeof auth.has === 'function' && auth.has('id')) {
       console.log('Reconnected — re-registering this client with the server (issue #56)');
       avatars.removeLocal();
-      const scene = window.location.pathname.replace(/\//g, '') || 'root';
       socket.emit(EVENTS.JOIN_SCENE, auth, scene);
       // Also re-establish WebRTC audio. The chat-room join lives in <App>'s route-keyed effect
       // (issue #70), which doesn't re-run on a socket reconnect, and the old peer connections
