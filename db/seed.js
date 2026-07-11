@@ -22,7 +22,9 @@ const seedUsers = () => Promise.all([
   { name: 'Surabhi Nigam', displayName: 'Surabhi', email: 'surabhi@transcend.vr', password: '1234', skin: 'jetienne' }
 ].map(user => db.model('users').create(user)));
 
-db.didSync
+// Deliberately destructive dev reset: force-sync drops and recreates the tables from the
+// models before inserting the demo users. Never point this at a database you care about.
+db.prepare()
   .then(() => db.sync({ force: true }))
   .then(seedUsers)
   .then(users => console.log(`Seeded ${users.length} users OK`))

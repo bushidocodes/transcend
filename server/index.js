@@ -141,11 +141,10 @@ app.get('/{*path}', (req, res) => {
 });
 
 const port = process.env.PORT || 1337;
-// Don't accept traffic until the database is confirmed reachable (issue #121). The old
-// floating didSync let the HTTP server start taking logins before the connection was
-// confirmed — and on DB failure the process stayed up permanently broken, throwing on every
-// request instead of failing fast where an orchestrator can restart it.
-db.didSync
+// Don't accept traffic until the database is confirmed ready (issue #121): prepare() runs
+// pending migrations (#133) and resolves only once the schema is usable. On failure, exit
+// non-zero instead of leaving a permanently broken instance up throwing on every request.
+db.prepare()
   .then(() => {
     server.listen(port, () => {
       console.log(styleText('blue', `--- Listening on port ${port} ---`));
