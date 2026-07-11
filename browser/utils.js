@@ -1,8 +1,6 @@
 import { EVENTS } from '../shared/protocol';
 import { setLocalSkin } from './avatars';
-// Import cycle with browser/socket.js (it imports addFirstPersonProperties, we import its
-// accessor) — safe because getSocket is only CALLED at click time, after both modules init.
-import { getSocket } from './socket';
+import { getSocket } from './socket-holder';
 
 // Avatar entity creation/reconciliation lives in browser/avatars.js (AvatarManager, #118);
 // this module keeps the first-person rig wiring and misc scene helpers.

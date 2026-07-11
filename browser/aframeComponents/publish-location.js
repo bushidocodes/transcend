@@ -1,9 +1,7 @@
 import AFRAME from 'aframe';
 import store from '../redux/store';
 import { EVENTS } from '../../shared/protocol';
-// Import cycle with browser/socket.js (it imports this component for registration, we import
-// its accessor) — safe because getSocket is only CALLED from tick(), after both modules init.
-import { getSocket } from '../socket';
+import { getSocket } from '../socket-holder';
 
 // This component is attached to the user who the scene belongs to.
 // A-Frame calls tick() every animation frame, but we publish position only every Nth frame,

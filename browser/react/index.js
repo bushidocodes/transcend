@@ -14,10 +14,11 @@ import ChangingRoom from './components/ChangingRoom';
 import Home from './components/Login/Home';
 import Login from './components/Login/Login';
 import Signup from './components/Login/Signup';
-// Registers the A-Frame components that socket.js pulls in as side effects. The socket itself
-// is created lazily by <App> after login (issue #67), not at import time; getSocket() returns
-// null until then.
-import { getSocket } from '../socket';
+// Importing for its side effects: registering the A-Frame components that socket.js pulls in.
+// The socket itself is created lazily by <App> after login (issue #67), not at import time;
+// getSocket() returns null until then.
+import '../socket';
+import { getSocket } from '../socket-holder';
 import { whoami, logout } from '../redux/reducers/auth';
 import { EVENTS } from '../../shared/protocol';
 import { ThemeProvider, createTheme } from '@mui/material/styles';

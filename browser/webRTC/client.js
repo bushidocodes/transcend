@@ -1,9 +1,7 @@
 import store from '../redux/store';
 import { setUserMedia, addPeer, deletePeer, clearPeers } from '../redux/reducers/webrtc-reducer';
 import { EVENTS } from '../../shared/protocol';
-// Import cycle with browser/socket.js (it imports our handlers, we import its accessor) — safe
-// because getSocket is only ever CALLED at event time, long after both modules initialize.
-import { getSocket } from '../socket';
+import { getSocket } from '../socket-holder';
 
 let cachedIceServers = null;
 
