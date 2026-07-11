@@ -1,4 +1,5 @@
 import React from 'react';
+import BrandIcon, { GITHUB_PATH, GITHUB_VIEWBOX } from './BrandIcon';
 
 /* ----------------- COMPONENT ------------------ */
 
@@ -9,7 +10,7 @@ export default (props) => (
     <div style={props.styles.subtitleCenter}> Shared VR Experiences </div>
     <div style={props.styles.subtitleCenter}> Real Friends </div>
     <a target="_blank" href="https://github.com/TranscendVR/transcend" style={props.styles.viewOnGitHub}>
-      <span className="fa fa-github" style={props.styles.viewOnGitHubIcon}></span>
+      <BrandIcon path={GITHUB_PATH} viewBox={GITHUB_VIEWBOX} label="GitHub" style={props.styles.viewOnGitHubIcon} />
       View on GitHub
     </a>
   </div>

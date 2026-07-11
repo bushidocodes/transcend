@@ -103,7 +103,6 @@ require('./socket')(io);
 // Serve static files
 app.use(express.static(resolve(__dirname, '../browser/stylesheets')));
 app.use(express.static(resolve(__dirname, '../public')));
-app.use(express.static(resolve(__dirname, '../node_modules/font-awesome')));
 
 // Readiness probe (issue #121): 200 only when the database is reachable, so a load balancer /
 // container orchestrator can tell a booting-or-broken instance from a healthy one.

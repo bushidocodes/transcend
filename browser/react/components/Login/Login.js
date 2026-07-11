@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
+import BrandIcon, { GOOGLE_PATH, GOOGLE_VIEWBOX } from './BrandIcon';
 
 export default function Login () {
   const { login, styles } = useOutletContext();
@@ -46,7 +47,7 @@ export default function Login () {
       </div>
       <div>
         <a target="_self" href="/api/auth/google/login" style={styles.loginWithGoogle}>
-          <span className="fa fa-google" style={styles.loginWithGoogleIcon}></span>
+          <BrandIcon path={GOOGLE_PATH} viewBox={GOOGLE_VIEWBOX} label="Google" style={styles.loginWithGoogleIcon} />
           Log in with Google
         </a>
       </div>
