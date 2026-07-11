@@ -21,11 +21,8 @@ import '../socket';
 import { getSocket } from '../socket-holder';
 import { whoami, logout } from '../redux/reducers/auth';
 import { EVENTS } from '../../shared/protocol';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { setNavigateFn } from '../navigate';
 import { ROOMS, DEFAULT_ROOM } from '../rooms';
-
-const theme = createTheme();
 
 // Which component renders each room in the manifest (browser/rooms.js). The manifest is pure
 // data (see its header for why), so the component wiring lives here with the router — and the
@@ -93,30 +90,28 @@ function Logout () {
 
 createRoot(document.getElementById('react-app')).render(
   <Provider store={store}>
-    <ThemeProvider theme={theme}>
-      <BrowserRouter>
-        <NavigateCapture />
-        <Routes>
-          {/* Auth / login shell — Home provides title + Outlet context (login, signup, styles) */}
-          <Route path="/" element={<Home />}>
-            <Route index element={<Navigate to="/login" replace />} />
-            <Route path="login" element={<Login />} />
-            <Route path="signup" element={<Signup />} />
-          </Route>
+    <BrowserRouter>
+      <NavigateCapture />
+      <Routes>
+        {/* Auth / login shell — Home provides title + Outlet context (login, signup, styles) */}
+        <Route path="/" element={<Home />}>
+          <Route index element={<Navigate to="/login" replace />} />
+          <Route path="login" element={<Login />} />
+          <Route path="signup" element={<Signup />} />
+        </Route>
 
-          <Route path="/logout" element={<Logout />} />
+        <Route path="/logout" element={<Logout />} />
 
-          {/* VR section — RequireAuth checks session before rendering App. One route per
-              manifest entry (issue #119). */}
-          <Route path="/vr" element={<RequireAuth><App /></RequireAuth>}>
-            <Route index element={<Navigate to={DEFAULT_ROOM} replace />} />
-            {ROOMS.map(({ path }) => {
-              const RoomComponent = ROOM_COMPONENTS[path];
-              return <Route key={path} path={path} element={<RoomComponent />} />;
-            })}
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </ThemeProvider>
+        {/* VR section — RequireAuth checks session before rendering App. One route per
+            manifest entry (issue #119). */}
+        <Route path="/vr" element={<RequireAuth><App /></RequireAuth>}>
+          <Route index element={<Navigate to={DEFAULT_ROOM} replace />} />
+          {ROOMS.map(({ path }) => {
+            const RoomComponent = ROOM_COMPONENTS[path];
+            return <Route key={path} path={path} element={<RoomComponent />} />;
+          })}
+        </Route>
+      </Routes>
+    </BrowserRouter>
   </Provider>
 );

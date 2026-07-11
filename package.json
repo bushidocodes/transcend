@@ -33,9 +33,6 @@
   },
   "homepage": "https://github.com/TranscendVR/transcend#readme",
   "dependencies": {
-    "@emotion/react": "^11.0.0",
-    "@emotion/styled": "^11.0.0",
-    "@mui/material": "^5.0.0",
     "aframe": "^1.7.0",
     "aframe-gif-shader": "0.9.1",
     "bcryptjs": "^3.0.0",
