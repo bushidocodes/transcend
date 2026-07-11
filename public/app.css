@@ -51,3 +51,22 @@ body {
   text-align: center;
   border-right: 1px solid #FFF;
 }
+
+/* Scene-load spinner (browser/react/components/LoadingSpinner.js). Matches the old MUI
+   CircularProgress size/color: 200px, #286CB5, thick ring. */
+.loading-spinner {
+  box-sizing: border-box;
+  width: 200px;
+  height: 200px;
+  border: 24px solid rgba(40, 108, 181, 0.2);
+  border-top-color: #286CB5;
+  border-radius: 50%;
+  animation: loading-spinner-spin 0.8s linear infinite;
+}
+
+@keyframes loading-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
