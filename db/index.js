@@ -43,7 +43,9 @@ function sync (force = process.env.NODE_ENV === 'testing', retries = 0, maxRetri
         console.error();
         console.error(styleText('red', String(fail)));
         console.error(styleText('red', '*************************************'));
-        return;
+        // Rethrow so didSync rejects (issue #121): a server that can't reach its database
+        // must fail fast at boot, not sit up permanently broken failing every /login.
+        throw fail;
       }
       // Otherwise, do this autocreate nonsense
       console.log(styleText('blue', `${retries ? `[retry ${retries}]` : ''} Creating database ${name}...`));
@@ -54,3 +56,7 @@ function sync (force = process.env.NODE_ENV === 'testing', retries = 0, maxRetri
 }
 
 db.didSync = sync();
+// Consumers that care (the server boot gate, seed, the model tests) handle didSync's
+// rejection themselves; this no-op catch only stops an unhandled-rejection crash in modules
+// that require the db without awaiting it. It does not consume the rejection for awaiters.
+db.didSync.catch(() => {});
