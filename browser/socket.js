@@ -1,6 +1,7 @@
 /* global socket */
 import { io } from 'socket.io-client';
 import { fromJS } from 'immutable';
+import { EVENTS } from '../shared/protocol';
 import store from './redux/store';
 import { receiveUsers } from './redux/reducers/user-reducer';
 import { setTickRate } from './redux/reducers/config-reducer';
@@ -35,7 +36,7 @@ export function initSocket () {
   // All A-Frame components need access to the socket instance
   window.socket = io(window.location.origin);
 
-  socket.on('connect', () => {
+  socket.on(EVENTS.CONNECT, () => {
     console.log('You\'ve made a persistent two-way connection to the server!');
     if (!hasConnected) {
       hasConnected = true;
@@ -53,7 +54,7 @@ export function initSocket () {
       console.log('Reconnected — re-registering this client with the server (issue #56)');
       removeLocalAvatar();
       const scene = window.location.pathname.replace(/\//g, '') || 'root';
-      socket.emit('joinScene', auth, scene);
+      socket.emit(EVENTS.JOIN_SCENE, auth, scene);
       // Also re-establish WebRTC audio. The chat-room join lives in <App>'s route-keyed effect
       // (issue #70), which doesn't re-run on a socket reconnect, and the old peer connections
       // were torn down on disconnect — so without this, avatars/positions recover but audio
@@ -68,7 +69,7 @@ export function initSocket () {
   //   renderAvatar + getOthersCallback pair. Render everything, store the tick rate (which
   //   enables publish-location), then send one 'ready' ack so the server starts streaming
   //   usersUpdated.
-  socket.on('sceneState', ({ you, others, tickRate }) => {
+  socket.on(EVENTS.SCENE_STATE, ({ you, others, tickRate }) => {
     const avatar = putUserOnDOM(you);
     // Remember the id we rendered under (the server sends a plain object) so a later
     // reconnect can find and remove this exact avatar.
@@ -82,7 +83,7 @@ export function initSocket () {
     });
 
     store.dispatch(setTickRate(tickRate));
-    socket.emit('ready');
+    socket.emit(EVENTS.READY);
   });
 
   // The server now sends usersUpdated with only the OTHER users in this client's room (#58),
@@ -90,7 +91,7 @@ export function initSocket () {
   //   reconcile removals: any avatar on the DOM that's absent from this room-scoped payload has
   //   left the room (or we changed rooms), so it's dropped. The avatar components (head and
   //   body) are added, updated, or deleted depending on the state of the client's DOM.
-  socket.on('usersUpdated', users => {
+  socket.on(EVENTS.USERS_UPDATED, users => {
     store.dispatch(receiveUsers(fromJS(users)));
     const receivedUsers = store.getState().users;
     const liveIds = new Set();
@@ -125,22 +126,22 @@ export function initSocket () {
     });
   });
 
-  socket.on('removeUser', userId => removeUser(userId));
+  socket.on(EVENTS.REMOVE_USER, userId => removeUser(userId));
 
   // Adds a Peer to our DoM as their own Audio Element
-  socket.on('addPeer', addPeerConn);
+  socket.on(EVENTS.ADD_PEER, addPeerConn);
 
   // Removes Peer from DoM after they have disconnected or switched room
-  socket.on('removePeer', removePeerConn);
+  socket.on(EVENTS.REMOVE_PEER, removePeerConn);
 
   // Replies to an offer made by a new Peer
-  socket.on('sessionDescription', setRemoteAnswer);
+  socket.on(EVENTS.SESSION_DESCRIPTION, setRemoteAnswer);
 
   // Handles setting the ice server for an ice Candidate
-  socket.on('iceCandidate', setIceCandidate);
+  socket.on(EVENTS.ICE_CANDIDATE, setIceCandidate);
 
   // Removes all peer connections and audio Elements from the DoM
-  socket.on('disconnect', disconnectUser);
+  socket.on(EVENTS.DISCONNECT, disconnectUser);
 
   // sessionReplaced: the server enforces a single active session per account ("newest wins",
   //   issue #30). When this account logs in from another window, the server boots this socket
@@ -149,7 +150,7 @@ export function initSocket () {
   //   keep running, so it still *looks* like a live, movable session. Stop being a live session:
   //   kill auto-reconnect (so we don't ping-pong with the newer tab), disconnect locally, drop our
   //   avatar, and block the scene with an overlay that lets the user reclaim the session here.
-  socket.on('sessionReplaced', () => {
+  socket.on(EVENTS.SESSION_REPLACED, () => {
     console.warn('This session was opened in another window; this tab has been disconnected.');
     socket.io.opts.reconnection = false;
     socket.disconnect();

@@ -1,3 +1,5 @@
+import { EVENTS } from '../shared/protocol';
+
 // putUserOnDOM renders a user's avatar head. The server is now authoritative for room
 //   membership — it only sends users in the caller's room (issue #58) — so there is no longer
 //   a client-side scene guard here (the earlier #74/#87 isInCurrentScene check is obsolete).
@@ -38,7 +40,7 @@ export function changeUserSkin (skin) {
   // Tell the server (and thus everyone else in the room) about the new skin. Skins used to
   // piggyback on every position tick via the DOM attribute above; the server no longer merges
   // skin from ticks (issue #113), so this is the one live-update path peers see.
-  window.socket.emit('changeSkin', skin);
+  window.socket.emit(EVENTS.CHANGE_SKIN, skin);
   // Commented out because we're just floating heads
   // const avatarBody = document.getElementById(`${window.socket.id}-body`);
   // avatarBody.setAttribute('minecraft', `skinUrl: ../../images/${skin}.png;  component: body; heightMeter: 0.4`);

@@ -12,6 +12,11 @@
  * the client then emits `ready` to begin receiving `usersUpdated` pushes. Room filtering (#58)
  * means `sceneState.others` and `usersUpdated` only contain users in the requester's room, and
  * `removeUser` is scoped to the departing user's room.
+ *
+ * Event names here are deliberately bare string literals, NOT the EVENTS constants from
+ * shared/protocol.js (#117): these clients stand in for already-deployed browsers, so they must
+ * speak the exact wire strings. If a constant's value ever drifts, these tests fail — which is
+ * the point.
  */
 
 const http = require('http');

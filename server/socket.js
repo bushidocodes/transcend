@@ -1,4 +1,5 @@
 const { styleText } = require('node:util');
+const { EVENTS, isObject, validJoinScene, validRoom } = require('../shared/protocol');
 const GameState = require('./game-state');
 const VALID_SKINS = require('./validSkins');
 
@@ -16,6 +17,7 @@ const BROADCAST_INTERVAL_MS = 50;
 // user, so one malformed message is a remote denial-of-service (issue #112). Register every
 // handler through this guarded path instead: `validate` (when given) must accept the payload
 // or the message is dropped, and the handler body is caught and logged rather than crashing.
+// The per-event payload validators live with the event names in shared/protocol.js (#117).
 function on (socket, event, validate, handler) {
   socket.on(event, (...args) => {
     try {
@@ -29,14 +31,6 @@ function on (socket, event, validate, handler) {
     }
   });
 }
-
-const isObject = value => typeof value === 'object' && value !== null;
-
-// Per-event payload validators (#112). `user` must be an object — joinScene dereferences
-// it — and a scene/room must be a string, since it's used as a room key (joinScene tolerates
-// a missing scene; addUser treats it as "not yet placed").
-const validJoinScene = (user, scene) => isObject(user) && (scene == null || typeof scene === 'string');
-const validRoom = room => typeof room === 'string';
 
 // Scenes and voice-chat rooms both live in socket.io's own room registry now (issue #116),
 // under distinct prefixes so a chat room named after a scene can't receive scene broadcasts.
@@ -73,7 +67,7 @@ module.exports = io => {
           if (!member) continue;
           const others = Object.assign({}, snapshot);
           delete others[id];
-          member.emit('usersUpdated', others);
+          member.emit(EVENTS.USERS_UPDATED, others);
         }
       }
     }
@@ -94,7 +88,7 @@ module.exports = io => {
     }
   };
 
-  io.on('connection', socket => {
+  io.on(EVENTS.CONNECTION, socket => {
     console.log(styleText('yellow', `${socket.id} has connected`));
     socket.createdUser = false;
 
@@ -116,17 +110,16 @@ module.exports = io => {
     function removeUserFromWorld () {
       const removed = gameState.removeUser(socket.id);
       if (!removed) return;
-      emitToScene(removed.scene, socket.id, 'removeUser', socket.id);
+      emitToScene(removed.scene, socket.id, EVENTS.REMOVE_USER, socket.id);
       markDirty(removed.scene);
     }
 
-    // joinScene is the single Stage 3 entry point (issue #69). It replaces the old
-    //   connectUser -> renderAvatar -> getOthers -> getOthersCallback chain: the client sends its
-    //   identity + room once (after login, once assets are ready), and the server creates the
-    //   user and returns everything needed to render the room in one message — the client's own
-    //   avatar, the other users already in that room (#58), and the tick rate to publish at.
-    //   A single entry point also removes the old sceneLoad/createdUser ordering race.
-    on(socket, 'joinScene', validJoinScene, (user, scene) => {
+    // joinScene is the single Stage 3 entry point (issue #69; handshake contract documented in
+    //   shared/protocol.js). The client sends its identity + room once (after login, once
+    //   assets are ready), and the server creates the user and returns everything needed to
+    //   render the room in one sceneState message. A single entry point also removes the old
+    //   sceneLoad/createdUser ordering race.
+    on(socket, EVENTS.JOIN_SCENE, validJoinScene, (user, scene) => {
       socket.createdUser = true;
       // Single active session per account ("newest wins"): drop any prior socket for this
       // account before registering the new one (issue #30). Anonymous (no id) are exempt.
@@ -154,7 +147,7 @@ module.exports = io => {
                 zrot: prev.zrot
               };
             }
-            existing.emit('sessionReplaced');
+            existing.emit(EVENTS.SESSION_REPLACED);
             existing.disconnect(true);
           }
         }
@@ -167,7 +160,7 @@ module.exports = io => {
       // the takeover tab renders at the carried-forward location.
       if (inheritedPosition) gameState.updatePose(socket.id, inheritedPosition);
       markDirty(me.scene);
-      socket.emit('sceneState', {
+      socket.emit(EVENTS.SCENE_STATE, {
         you: me,
         others: gameState.peersOf(socket.id),
         tickRate: TICK_RATE
@@ -177,7 +170,7 @@ module.exports = io => {
     // ready: the client has rendered the scene and wants live updates. Join the scene's
     //   broadcast room so the fixed-rate loop above starts including this socket. Collapses the
     //   old haveGottenOthers + readyToReceiveUpdates pair into one ack (#69).
-    on(socket, 'ready', null, () => {
+    on(socket, EVENTS.READY, null, () => {
       const me = gameState.getUser(socket.id);
       if (me) joinSceneRoom(me.scene);
     });
@@ -187,7 +180,7 @@ module.exports = io => {
     //   ignored — the record is keyed on socket.id — and GameState.updatePose merges only
     //   finite numeric pose fields onto an existing record, so a tick can only ever move the
     //   sender's own avatar and can never create one (issues #56/#113).
-    on(socket, 'tick', isObject, userData => {
+    on(socket, EVENTS.TICK, isObject, userData => {
       if (!socket.createdUser) return;
       const me = gameState.updatePose(socket.id, userData);
       if (me) markDirty(me.scene);
@@ -195,14 +188,15 @@ module.exports = io => {
 
     // Skin and scene changes used to ride on every tick, which is what made the tick an
     // injection surface (#113). They are explicit messages now, validated server-side and
-    // applied to the sender's own record only.
-    on(socket, 'changeSkin', skin => typeof skin === 'string' && VALID_SKINS.has(skin), skin => {
+    // applied to the sender's own record only. The skin whitelist is server-only state, so its
+    // check composes here with the protocol-level shape check (#117).
+    on(socket, EVENTS.CHANGE_SKIN, skin => typeof skin === 'string' && VALID_SKINS.has(skin), skin => {
       if (!socket.createdUser) return;
       const me = gameState.setSkin(socket.id, skin);
       if (me) markDirty(me.scene);
     });
 
-    on(socket, 'changeScene', validRoom, scene => {
+    on(socket, EVENTS.CHANGE_SCENE, validRoom, scene => {
       if (!socket.createdUser) return;
       const change = gameState.setScene(socket.id, scene);
       if (!change) return;
@@ -219,7 +213,7 @@ module.exports = io => {
     // Explicit logout: remove the avatar and leave the broadcast/chat rooms without closing the
     // socket, so the client can re-register (via joinScene) on a subsequent login without
     // reconnecting.
-    on(socket, 'logoutUser', null, () => {
+    on(socket, EVENTS.LOGOUT_USER, null, () => {
       if (socket.createdUser) {
         removeUserFromWorld();
         leaveChatRoom();
@@ -232,7 +226,7 @@ module.exports = io => {
     // When a socket disconnects, remove the user record, broadcast 'removeUser' to the room,
     //   and tear down any WebRTC P2P pairings. socket.io itself has already dropped the socket
     //   from its registry and every room by the time this fires.
-    on(socket, 'disconnect', null, () => {
+    on(socket, EVENTS.DISCONNECT, null, () => {
       removeUserFromWorld();
       console.log(styleText('magenta', `${socket.id} has disconnected`));
       leaveChatRoom();
@@ -243,14 +237,14 @@ module.exports = io => {
     //   connetions with the person entering the room. socket.io's own room registry replaces the
     //   old room reducer (issue #116): enumerate the existing members BEFORE joining so we don't
     //   pair the newcomer with itself.
-    on(socket, 'joinChatRoom', validRoom, function (room) {
+    on(socket, EVENTS.JOIN_CHAT_ROOM, validRoom, function (room) {
       console.log(`[${socket.id}] join ${room}`);
       const peers = io.sockets.adapter.rooms.get(chatRoomOf(room)) || new Set();
       for (const peerId of peers) {
         const peer = io.sockets.sockets.get(peerId);
         if (!peer) continue;
-        peer.emit('addPeer', { peer_id: socket.id, should_create_offer: false });
-        socket.emit('addPeer', { peer_id: peerId, should_create_offer: true });
+        peer.emit(EVENTS.ADD_PEER, { peer_id: socket.id, should_create_offer: false });
+        socket.emit(EVENTS.ADD_PEER, { peer_id: peerId, should_create_offer: true });
       }
       socket.join(chatRoomOf(room));
       socket.currentChatRoom = room;
@@ -270,32 +264,32 @@ module.exports = io => {
         for (const peerId of peers) {
           const peer = io.sockets.sockets.get(peerId);
           if (!peer) continue;
-          peer.emit('removePeer', { peer_id: socket.id });
-          socket.emit('removePeer', { peer_id: peerId });
+          peer.emit(EVENTS.REMOVE_PEER, { peer_id: socket.id });
+          socket.emit(EVENTS.REMOVE_PEER, { peer_id: peerId });
         }
         socket.currentChatRoom = null;
       } else {
         console.log('Not currently in room, so nothing to leave');
       }
     }
-    on(socket, 'leaveChatRoom', null, () => leaveChatRoom());
+    on(socket, EVENTS.LEAVE_CHAT_ROOM, null, () => leaveChatRoom());
 
     // If any user is an Ice Candidate, tells other users to set up a ICE connection with them
-    on(socket, 'relayICECandidate', isObject, function (config) {
+    on(socket, EVENTS.RELAY_ICE_CANDIDATE, isObject, function (config) {
       const peerId = config.peer_id;
       const iceCandidate = config.ice_candidate;
       console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
       const peer = io.sockets.sockets.get(peerId);
-      if (peer) peer.emit('iceCandidate', { peer_id: socket.id, ice_candidate: iceCandidate });
+      if (peer) peer.emit(EVENTS.ICE_CANDIDATE, { peer_id: socket.id, ice_candidate: iceCandidate });
     });
 
     // Send the answer back to the new user in order to complete the handshake
-    on(socket, 'relaySessionDescription', isObject, function (config) {
+    on(socket, EVENTS.RELAY_SESSION_DESCRIPTION, isObject, function (config) {
       const peerId = config.peer_id;
       const sessionDescription = config.session_description;
       console.log(`[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`);
       const peer = io.sockets.sockets.get(peerId);
-      if (peer) peer.emit('sessionDescription', { peer_id: socket.id, session_description: sessionDescription });
+      if (peer) peer.emit(EVENTS.SESSION_DESCRIPTION, { peer_id: socket.id, session_description: sessionDescription });
     });
   });
 };

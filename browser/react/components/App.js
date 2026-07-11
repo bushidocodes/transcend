@@ -7,6 +7,7 @@ import AssetLoader from './AssetLoader';
 import LoadingSpinner from './LoadingSpinner';
 import { initSocket } from '../../socket';
 import { joinChatRoom, leaveChatRoom } from '../../webRTC/client';
+import { EVENTS } from '../../../shared/protocol';
 
 /* ----------------- COMPONENT ------------------ */
 
@@ -41,7 +42,7 @@ function App (props) {
     if (props.auth && props.auth.has('id')) {
       joinedScene.current = true;
       const scene = window.location.pathname.replace(/\//g, '') || 'root';
-      initSocket().emit('joinScene', props.auth, scene);
+      initSocket().emit(EVENTS.JOIN_SCENE, props.auth, scene);
     }
   }, [assetsReady, props.auth]);
 
@@ -68,7 +69,7 @@ function App (props) {
     // every position tick, but the server no longer merges `scene` from ticks (issue #113),
     // so a route change must announce itself. Before the initial joinScene this is a no-op
     // (the server drops it and joinScene carries the starting scene).
-    initSocket().emit('changeScene', room);
+    initSocket().emit(EVENTS.CHANGE_SCENE, room);
     joinChatRoom(room);
     return () => leaveChatRoom();
   }, [assetsReady, location.pathname]);
