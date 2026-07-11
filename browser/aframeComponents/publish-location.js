@@ -1,8 +1,7 @@
-/* global socket */
-
 import AFRAME from 'aframe';
 import store from '../redux/store';
 import { EVENTS } from '../../shared/protocol';
+import { getSocket } from '../socket-holder';
 
 // This component is attached to the user who the scene belongs to.
 // A-Frame calls tick() every animation frame, but we publish position only every Nth frame,
@@ -34,6 +33,6 @@ export default AFRAME.registerComponent('publish-location', {
     };
     const mutebutton = document.getElementById('mutebutton');
     mutebutton.setAttribute('position', `${userPosition.x} 0.1 ${userPosition.z - 1}`);
-    socket.emit(EVENTS.TICK, userPosition);
+    getSocket().emit(EVENTS.TICK, userPosition);
   }
 });

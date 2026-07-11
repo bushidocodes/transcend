@@ -1,5 +1,6 @@
 import { EVENTS } from '../shared/protocol';
 import { setLocalSkin } from './avatars';
+import { getSocket } from './socket-holder';
 
 // Avatar entity creation/reconciliation lives in browser/avatars.js (AvatarManager, #118);
 // this module keeps the first-person rig wiring and misc scene helpers.
@@ -10,7 +11,7 @@ export function changeUserSkin (skin) {
   // Tell the server (and thus everyone else in the room) about the new skin. Skins used to
   // piggyback on every position tick; the server no longer merges skin from ticks (issue
   // #113), so this is the one live-update path peers see.
-  window.socket.emit(EVENTS.CHANGE_SKIN, skin);
+  getSocket().emit(EVENTS.CHANGE_SKIN, skin);
   fetch('/api/auth/skin', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

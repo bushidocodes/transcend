@@ -15,8 +15,10 @@ import Home from './components/Login/Home';
 import Login from './components/Login/Login';
 import Signup from './components/Login/Signup';
 // Importing for its side effects: registering the A-Frame components that socket.js pulls in.
-// The socket itself is created lazily by <App> after login (issue #67), not at import time.
+// The socket itself is created lazily by <App> after login (issue #67), not at import time;
+// getSocket() returns null until then.
 import '../socket';
+import { getSocket } from '../socket-holder';
 import { whoami, logout } from '../redux/reducers/auth';
 import { EVENTS } from '../../shared/protocol';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
@@ -81,7 +83,8 @@ function Logout () {
   useEffect(() => {
     // The socket only exists if the user reached the VR section and <App> initialized it.
     // Guard the emit so logging out from a state where it was never created can't throw.
-    if (window.socket) window.socket.emit(EVENTS.LOGOUT_USER);
+    const socket = getSocket();
+    if (socket) socket.emit(EVENTS.LOGOUT_USER);
     dispatch(logout()).then(() => navigate('/', { replace: true }));
   }, []);
 
