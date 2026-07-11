@@ -1,6 +1,6 @@
 # Transcend
 
-[ ![Codeship Status for TranscendVR/transcend](https://app.codeship.com/projects/99da1ca0-c4d2-0134-5840-0ea22bbd4aa1/status?branch=master)](https://app.codeship.com/projects/198072)
+[![CI](https://github.com/bushidocodes/transcend/actions/workflows/ci.yml/badge.svg)](https://github.com/bushidocodes/transcend/actions/workflows/ci.yml)
 
 ***v.*** be or go beyond the range or limits of
 
@@ -18,13 +18,15 @@ This project serves to address that need. Transcend was built by [Joey Darbyshir
 
 ## Demo
 
-A playable online build of Transcend can be found [here](https://transcend.herokuapp.com/). Note: it has not been updated in years and we make no promise of it currently working.
-
-[Here's our presentation](https://www.youtube.com/watch?v=I5ND_1PI77c) with a demo and discussion of the architecture and the challenges we faced while building it.
+[Here's our presentation](https://www.youtube.com/watch?v=I5ND_1PI77c) with a demo and discussion of the architecture and the challenges we faced while building it. To try it yourself, follow [Installation](#installation) and run a local build.
 
 ## Architecture
 
-Transcend is built on [Node.js](https://nodejs.org/en/) using [Socket.io](http://socket.io/) for event-based client-server interaction, [WebRTC](https://webrtc.org/) for real-time audio communication, [A-Frame](https://aframe.io/) for 3D graphics and scene rendering and WebVR capabilities, [React](https://facebook.github.io/react/) as a view layer, and [Redux](http://redux.js.org/) with [Immutable.js](https://facebook.github.io/immutable-js/) for immutable state management on both the client and server.
+Transcend is built on [Node.js](https://nodejs.org/en/) using [Socket.io](http://socket.io/) for event-based client-server interaction, [WebRTC](https://webrtc.org/) for real-time audio communication, [A-Frame](https://aframe.io/) for 3D graphics and scene rendering and WebVR capabilities, and [React](https://facebook.github.io/react/) as a view layer.
+
+**Client:** [Redux](http://redux.js.org/) with [Immutable.js](https://facebook.github.io/immutable-js/) holds view/UI state (auth forms, connection status, local avatar pose, and the remote-user snapshot the render loop interpolates).
+
+**Server:** Authoritative multiplayer state lives in a plain `GameState` (user records keyed by socket id). Room membership and the socket registry are socket.io's own — scenes and voice-chat rooms use prefixed socket.io rooms rather than application-level maps. A fixed-rate, room-scoped broadcast loop pushes dirty-room snapshots to clients instead of fanning out on every inbound tick.
 
 ## How to Play
 
