@@ -92,13 +92,31 @@ app.use(express.static(resolve(__dirname, '../browser/stylesheets')));
 app.use(express.static(resolve(__dirname, '../public')));
 app.use(express.static(resolve(__dirname, '../node_modules/font-awesome')));
 
-// Readiness probe (issue #121): 200 only when the database is reachable RIGHT NOW, so a load
-// balancer / container orchestrator can tell a booting-or-broken instance from a healthy one.
-// authenticate() runs a trivial SELECT on the pool per probe.
+// Readiness probe (issue #121): 200 only when the database is reachable, so a load balancer /
+// container orchestrator can tell a booting-or-broken instance from a healthy one.
+//
+// The probe is unauthenticated, so it must not cost a DB round-trip per request — otherwise
+// anyone can burn pool connections by hammering it (flagged by CodeQL on PR #134). Coalesce
+// and cache the check instead: at most one authenticate() (a trivial SELECT) is in flight or
+// cached per TTL window no matter the request volume, and a 2s-stale answer is well within
+// any orchestrator's probe tolerance. This bounds DB work globally, which per-IP rate
+// limiting wouldn't.
+const HEALTH_TTL_MS = 2000;
+let dbHealth = { at: -Infinity, promise: null };
+function checkDbHealth () {
+  if (Date.now() - dbHealth.at > HEALTH_TTL_MS) {
+    dbHealth = {
+      at: Date.now(),
+      promise: db.authenticate().then(() => true, () => false)
+    };
+  }
+  return dbHealth.promise;
+}
 app.get('/healthz', (req, res) => {
-  db.authenticate()
-    .then(() => res.status(200).json({ status: 'ok' }))
-    .catch(() => res.status(503).json({ status: 'unavailable' }));
+  checkDbHealth().then(healthy => {
+    if (healthy) res.status(200).json({ status: 'ok' });
+    else res.status(503).json({ status: 'unavailable' });
+  });
 });
 
 // Routes
