@@ -8,6 +8,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { initSocket } from '../../socket';
 import { joinChatRoom, leaveChatRoom } from '../../webRTC/client';
 import { EVENTS } from '../../../shared/protocol';
+import { currentRoom } from '../../navigate';
 
 /* ----------------- COMPONENT ------------------ */
 
@@ -39,12 +40,12 @@ function App (props) {
   // before the scene can display it (issue #68). Guarded to emit exactly once.
   useEffect(() => {
     if (!assetsReady || joinedScene.current) return;
-    if (props.auth && props.auth.has('id')) {
+    const scene = currentRoom(location.pathname);
+    if (scene && props.auth && props.auth.has('id')) {
       joinedScene.current = true;
-      const scene = window.location.pathname.replace(/\//g, '') || 'root';
       initSocket().emit(EVENTS.JOIN_SCENE, props.auth, scene);
     }
-  }, [assetsReady, props.auth]);
+  }, [assetsReady, props.auth, location.pathname]);
 
   useEffect(() => {
     const assets = document.querySelector('#scene a-assets');
@@ -60,11 +61,10 @@ function App (props) {
   // mounts, and derives the room from the path so it's consistent with the avatar scene (#70).
   useEffect(() => {
     if (!assetsReady) return;
-    // Only join once an actual room is selected (path like /vr/lobby). Skip the bare /vr index
-    // while it redirects to a room, so we don't briefly join a phantom 'vr' chat room.
-    const segments = location.pathname.split('/').filter(Boolean);
-    if (segments.length < 2) return;
-    const room = location.pathname.replace(/\//g, '') || 'root';
+    // currentRoom() is null on the bare /vr index while it redirects to a room — skip it so we
+    // don't briefly join a phantom 'vr' chat room.
+    const room = currentRoom(location.pathname);
+    if (!room) return;
     // Tell the server which VR room this avatar is in. Room membership used to piggyback on
     // every position tick, but the server no longer merges `scene` from ticks (issue #113),
     // so a route change must announce itself. Before the initial joinScene this is a no-op

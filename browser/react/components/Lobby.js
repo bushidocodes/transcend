@@ -6,6 +6,7 @@ import Room from './Room';
 import '../../aframeComponents/scene-load';
 import { createArray } from '../../utils';
 import Teleporter from './Teleporter';
+import { roomLabel } from '../../rooms';
 
 // WebRTC chat join/leave is handled centrally by <App> on scene change (issue #70).
 export default class Lobby extends React.Component {
@@ -24,10 +25,10 @@ export default class Lobby extends React.Component {
           floorTexture="/img/carpet2.jpg"
           ceilingColor="#8DA0AF" />
 
-        {/* Orbs */}
+        {/* Orbs — labels come from the room manifest (browser/rooms.js, issue #119) */}
         <Teleporter
           color="red"
-          label="The Basement"
+          label={roomLabel('thebasement')}
           href="/vr/thebasement"
           rotation="90"
           x="-24.5" y="1" z="-3"
@@ -35,7 +36,7 @@ export default class Lobby extends React.Component {
         />
         <Teleporter
           color="orange"
-          label="Space Room"
+          label={roomLabel('spaceroom')}
           href="/vr/spaceroom"
           rotation="90"
           x="-24.5" y="1" z="2"
@@ -43,7 +44,7 @@ export default class Lobby extends React.Component {
         />
         <Teleporter
           color="blue"
-          label="Game Room"
+          label={roomLabel('gameroom')}
           href="/vr/gameroom"
           rotation="90"
           x="-24.5" y="1" z="7"
@@ -51,7 +52,7 @@ export default class Lobby extends React.Component {
         />
         <Teleporter
           color="purple"
-          label="Cat Room"
+          label={roomLabel('catroom')}
           href="/vr/catroom"
           rotation="90"
           x="-24.5" y="1" z="12"
@@ -59,7 +60,7 @@ export default class Lobby extends React.Component {
         />
         <Teleporter
           color="#BB96FF"
-          label="The Gap"
+          label={roomLabel('thegap')}
           href="/vr/thegap"
           rotation="90"
           x="-24.5" y="1" z="17"
