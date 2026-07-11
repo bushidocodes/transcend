@@ -25,13 +25,16 @@ passport.deserializeUser(
   }
 );
 
-// Local signup
+// Local signup. Only the explicitly picked fields reach the model: req.body is fully
+// attacker-controlled, and passing it straight to User.create let a signup set ANY column —
+// bypassing the VALID_SKINS guard on `skin` (re-opening the injection #79 closed) and
+// pre-binding `googleId` to hijack a victim's future Google login (issue #114).
 auth.post('/local/signup', (req, res, next) => {
-  const { displayName } = req.body;
+  const { email, password, displayName } = req.body;
   if (!displayName || displayName.length < 1 || displayName.length > 8) {
     return res.status(400).json({ error: 'Display name must be 1–8 characters' });
   }
-  User.create(req.body)
+  User.create({ email, password, displayName })
     .then(user => {
       req.login(user, (err) => {
         if (err) next(err);
