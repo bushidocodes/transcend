@@ -13,6 +13,7 @@ const app = express();
 const { resolve } = require('path');
 const { styleText } = require('node:util');
 const passport = require('passport');
+const db = require('../db');
 
 // Custom Middleware to redirect HTTP to https using request headers appended
 // By one of Heroku's AWS ELB instances.
@@ -91,6 +92,33 @@ app.use(express.static(resolve(__dirname, '../browser/stylesheets')));
 app.use(express.static(resolve(__dirname, '../public')));
 app.use(express.static(resolve(__dirname, '../node_modules/font-awesome')));
 
+// Readiness probe (issue #121): 200 only when the database is reachable, so a load balancer /
+// container orchestrator can tell a booting-or-broken instance from a healthy one.
+//
+// The probe is unauthenticated, so it must not cost a DB round-trip per request — otherwise
+// anyone can burn pool connections by hammering it (flagged by CodeQL on PR #134). Coalesce
+// and cache the check instead: at most one authenticate() (a trivial SELECT) is in flight or
+// cached per TTL window no matter the request volume, and a 2s-stale answer is well within
+// any orchestrator's probe tolerance. This bounds DB work globally, which per-IP rate
+// limiting wouldn't.
+const HEALTH_TTL_MS = 2000;
+let dbHealth = { at: -Infinity, promise: null };
+function checkDbHealth () {
+  if (Date.now() - dbHealth.at > HEALTH_TTL_MS) {
+    dbHealth = {
+      at: Date.now(),
+      promise: db.authenticate().then(() => true, () => false)
+    };
+  }
+  return dbHealth.promise;
+}
+app.get('/healthz', (req, res) => {
+  checkDbHealth().then(healthy => {
+    if (healthy) res.status(200).json({ status: 'ok' });
+    else res.status(503).json({ status: 'unavailable' });
+  });
+});
+
 // Routes
 app.use('/api', require('./api'));
 
@@ -100,9 +128,50 @@ app.get('/{*path}', (req, res) => {
 });
 
 const port = process.env.PORT || 1337;
-server.listen(port, () => {
-  console.log(styleText('blue', `--- Listening on port ${port} ---`));
-});
+// Don't accept traffic until the database is confirmed reachable (issue #121). The old
+// floating didSync let the HTTP server start taking logins before the connection was
+// confirmed — and on DB failure the process stayed up permanently broken, throwing on every
+// request instead of failing fast where an orchestrator can restart it.
+db.didSync
+  .then(() => {
+    server.listen(port, () => {
+      console.log(styleText('blue', `--- Listening on port ${port} ---`));
+    });
+  })
+  .catch(err => {
+    // Sequelize connection errors often have an empty .message; the class name is the signal.
+    console.error(styleText('red', `FATAL: database unreachable at boot — ${err.message || err.name || err}`));
+    process.exit(1);
+  });
+
+// Graceful shutdown (issue #121): stop accepting connections, disconnect every socket.io
+// client, drain in-flight HTTP requests, close the Sequelize pool, then exit 0 — with a
+// watchdog that force-exits non-zero if draining hangs. io.close() both disconnects the
+// sockets and closes the attached HTTP server; idle keep-alive connections would stall that
+// close, so they're dropped explicitly. (Windows can't deliver SIGTERM to a process — these
+// handlers run on POSIX deploys, where orchestrators send it.)
+let shuttingDown = false;
+function shutdown (signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(styleText('blue', `${signal} received — shutting down`));
+  const watchdog = setTimeout(() => {
+    console.error(styleText('red', 'Shutdown timed out; forcing exit'));
+    process.exit(1);
+  }, 10000);
+  watchdog.unref();
+  io.close(() => {
+    db.close()
+      .catch(() => {})
+      .then(() => {
+        console.log(styleText('blue', 'Shutdown complete'));
+        process.exit(0);
+      });
+  });
+  server.closeIdleConnections();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 app.use('/', (err, req, res, next) => {
   console.log(styleText('red', 'Houston, we have a problem'));
