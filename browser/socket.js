@@ -1,4 +1,3 @@
-/* global socket */
 import { io } from 'socket.io-client';
 import { EVENTS } from '../shared/protocol';
 import store from './redux/store';
@@ -15,23 +14,30 @@ import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCan
 // 'connect' event, however, also fires on every socket.io *re*connect, where <App> is
 // already mounted and will NOT re-emit it. Distinguish the two with this flag.
 let hasConnected = false;
-// Guards initSocket() so io() + the socket.on handlers run exactly once for the lifetime of
-// the page. Socket creation is deferred until the user has a valid auth session (issue #67),
-// at which point <App> calls initSocket() on mount. A logout→login cycle without a full page
-// reload remounts <App> and calls initSocket() again, but the socket (and its handlers, and
-// the hasConnected flag) must be reused rather than re-created — otherwise every handler would
-// be registered twice and fire twice per event.
-let initialized = false;
+// The module singleton (issue #120): the one socket instance, previously published as
+// window.socket and read through /* global */ pragmas. It doubles as the initSocket() guard —
+// io() + the socket.on handlers must run exactly once for the lifetime of the page. Socket
+// creation is deferred until the user has a valid auth session (issue #67), at which point
+// <App> calls initSocket() on mount. A logout→login cycle without a full page reload remounts
+// <App> and calls initSocket() again, but the socket (and its handlers, and the hasConnected
+// flag) must be reused rather than re-created — otherwise every handler would be registered
+// twice and fire twice per event.
+let socket = null;
+
+// The accessor every other module uses (issue #120). Returns null before initSocket() has run
+// (pre-login), so callers that can race init must guard — same contract window.socket had,
+// but visible to the bundler and stubbable in tests.
+export function getSocket () {
+  return socket;
+}
 
 // Create the socket and wire up its event handlers. Idempotent: the first call performs the
-// real initialization; later calls return the existing window.socket untouched. Returns the
+// real initialization; later calls return the existing socket untouched. Returns the
 // socket instance so callers can emit immediately after init.
 export function initSocket () {
-  if (initialized) return window.socket;
-  initialized = true;
+  if (socket) return socket;
 
-  // All A-Frame components need access to the socket instance
-  window.socket = io(window.location.origin);
+  socket = io(window.location.origin);
 
   socket.on(EVENTS.CONNECT, () => {
     console.log('You\'ve made a persistent two-way connection to the server!');
@@ -117,7 +123,7 @@ export function initSocket () {
     showSessionReplacedOverlay();
   });
 
-  return window.socket;
+  return socket;
 }
 
 // Full-screen blocking overlay shown when this session is replaced by a newer login. Built with

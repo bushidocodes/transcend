@@ -1,6 +1,9 @@
 import store from '../redux/store';
 import { setUserMedia, addPeer, deletePeer, clearPeers } from '../redux/reducers/webrtc-reducer';
 import { EVENTS } from '../../shared/protocol';
+// Import cycle with browser/socket.js (it imports our handlers, we import its accessor) — safe
+// because getSocket is only ever CALLED at event time, long after both modules initialize.
+import { getSocket } from '../socket';
 
 let cachedIceServers = null;
 
@@ -25,8 +28,6 @@ async function getIceServers () {
   }
 }
 
-// This will be our socket connection
-let signalingSocket = null;
 let peerMediaElements = {};  // keep track of our <audio> tags, indexed by peer_id
 
 // Called by an A-Frame Room's componentDidMount hook, the joinChatRoom function asks the user
@@ -46,11 +47,8 @@ export function joinChatRoom (room, errorback) {
     console.log('No room was provided');
     return;
   }
-  if (signalingSocket === null) {
-    signalingSocket = window.socket;
-  }
   if (localMediaStream != null) {  /* ie, if we've already been initialized */
-    signalingSocket.emit(EVENTS.JOIN_CHAT_ROOM, room);
+    getSocket().emit(EVENTS.JOIN_CHAT_ROOM, room);
     return;
   }
   console.log('Requesting access to local audio / video inputs');
@@ -64,7 +62,7 @@ export function joinChatRoom (room, errorback) {
       const audioEl = document.getElementById('localAudio');
       audioEl.muted = true;
       audioEl.srcObject = stream;
-      signalingSocket.emit(EVENTS.JOIN_CHAT_ROOM, room);
+      getSocket().emit(EVENTS.JOIN_CHAT_ROOM, room);
     })
     // On Failure... likely because user denied access to a/v
     .catch(() => {
@@ -78,7 +76,7 @@ export function joinChatRoom (room, errorback) {
 //   triggers server-side logic to leave the matching socket.io room and tear down
 //   existing WebRTC connections.
 export function leaveChatRoom () {
-  signalingSocket.emit(EVENTS.LEAVE_CHAT_ROOM);
+  getSocket().emit(EVENTS.LEAVE_CHAT_ROOM);
 }
 
 // accepts conifg
@@ -102,7 +100,7 @@ export async function addPeerConn (config) {
   // I'm not 100% sure what this does, but it sets up ice candidates ¯\_(ツ)_/¯
   peerConnection.onicecandidate = function (event) {
     if (event.candidate) {
-      signalingSocket.emit(EVENTS.RELAY_ICE_CANDIDATE, {
+      getSocket().emit(EVENTS.RELAY_ICE_CANDIDATE, {
         peer_id: peerId,
         ice_candidate: {
           sdpMLineIndex: event.candidate.sdpMLineIndex,
@@ -146,7 +144,7 @@ export async function addPeerConn (config) {
     try {
       const localDescription = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(localDescription);
-      signalingSocket.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
+      getSocket().emit(EVENTS.RELAY_SESSION_DESCRIPTION,
         { peer_id: peerId, session_description: localDescription });
       console.log('Offer setLocalDescription succeeded');
     } catch (error) {
@@ -185,7 +183,7 @@ export async function setRemoteAnswer (config) {
       console.log('Creating answer');
       const localDescription = await peer.createAnswer();
       await peer.setLocalDescription(localDescription);
-      signalingSocket.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
+      getSocket().emit(EVENTS.RELAY_SESSION_DESCRIPTION,
         { peer_id: peerId, session_description: localDescription });
       console.log('Answer setLocalDescription succeeded');
     }
