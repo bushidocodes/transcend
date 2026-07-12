@@ -37,7 +37,15 @@ const mockUser = vi.hoisted(() => {
   };
 });
 
-vi.mock('../db/models/user.ts', () => ({ default: mockUser, User: mockUser }));
+// Issue #240: LocalStrategy always runs comparePassword (dummy digest when no user).
+// Mock it so missing-user tests stay fast and we can assert the call without real bcrypt.
+const mockComparePassword = vi.hoisted(() => vi.fn().mockResolvedValue(false));
+
+vi.mock('../db/models/user.ts', () => ({
+  default: mockUser,
+  User: mockUser,
+  comparePassword: mockComparePassword
+}));
 
 let server: http.Server;
 let baseUrl: string;
@@ -67,6 +75,8 @@ afterAll(() => new Promise(resolve => server.close(resolve)));
 beforeEach(() => {
   mockUser.create.mockClear();
   mockUser.findOne.mockReset();
+  mockComparePassword.mockClear();
+  mockComparePassword.mockResolvedValue(false);
 });
 
 function signup(body: Record<string, unknown>) {
@@ -208,5 +218,33 @@ describe('POST /local/login – mixed-case email (issue #170)', () => {
 
     expect(mockUser.findOne).toHaveBeenCalledWith({ where: { email: 'foo@bar.com' } });
     expect(user.authenticate).toHaveBeenCalledWith('wrong');
+  });
+});
+
+describe('POST /local/login – constant-time missing user (issue #240)', () => {
+  it('runs comparePassword with a null digest when no user row exists', async () => {
+    // Without this, missing emails returned immediately while known emails paid bcrypt —
+    // a remote timing oracle for which addresses are registered.
+    mockUser.findOne.mockResolvedValue(null);
+
+    await login({ username: 'nobody@example.com', password: 'guess' });
+
+    expect(mockComparePassword).toHaveBeenCalledTimes(1);
+    expect(mockComparePassword).toHaveBeenCalledWith('guess', null);
+  });
+
+  it('uses user.authenticate (not the dummy path) when a row exists', async () => {
+    const user = {
+      id: 3,
+      email: 'real@example.com',
+      authenticate: vi.fn().mockResolvedValue(false)
+    };
+    mockUser.findOne.mockResolvedValue(user);
+
+    await login({ username: 'real@example.com', password: 'wrong' });
+
+    expect(user.authenticate).toHaveBeenCalledWith('wrong');
+    // Dummy compare is only for the missing-user branch; present users go through authenticate.
+    expect(mockComparePassword).not.toHaveBeenCalled();
   });
 });
