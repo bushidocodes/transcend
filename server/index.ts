@@ -70,6 +70,11 @@ const sessionMiddleware = session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
+    // sameSite: 'lax' is the primary CSRF mitigation for cookie-auth mutations (issue #205).
+    // Browsers will not attach this session cookie on cross-site POST/PUT (only on top-level
+    // GET navigations), so classic CSRF against /api/auth/* cannot ride a logged-in session.
+    // Defence-in-depth: requireSameOrigin on state-changing auth routes also rejects a present
+    // but mismatched Origin header (see server/csrf-origin.ts).
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: 7 * 24 * 60 * 60 * 1000

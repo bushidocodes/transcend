@@ -14,6 +14,9 @@ import VALID_SKINS from './validSkins.ts';
 // Throttle local signup/login (issue #140) and PUT /skin (issue #203). whoami / logout /
 // Google OAuth stay unlimited — they are not online password-guessing or DB-write sprays.
 import { createAuthRateLimiters } from './auth-rate-limit.ts';
+// CSRF defence-in-depth for cookie-auth mutations (issue #205). Primary defence is
+// sameSite:'lax' on the session cookie; this rejects a present but wrong Origin.
+import { requireSameOrigin } from './csrf-origin.ts';
 
 const auth = express.Router();
 
@@ -43,7 +46,7 @@ passport.deserializeUser(
 // email and password are also required here (issue #139). Without them the model would
 // create unusable rows: Sequelize skips isEmail when the field is null, and setEmailAndPassword
 // early-returns when password is empty so password_digest stays NULL.
-auth.post('/local/signup', ipLimiter, (req, res, next) => {
+auth.post('/local/signup', requireSameOrigin, ipLimiter, (req, res, next) => {
   const { email, password, displayName } = req.body;
   if (!displayName || displayName.length < 1 || displayName.length > 8) {
     return res.status(400).json({ error: 'Display name must be 1–8 characters' });
@@ -79,7 +82,7 @@ export function normalizeEmail (email: string): string {
 }
 
 // Local login
-auth.post('/local/login', ipLimiter, loginEmailLimiter, (req, res, next) => {
+auth.post('/local/login', requireSameOrigin, ipLimiter, loginEmailLimiter, (req, res, next) => {
   passport.authenticate('local', {
     successRedirect: '/api/auth/whoami'
   })(req, res, next);
@@ -227,9 +230,9 @@ auth.get('/google/callback',
 // Send user info to frontend
 auth.get('/whoami', (req, res) => res.send(req.user));
 
-// Persist a skin selection to the user's account. Rate-limited per IP (issue #203) so a
-// single client cannot unbounded-write the user row.
-auth.put('/skin', skinLimiter, (req, res, next) => {
+// Persist a skin selection to the user's account. Origin check (issue #205) + rate limit
+// per IP (issue #203) so a single client cannot unbounded-write the user row.
+auth.put('/skin', requireSameOrigin, skinLimiter, (req, res, next) => {
   if (!req.user) return res.sendStatus(401);
   const { skin } = req.body;
   if (!VALID_SKINS.has(skin)) {
@@ -240,7 +243,7 @@ auth.put('/skin', skinLimiter, (req, res, next) => {
     .catch(next);
 });
 
-auth.post('/logout', (req, res, next) => {
+auth.post('/logout', requireSameOrigin, (req, res, next) => {
   req.logout((err) => {
     if (err) return next(err);
     res.redirect('/api/auth/whoami');
