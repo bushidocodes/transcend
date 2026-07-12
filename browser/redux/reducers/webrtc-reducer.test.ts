@@ -1,10 +1,12 @@
 // Pure reducer tests for the current (master) webrtc slice API (issue #175).
 // Non-serializable MediaStream / RTCPeerConnection payloads are mocked as plain objects
 // so the reducer path can be exercised without a real browser WebRTC stack.
+// clearUserMedia coverage is issue #172 (logout must drop the stream so getUserMedia re-runs).
 
 import type { UnknownAction } from 'redux';
 import webrtcReducer, {
   setUserMedia,
+  clearUserMedia,
   addPeer,
   deletePeer,
   clearPeers,
@@ -33,6 +35,12 @@ describe('webrtcReducer', () => {
     const next = webrtcReducer(empty, asAction(setUserMedia(fakeStream)));
     expect(next.localMediaStream).toBe(fakeStream);
     expect(next.peers).toEqual({});
+  });
+
+  it('clearUserMedia clears localMediaStream so the next join does not reuse a stopped stream (#172)', () => {
+    const withStream = webrtcReducer(empty, asAction(setUserMedia(fakeStream)));
+    const cleared = webrtcReducer(withStream, asAction(clearUserMedia()));
+    expect(cleared.localMediaStream).toBeNull();
   });
 
   it('addPeer registers a peer connection under its id', () => {
@@ -66,6 +74,7 @@ describe('webrtcReducer', () => {
 
   it('action creators shape actions correctly', () => {
     expect(setUserMedia(fakeStream)).toEqual({ type: 'SET_USER_MEDIA', stream: fakeStream });
+    expect(clearUserMedia()).toEqual({ type: 'CLEAR_USER_MEDIA' });
     expect(addPeer('x', fakePeerA)).toEqual({
       type: 'ADD_PEER',
       peerId: 'x',

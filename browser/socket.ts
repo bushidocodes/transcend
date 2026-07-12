@@ -3,6 +3,7 @@ import { getSocket, setSocket } from './socket-holder.ts';
 import { EVENTS, type SceneState, type UsersMap } from '../shared/protocol.ts';
 import store from './redux/store.ts';
 import { setTickRate } from './redux/reducers/config-reducer.ts';
+import { clearUserMedia } from './redux/reducers/webrtc-reducer.ts';
 import { addFirstPersonProperties } from './utils.ts';
 import { currentRoom } from './navigate.ts';
 import * as avatars from './avatars.ts';
@@ -170,6 +171,9 @@ function showSessionReplacedOverlay (): void {
 export function releaseLocalMedia (): void {
   const stream = store.getState().webrtc.localMediaStream;
   if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
+  // Clear Redux so joinChatRoom does not reuse ended tracks on the next login without a
+  // page reload (sessionReplaced forces reload; logout does not — issue #172).
+  if (stream != null) store.dispatch(clearUserMedia());
 }
 
 export default initSocket;

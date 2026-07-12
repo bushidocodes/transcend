@@ -18,6 +18,7 @@ const initialState: WebrtcState = {
 /* --------------- ACTIONS --------------- */
 
 const SET_USER_MEDIA = 'SET_USER_MEDIA';
+const CLEAR_USER_MEDIA = 'CLEAR_USER_MEDIA';
 const ADD_PEER = 'ADD_PEER';
 const DELETE_PEER = 'DELETE_PEER';
 const CLEAR_PEERS = 'CLEAR_PEERS';
@@ -25,6 +26,10 @@ const CLEAR_PEERS = 'CLEAR_PEERS';
 interface SetUserMediaAction {
   type: typeof SET_USER_MEDIA;
   stream: MediaStream;
+}
+
+interface ClearUserMediaAction {
+  type: typeof CLEAR_USER_MEDIA;
 }
 
 interface AddPeerAction {
@@ -44,6 +49,15 @@ export const setUserMedia = (stream: MediaStream): SetUserMediaAction => {
   return {
     type: SET_USER_MEDIA,
     stream
+  };
+};
+
+// Drop the local stream reference after tracks are stopped (logout / sessionReplaced).
+// Without this, joinChatRoom's localMediaStream != null guard reuses ended tracks and the
+// next login is silent until a full reload (issue #172).
+export const clearUserMedia = (): ClearUserMediaAction => {
+  return {
+    type: CLEAR_USER_MEDIA
   };
 };
 
@@ -74,6 +88,9 @@ export default function webrtcReducer (state: WebrtcState = initialState, action
   switch (action.type) {
     case SET_USER_MEDIA:
       return { ...state, localMediaStream: (action as unknown as SetUserMediaAction).stream };
+
+    case CLEAR_USER_MEDIA:
+      return { ...state, localMediaStream: null };
 
     case ADD_PEER: {
       const { peerId, peerConnection } = action as unknown as AddPeerAction;
