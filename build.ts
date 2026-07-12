@@ -51,10 +51,7 @@ function cleanOldBundles(): void {
  */
 function writeAppHtml(bundleFileName: string): void {
   const template = readFileSync('browser/app.html', 'utf8');
-  const html = template.replace(
-    /src="\/bundle(?:\.[^"/]+)?\.js"/,
-    `src="/${bundleFileName}"`
-  );
+  const html = template.replace(/src="\/bundle(?:\.[^"/]+)?\.js"/, `src="/${bundleFileName}"`);
   if (!html.includes(`src="/${bundleFileName}"`)) {
     throw new Error(
       `build: failed to inject script src for ${bundleFileName} into browser/app.html`
