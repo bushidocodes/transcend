@@ -12,20 +12,15 @@ const publicDir = 'public';
 const options: esbuild.BuildOptions = {
   entryPoints: ['browser/react/index.tsx'],
   bundle: true,
-<<<<<<< HEAD
-  outfile: 'public/bundle.js',
-  // Dev: linked maps for debugging. Prod: never emit public/bundle.js.map — the static
+  outdir: publicDir,
+  // Fixed "bundle" prefix + content hash so deploys bust caches without revalidating every load.
+  entryNames: 'bundle.[hash]',
+  // Dev: linked maps for debugging. Prod: never emit public/bundle.[hash].js.map — the static
   // server would ship the full original TypeScript source (~MB) to every visitor and
   // defeat minify on the next line (issue #230). Use external maps uploaded to an error
   // tracker if production stack traces are needed later.
   sourcemap: !prod,
-=======
-  outdir: publicDir,
-  // Fixed "bundle" prefix + content hash so deploys bust caches without revalidating every load.
-  entryNames: 'bundle.[hash]',
-  sourcemap: true,
   metafile: true,
->>>>>>> c23ea31 (Cache-bust browser bundle with content hash (#243))
   // React 19 requires the modern JSX transform (issue #151). `automatic` injects
   // jsx-runtime imports so we don't need the classic React.createElement factory.
   jsx: 'automatic',
