@@ -115,24 +115,32 @@ auth.get(
   })
 );
 
-/** Fields we take from a Google profile for account create/link (issue #171). */
+/** Fields we take from a Google profile for account create/link (issue #171 / #229). */
 export interface GoogleProfileFields {
   googleId: string;
   email: string;
   name: string;
   displayName: string;
+  /** True only when Google asserts the email is verified (issue #229). */
+  emailVerified: boolean;
 }
+
+/** Minimal profile shape we read — passport-google-oauth20 Profile subset. */
+export type GoogleProfileInput = {
+  id: string;
+  displayName?: string;
+  emails?: Array<{ value: string; verified?: boolean }>;
+  _json?: { email_verified?: boolean };
+};
 
 /**
  * Pure extraction of identity fields from a Google profile.
  * Returns an error string when the profile has no email (scope/consent edge cases) so the
  * strategy can fail cleanly via done(null, false) instead of throwing on emails![0].
  */
-export function resolveGoogleProfile(profile: {
-  id: string;
-  displayName?: string;
-  emails?: Array<{ value: string }>;
-}): GoogleProfileFields | { error: string } {
+export function resolveGoogleProfile(
+  profile: GoogleProfileInput
+): GoogleProfileFields | { error: string } {
   const email = profile.emails?.[0]?.value;
   if (!email) {
     return { error: 'Google account has no email' };
@@ -140,39 +148,50 @@ export function resolveGoogleProfile(profile: {
   // displayName is 1–8 chars everywhere else (signup + #47); keep OAuth consistent.
   const displayName = (profile.displayName || email.split('@')[0] || 'User').slice(0, 8);
   const name = profile.displayName || displayName;
+  // Require an explicit verified assertion (passport emails[].verified or raw _json).
+  // Missing flags are treated as unverified so we never auto-link on a soft signal (#229).
+  const emailVerified =
+    profile.emails?.[0]?.verified === true || profile._json?.email_verified === true;
   return {
     googleId: profile.id,
     // Match setEmailAndPassword lowercasing so email unique-index lookups hit local accounts.
     email: email.toLowerCase(),
     name,
-    displayName
+    displayName,
+    emailVerified
   };
 }
 
 /**
  * Find or create a User for a Google profile:
  * 1. Existing row with this googleId → return it
- * 2. Existing local account with the same email → link googleId (and fill blank name/displayName)
+ * 2. Existing local account with the same email → link googleId ONLY when email is verified
+ *    (issue #229 — unverified-email account takeover)
  * 3. Otherwise findOrCreate by googleId with name/email/displayName defaults
  *
- * Step 2 avoids unique-email collisions that used to 500 when a local account already existed.
+ * Step 2 avoids unique-email collisions that used to 500 when a local account already existed,
+ * but must not bind an attacker's googleId to a victim local account when Google has not
+ * verified the email claim.
  */
-export async function resolveGoogleUser(profile: {
-  id: string;
-  displayName?: string;
-  emails?: Array<{ value: string }>;
-}): Promise<InstanceType<typeof User> | false> {
+export async function resolveGoogleUser(
+  profile: GoogleProfileInput
+): Promise<InstanceType<typeof User> | false> {
   const resolved = resolveGoogleProfile(profile);
   if ('error' in resolved) return false;
 
-  const { googleId, email, name, displayName } = resolved;
+  const { googleId, email, name, displayName, emailVerified } = resolved;
 
   const byGoogle = await User.findOne({ where: { googleId } });
   if (byGoogle) return byGoogle;
 
-  // Link existing local account with the same email rather than inserting a duplicate.
+  // Link existing local account with the same email rather than inserting a duplicate —
+  // but only when Google asserts the email is verified (issue #229).
   const byEmail = await User.findOne({ where: { email } });
   if (byEmail) {
+    if (!emailVerified) {
+      // Refuse: linking would let an unverified Google identity take over the local account.
+      return false;
+    }
     await byEmail.update({
       googleId,
       displayName: byEmail.displayName || displayName,
