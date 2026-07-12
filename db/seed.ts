@@ -1,5 +1,14 @@
 import db, { prepare } from './index.ts';
 import User from './models/user.ts';
+import { assertSeedAllowed } from './seed-guard.ts';
+
+// Hard-exit before any DB work when this would wipe production (issue #233).
+try {
+  assertSeedAllowed(process.env);
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
 
 const seedUsers = () =>
   Promise.all(
@@ -142,6 +151,7 @@ const seedUsers = () =>
 
 // Deliberately destructive dev reset: force-sync drops and recreates the tables from the
 // models before inserting the demo users. Never point this at a database you care about.
+// The production guard above (assertSeedAllowed) is the enforcement; this comment is the docs.
 prepare()
   .then(() => db.sync({ force: true }))
   .then(seedUsers)
