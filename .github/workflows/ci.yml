@@ -46,7 +46,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Coverage gate (issue #235): vitest thresholds in vitest.config.ts fail the job if
+      # covered paths regress below the configured floors.
       - name: Test
-        run: npm test
+        run: npm run test:coverage
         env:
           DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/transcend_test

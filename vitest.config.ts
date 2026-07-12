@@ -18,8 +18,27 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['browser/**', 'server/**', 'db/**', 'shared/**'],
-      exclude: ['**/*.test.*', 'browser/aframeComponents/aframe-minecraft.ts']
+      // Gate on server/db/shared where unit tests are tractable (issue #235). Browser A-Frame
+      // and the full WebRTC client stay out of the threshold base so the gate is meaningful
+      // rather than a vanity number depressed by hard-to-mock UI.
+      include: ['server/**', 'db/**', 'shared/**', 'browser/webRTC/peer-guards.ts'],
+      exclude: [
+        '**/*.test.*',
+        'browser/aframeComponents/aframe-minecraft.ts',
+        // Full process bootstrap (helmet/session wiring) is integration-heavy; seed/migrate-cli
+        // are one-shot scripts. Keep them out of the threshold denominator.
+        'server/index.ts',
+        'db/seed.ts',
+        'db/migrate-cli.ts'
+      ],
+      // Modest floors that currently pass at master (~47% overall; higher on the scoped set).
+      // Bump deliberately as more pure logic is covered — never lower without an issue.
+      thresholds: {
+        lines: 55,
+        functions: 50,
+        branches: 50,
+        statements: 55
+      }
     }
   }
 });
