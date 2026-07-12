@@ -2,14 +2,14 @@ import { useOutletContext } from 'react-router';
 import type { LoginOutletContext } from './Home.tsx';
 
 export default function Signup() {
-  const { signup, styles, error } = useOutletContext<LoginOutletContext>();
+  const { signup, styles, signupError } = useOutletContext<LoginOutletContext>();
 
   return (
     <div style={styles.signUpContainer}>
       <form onSubmit={signup}>
         {/* Assertive live region so screen readers announce auth failures (issue #228). */}
         <div role="alert" aria-live="assertive" style={styles.errorMessage}>
-          {error || ''}
+          {signupError || ''}
         </div>
         <div>
           <input

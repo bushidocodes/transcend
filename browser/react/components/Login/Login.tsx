@@ -3,7 +3,7 @@ import BrandIcon, { GOOGLE_PATH, GOOGLE_VIEWBOX } from './BrandIcon.tsx';
 import type { LoginOutletContext } from './Home.tsx';
 
 export default function Login() {
-  const { login, styles, error } = useOutletContext<LoginOutletContext>();
+  const { login, styles, loginError } = useOutletContext<LoginOutletContext>();
 
   return (
     <div style={styles.container}>
@@ -22,7 +22,7 @@ export default function Login() {
       <form onSubmit={login}>
         {/* Assertive live region so screen readers announce auth failures (issue #228). */}
         <div role="alert" aria-live="assertive" style={styles.errorMessage}>
-          {error || ''}
+          {loginError || ''}
         </div>
         <div>
           <input

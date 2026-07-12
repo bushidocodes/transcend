@@ -11,14 +11,18 @@ export interface LoginOutletContext {
   login: (event: FormEvent<HTMLFormElement>) => void;
   signup: (event: FormEvent<HTMLFormElement>) => void;
   styles: typeof styles;
-  /** Auth failure message for the active form; null when none (issue #228). */
-  error: string | null;
+  /** Login-form failure message; null when none (issue #228). Not shared with signup. */
+  loginError: string | null;
+  /** Signup-form failure message; null when none (issue #228). Not shared with login. */
+  signupError: string | null;
 }
 
 export default function Home() {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  // Separate form errors so a failed login does not appear above signup (and vice versa).
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [signupError, setSignupError] = useState<string | null>(null);
 
   function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,11 +32,11 @@ export default function Home() {
     };
     const email = form.email.value;
     const password = form.password.value;
-    setError(null);
+    setLoginError(null);
     // Only navigate on success; surface failure so the user is not silently bounced (#228).
     dispatch(login(email, password)).then(ok => {
       if (ok) navigate('/vr');
-      else setError('Login failed. Check your email and password.');
+      else setLoginError('Login failed. Check your email and password.');
     });
   }
 
@@ -48,10 +52,11 @@ export default function Home() {
     const displayName = form.displayName.value;
     const email = form.email.value;
     const password = form.password.value;
-    setError(null);
+    setSignupError(null);
     dispatch(signup(name, displayName, email, password)).then(ok => {
       if (ok) navigate('/vr');
-      else setError('Signup failed. That email may already be in use, or the form is invalid.');
+      else
+        setSignupError('Signup failed. That email may already be in use, or the form is invalid.');
     });
   }
 
@@ -64,7 +69,8 @@ export default function Home() {
             login: handleLogin,
             signup: handleSignup,
             styles,
-            error
+            loginError,
+            signupError
           } satisfies LoginOutletContext
         }
       />
