@@ -14,11 +14,12 @@ let server: http.Server;
 let baseUrl: string;
 
 // Same CSP knobs as server/index.ts — keep in sync when adjusting A-Frame allowances.
+// script-src: 'self' + 'unsafe-eval' only (issue #225; no 'unsafe-inline').
 const helmetMiddleware = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: ["'self'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       fontSrc: ["'self'", 'data:'],
@@ -70,5 +71,14 @@ describe('security headers (issue #201)', () => {
     expect(csp).toMatch(/default-src 'self'/);
     expect(csp).toMatch(/script-src[^;]*'self'/);
     expect(csp).toMatch(/connect-src[^;]*'self'/);
+  });
+
+  // Issue #225: drop 'unsafe-inline' from script-src; keep 'unsafe-eval' for A-Frame.
+  it('script-src allows unsafe-eval but not unsafe-inline', async () => {
+    const res = await fetch(baseUrl + '/probe');
+    const csp = res.headers.get('content-security-policy') || '';
+    const scriptSrc = (csp.match(/script-src[^;]*/i) || [''])[0];
+    expect(scriptSrc).toMatch(/'unsafe-eval'/);
+    expect(scriptSrc).not.toMatch(/'unsafe-inline'/);
   });
 });
