@@ -307,14 +307,26 @@ export default function attachSocketServer (io: Server): void {
     }
     on(socket, EVENTS.LEAVE_CHAT_ROOM, null, () => leaveChatRoom());
 
+    // WebRTC signaling (ICE / SDP) is only meaningful between members of the same voice chat
+    // room. peer_id is client-supplied, so before relaying verify the target is actually in
+    // the sender's currentChatRoom — otherwise any connected socket could inject candidates
+    // or session descriptions into an arbitrary peer (issue #168). Always stamp peer_id with
+    // socket.id on the outbound emit so the source cannot be spoofed either.
+    function canRelayTo (peerId: unknown): peerId is string {
+      const room = socket.currentChatRoom;
+      if (!room || typeof peerId !== 'string') return false;
+      const members = io.sockets.adapter.rooms.get(chatRoomOf(room));
+      return !!members?.has(peerId);
+    }
+
     // If any user is an Ice Candidate, tells other users to set up a ICE connection with them
     on(socket, EVENTS.RELAY_ICE_CANDIDATE, isObject, function (config: unknown) {
       if (!isObject(config)) return;
       const peerId = config.peer_id;
       const iceCandidate = config.ice_candidate;
+      if (!canRelayTo(peerId)) return;
       console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
-      // peer_id is attacker-controlled and only shape-checked; a non-string simply misses the Map.
-      const peer = io.sockets.sockets.get(peerId as string);
+      const peer = io.sockets.sockets.get(peerId);
       if (peer) peer.emit(EVENTS.ICE_CANDIDATE, { peer_id: socket.id, ice_candidate: iceCandidate });
     });
 
@@ -323,8 +335,9 @@ export default function attachSocketServer (io: Server): void {
       if (!isObject(config)) return;
       const peerId = config.peer_id;
       const sessionDescription = config.session_description;
+      if (!canRelayTo(peerId)) return;
       console.log(`[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`);
-      const peer = io.sockets.sockets.get(peerId as string);
+      const peer = io.sockets.sockets.get(peerId);
       if (peer) peer.emit(EVENTS.SESSION_DESCRIPTION, { peer_id: socket.id, session_description: sessionDescription });
     });
   });
