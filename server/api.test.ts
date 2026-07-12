@@ -35,8 +35,9 @@ beforeAll(() => new Promise<void>(resolve => {
   const app = express();
   app.use((req, _res, next) => {
     if (attachUser) {
-      // Minimal passport-shaped user — ice-servers only checks truthiness of req.user.
-      (req as express.Request & { user?: { id: number } }).user = { id: 1 };
+      // Minimal stand-in — ice-servers only checks truthiness of req.user. Cast past the
+      // passport/User model augmentation so tsc accepts a stub without a full Sequelize row.
+      req.user = { id: 1 } as unknown as Express.User;
     }
     next();
   });
