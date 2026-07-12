@@ -6,11 +6,21 @@ import globals from 'globals';
 // maintained successor to eslint-config-standard; its `semi: true` keeps the codebase's
 // existing "standard style, but with semicolons" convention. The default espree parser handles
 // the modern syntax (optional catch binding, etc.) that previously required babel-eslint.
+//
+// ESLint 10 (#155): published neostandard@0.13 peers only ESLint 9 and ships @stylistic@2,
+// which crashes on ESLint 10 (sourceCode.isSpaceBetweenTokens). Until neostandard 0.14 lands
+// (upstream PR neostandard/neostandard#340), we pin that PR's commit for ESLint 10 + @stylistic@5.
 export default [
   {
     // public/** is build output; aframe-minecraft.js is a vendored THREEx port kept in its
     // upstream style (tabs, THREEx self-reference, lowercase constructors).
-    ignores: ['public/**', '.playwright-mcp/**', 'browser/aframeComponents/aframe-minecraft.js'],
+    ignores: [
+      'public/**',
+      '.playwright-mcp/**',
+      '.claude/**',
+      '.issue-review/**',
+      'browser/aframeComponents/aframe-minecraft.js',
+    ],
   },
 
   ...neostandard({ semi: true }),
