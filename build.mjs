@@ -11,7 +11,10 @@ const options = {
   bundle: true,
   outfile: 'public/bundle.js',
   sourcemap: true,
+  // React 19 requires the modern JSX transform (issue #151). `automatic` injects
+  // jsx-runtime imports so we don't need the classic React.createElement factory.
   loader: { '.js': 'jsx' },
+  jsx: 'automatic',
   define: { 'process.env.NODE_ENV': JSON.stringify(prod ? 'production' : 'development') },
   target: 'es2020',
   minify: prod,
