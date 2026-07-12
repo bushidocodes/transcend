@@ -5,6 +5,7 @@ import '../../aframeComponents/scene-load.ts';
 import '../../aframeComponents/aframe-minecraft.ts';
 import AssetLoader from './AssetLoader.tsx';
 import LoadingSpinner from './LoadingSpinner.tsx';
+import ErrorBoundary from './ErrorBoundary.tsx';
 import { initSocket } from '../../socket.ts';
 import { joinChatRoom, leaveChatRoom } from '../../webRTC/client.ts';
 import { EVENTS } from '../../../shared/protocol.ts';
@@ -97,7 +98,14 @@ function App (props: Props) {
         : null}
       <a-scene id="scene" scene-load>
         <AssetLoader />
-        {assetsReady ? <Outlet /> : null}
+        {/* ErrorBoundary (issue #206): a throw in a room component must not unmount the whole app. */}
+        {assetsReady
+          ? (
+              <ErrorBoundary label="room">
+                <Outlet />
+              </ErrorBoundary>
+            )
+          : null}
       </a-scene>
     </div>
   );
