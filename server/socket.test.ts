@@ -147,6 +147,42 @@ describe('Socket.io – joinScene / sceneState', () => {
         return cleanup(client);
       });
   });
+
+  // Issue #227: joinScene must apply the same VALID_SKINS gate as changeSkin (#79 join-path gap).
+  it('joinScene with a whitelisted skin stores that skin', () => {
+    const client = connect();
+    return waitFor(client, 'connect')
+      .then(() => handshake(client, 'Alice', 'lobby', 'batman'))
+      .then(state => {
+        expect(state.you.skin).toBe('batman');
+        return cleanup(client);
+      });
+  });
+
+  it('joinScene with a non-whitelisted skin drops the skin (undefined)', () => {
+    const client = connect();
+    return waitFor(client, 'connect')
+      .then(() => handshake(client, 'Alice', 'lobby', '../../evil; injected: true'))
+      .then(state => {
+        // Rejected rather than stored; browser will fall back to its default texture.
+        expect(state.you.skin).toBeUndefined();
+        return cleanup(client);
+      });
+  });
+
+  it('joinScene with a session skin outside VALID_SKINS also drops the skin', () => {
+    const client = connect({ id: 227, displayName: 'Sess', skin: 'not-a-real-skin' });
+    return waitFor(client, 'connect')
+      .then(() => {
+        client.emit('joinScene', { displayName: 'Sess', skin: 'batman' }, 'lobby');
+        return waitFor(client, 'sceneState');
+      })
+      .then(state => {
+        // Session skin wins over client payload but must still pass the whitelist.
+        expect(state.you.skin).toBeUndefined();
+        return cleanup(client);
+      });
+  });
 });
 
 // -----------------------------------------------------------------
