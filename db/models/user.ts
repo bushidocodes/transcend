@@ -78,7 +78,15 @@ User.init(
   {
     sequelize: db,
     modelName: 'users',
-    indexes: [{ fields: ['email'], unique: true }],
+    indexes: [
+      { fields: ['email'], unique: true },
+      // Unique on google_id (issue #234). Postgres treats NULLs as distinct in unique
+      // indexes, so local-only accounts may all keep google_id NULL. Migration 003 creates
+      // a partial unique index (WHERE google_id IS NOT NULL) for the same logical constraint;
+      // force-sync test DBs get this model-level unique index instead.
+      // Column name (snake_case): Sequelize does not underscorize index `fields` entries.
+      { fields: ['google_id'], unique: true, name: 'users_google_id_unique' }
+    ],
     hooks: {
       beforeCreate: setEmailAndPassword,
       beforeUpdate: setEmailAndPassword
