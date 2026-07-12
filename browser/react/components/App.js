@@ -82,7 +82,7 @@ function App (props) {
     <div style={style}>
       {!props.isLoaded
         ? (
-        <LoadingSpinner />
+            <LoadingSpinner />
           )
         : null
       }

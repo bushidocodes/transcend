@@ -60,14 +60,14 @@
     "umzug": "^3.8.3"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^3.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "^0.28.1",
-    "eslint": "^9.0.0",
+    "eslint": "^10.7.0",
     "eslint-plugin-react": "^7.0.0",
-    "globals": "^15.0.0",
+    "globals": "^17.7.0",
     "happy-dom": "^20.10.6",
     "morgan": "^1.11.0",
-    "neostandard": "^0.12.0",
-    "vitest": "^3.0.0"
+    "neostandard": "github:neostandard/neostandard#5015236c3a2278969cc72b2f417c5f09ee861284",
+    "vitest": "^4.1.10"
   }
 }
