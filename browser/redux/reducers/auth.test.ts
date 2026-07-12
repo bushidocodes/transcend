@@ -2,8 +2,9 @@
 // Login/signup boolean success contract (issue #228).
 
 import type { UnknownAction } from 'redux';
-import { createStore, applyMiddleware, type Action } from 'redux';
-import { thunk as thunkMiddleware, type ThunkDispatch } from 'redux-thunk';
+import { createStore, applyMiddleware } from 'redux';
+import type { AppDispatch } from '../store.ts';
+import { thunk as thunkMiddleware } from 'redux-thunk';
 import authReducer, { authenticated, login, signup, type AuthState } from './auth.ts';
 
 // Action creators return narrow interfaces that lack Redux's UnknownAction index signature;
@@ -39,8 +40,6 @@ describe('authReducer', () => {
 // Issue #228: failed login/signup must resolve false (not silently resolve void) so Home
 // can skip navigate('/vr') and show an error.
 describe('login / signup success boolean (issue #228)', () => {
-  type AuthDispatch = ThunkDispatch<AuthState, undefined, Action>;
-
   function makeStore() {
     return createStore(authReducer, applyMiddleware(thunkMiddleware));
   }
@@ -59,7 +58,7 @@ describe('login / signup success boolean (issue #228)', () => {
       })
     );
     const store = makeStore();
-    const ok = await (store.dispatch as AuthDispatch)(login('ok@example.com', 'secret'));
+    const ok = await (store.dispatch as AppDispatch)(login('ok@example.com', 'secret'));
     expect(ok).toBe(true);
     expect(store.getState()).toEqual(user);
   });
@@ -75,7 +74,7 @@ describe('login / signup success boolean (issue #228)', () => {
     );
     const store = makeStore();
     store.dispatch(asAction(authenticated({ id: 1, email: 'stale@example.com' })));
-    const ok = await (store.dispatch as AuthDispatch)(login('bad@example.com', 'nope'));
+    const ok = await (store.dispatch as AppDispatch)(login('bad@example.com', 'nope'));
     expect(ok).toBe(false);
     expect(store.getState()).toEqual({});
   });
@@ -89,7 +88,7 @@ describe('login / signup success boolean (issue #228)', () => {
       })
     );
     const store = makeStore();
-    const ok = await (store.dispatch as AuthDispatch)(
+    const ok = await (store.dispatch as AppDispatch)(
       signup('Ada', 'Ada', 'ada@example.com', 'secret')
     );
     expect(ok).toBe(false);
