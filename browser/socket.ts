@@ -164,9 +164,10 @@ function showSessionReplacedOverlay (): void {
 }
 
 // Stop the local microphone tracks so a terminated tab releases the input device. Safe only on a
-// terminal teardown (e.g. sessionReplaced) — NOT on a transient disconnect, where the stream is
-// reused on reconnect.
-function releaseLocalMedia (): void {
+// terminal teardown (e.g. sessionReplaced, logout) — NOT on a transient disconnect, where the
+// stream is reused on reconnect. Exported so Logout can free the mic without going through
+// the socket event path (issue #172).
+export function releaseLocalMedia (): void {
   const stream = store.getState().webrtc.localMediaStream;
   if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
 }
