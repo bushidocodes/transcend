@@ -1,5 +1,5 @@
 import store from '../redux/store.ts';
-import { setUserMedia, addPeer, deletePeer, clearPeers } from '../redux/reducers/webrtc-reducer.ts';
+import { setUserMedia, clearUserMedia, addPeer, deletePeer, clearPeers } from '../redux/reducers/webrtc-reducer.ts';
 import { EVENTS } from '../../shared/protocol.ts';
 import { getSocket } from '../socket-holder.ts';
 
@@ -47,7 +47,27 @@ async function getIceServers (): Promise<RTCIceServer[]> {
   }
 }
 
-let peerMediaElements: Record<string, HTMLAudioElement> = {};  // keep track of our <audio> tags, indexed by peer_id
+// Module-level registries for non-serializable WebRTC objects (issue #176). Redux only stores
+// peer ids + a hasLocalMedia flag; these maps hold the real MediaStream / RTCPeerConnection /
+// <audio> element instances.
+let localMediaStream: MediaStream | null = null;
+const peers: Record<string, RTCPeerConnection> = {};
+let peerMediaElements: Record<string, HTMLAudioElement> = {};
+
+export function getLocalMediaStream (): MediaStream | null {
+  return localMediaStream;
+}
+
+// Stop local microphone tracks and clear the module stream + Redux flag. Safe only on a
+// terminal teardown (sessionReplaced, logout) — NOT on a transient disconnect, where the
+// stream is reused on reconnect.
+export function releaseLocalMediaStream (): void {
+  if (localMediaStream && localMediaStream.getTracks) {
+    localMediaStream.getTracks().forEach(track => track.stop());
+  }
+  localMediaStream = null;
+  store.dispatch(clearUserMedia());
+}
 
 // Called by an A-Frame Room's componentDidMount hook, the joinChatRoom function asks the user
 //   for access to their audio stream (if needed), and then emits the 'joinChatRoom' event which
@@ -58,9 +78,7 @@ let peerMediaElements: Record<string, HTMLAudioElement> = {};  // keep track of 
 //   informing them that voice is unavailable.
 
 export function joinChatRoom (room: string | null, errorback?: () => void): void {
-  // Get our microphone from the state
   console.log(store.getState());
-  const localMediaStream = store.getState().webrtc.localMediaStream;
 
   if (!room) {
     console.log('No room was provided');
@@ -77,7 +95,9 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
     // On Success
     .then(stream => {
       console.log('Access granted to audio');
-      store.dispatch(setUserMedia(stream));
+      // Register the non-serializable stream here first, then flag Redux.
+      localMediaStream = stream;
+      store.dispatch(setUserMedia());
       const audioEl = document.getElementById('localAudio') as HTMLAudioElement;
       audioEl.muted = true;
       audioEl.srcObject = stream;
@@ -104,7 +124,6 @@ export function leaveChatRoom (): void {
 export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   console.log('Signaling server said to add peer:', config);
   const peerId = config.peer_id;
-  const peers = store.getState().webrtc.peers;
   // If for some reason, this client aready is connected to the peer, return
   if (peers[peerId]) {
     console.log('Already connected to peer ', peerId);
@@ -149,11 +168,13 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   };
 
   /* Add our local stream's tracks. addTrack replaces the removed addStream. */
-  const localMediaStream = store.getState().webrtc.localMediaStream!;
-  localMediaStream.getTracks().forEach(track => peerConnection.addTrack(track, localMediaStream));
+  if (localMediaStream) {
+    localMediaStream.getTracks().forEach(track => peerConnection.addTrack(track, localMediaStream!));
+  }
 
   // Register the peer before negotiating so an incoming answer / ICE candidate can find it.
-  store.dispatch(addPeer(peerId, peerConnection));
+  peers[peerId] = peerConnection;
+  store.dispatch(addPeer(peerId));
 
   /* Only one side of the peer connection should create the
   * offer, the signaling server picks one to be the offerer.
@@ -180,9 +201,9 @@ export function removePeerConn (config: RemovePeerConfig): void {
   if (peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
   }
-  const peers = store.getState().webrtc.peers;
   if (peers[peerId]) {
     peers[peerId].close();
+    delete peers[peerId];
   }
   store.dispatch(deletePeer(peerId));
   // Use the extracted peerId (snake_case config.peer_id). config.peerId is always undefined,
@@ -193,7 +214,11 @@ export function removePeerConn (config: RemovePeerConfig): void {
 export async function setRemoteAnswer (config: SessionDescriptionConfig): Promise<void> {
   console.log('Remote description received: ', config);
   const peerId = config.peer_id;
-  const peer = store.getState().webrtc.peers[peerId];
+  const peer = peers[peerId];
+  if (!peer) {
+    console.error('setRemoteAnswer: no peer for', peerId);
+    return;
+  }
   const remoteDescription = config.session_description;
   // The modern Promise-based API accepts the plain RTCSessionDescriptionInit directly, so the
   // deprecated RTCSessionDescription wrapper and callback forms are gone (issue #77).
@@ -214,7 +239,11 @@ export async function setRemoteAnswer (config: SessionDescriptionConfig): Promis
 }
 
 export async function setIceCandidate (config: IceCandidateConfig): Promise<void> {
-  const peer = store.getState().webrtc.peers[config.peer_id];
+  const peer = peers[config.peer_id];
+  if (!peer) {
+    console.error('setIceCandidate: no peer for', config.peer_id);
+    return;
+  }
   // addIceCandidate accepts the plain RTCIceCandidateInit directly; the deprecated
   // RTCIceCandidate wrapper is no longer needed (issue #77).
   try {
@@ -228,9 +257,9 @@ export function disconnectUser (): void {
   for (const peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
   }
-  const peers = store.getState().webrtc.peers;
-  Object.values(peers).forEach(peerConn => {
-    peerConn.close();
+  Object.keys(peers).forEach(peerId => {
+    peers[peerId].close();
+    delete peers[peerId];
   });
   store.dispatch(clearPeers());
   peerMediaElements = {};
