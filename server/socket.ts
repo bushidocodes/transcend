@@ -190,10 +190,10 @@ export default function attachSocketServer (io: Server): void {
       leaveSceneRoom();
       // Prefer session identity fields when present; allow client displayName/skin only as
       // fallbacks for anonymous / incomplete sessions. NEVER trust client user.id for accountId.
-      const displayName = (sessionUser && typeof sessionUser.displayName === 'string' && sessionUser.displayName)
-        || (typeof user.displayName === 'string' ? user.displayName : undefined);
-      const skin = (sessionUser && typeof sessionUser.skin === 'string' && sessionUser.skin)
-        || (typeof user.skin === 'string' ? user.skin : undefined);
+      const displayName = (sessionUser && typeof sessionUser.displayName === 'string' && sessionUser.displayName) ||
+        (typeof user.displayName === 'string' ? user.displayName : undefined);
+      const skin = (sessionUser && typeof sessionUser.skin === 'string' && sessionUser.skin) ||
+        (typeof user.skin === 'string' ? user.skin : undefined);
       const me = gameState.addUser(socket.id, {
         displayName,
         skin
