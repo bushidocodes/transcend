@@ -80,7 +80,7 @@
     "esbuild": "^0.28.1",
     "happy-dom": "^20.10.6",
     "morgan": "^1.11.0",
-    "typescript": "^7.0.1-rc",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
 }
