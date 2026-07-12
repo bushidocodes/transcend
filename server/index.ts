@@ -11,6 +11,7 @@ import helmet from 'helmet';
 import passport from 'passport';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
+import { rateLimit } from 'express-rate-limit';
 import { Server as SocketIOServer } from 'socket.io';
 import db, { connectionUrl, prepare } from '../db/index.ts';
 import attachSocketServer from './socket.ts';
@@ -195,17 +196,25 @@ app.get('/healthz', (_req, res) => {
 app.use('/api', api);
 
 // SPA shell: serve the build-generated public/app.html (script src points at the
-// content-hashed bundle; see build.ts / issue #243). no-cache so clients always pick
-// up a new hash after deploy. Fall back to the browser/ template only if build has
-// not run yet (dev mistake); that template still references /bundle.js.
-app.get('/{*path}', (_req, res) => {
+// content-hashed bundle; see build.ts / issue #243). Prefer that path when the file
+// exists at process start (not per request — avoids re-statting under load). Fall
+// back to browser/app.html only for unbuilt local trees (still references /bundle.js).
+// no-cache so clients always pick up a new hash after deploy.
+// Rate-limit FS-backed sendFile (CodeQL js/missing-rate-limiting): generous for SPA
+// navigations/refreshes while still bounding unbounded spray of the catch-all route.
+const publicDir = resolve(import.meta.dirname, '../public');
+const browserDir = resolve(import.meta.dirname, '../browser');
+const spaAppHtmlRoot = existsSync(resolve(publicDir, 'app.html')) ? publicDir : browserDir;
+const spaShellLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+app.get('/{*path}', spaShellLimiter, (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
-  const generated = resolve(import.meta.dirname, '../public/app.html');
-  if (existsSync(generated)) {
-    res.sendFile(generated);
-  } else {
-    res.sendFile('app.html', { root: resolve(import.meta.dirname, '../browser') });
-  }
+  res.sendFile('app.html', { root: spaAppHtmlRoot });
 });
 
 // Unmatched non-GET methods would otherwise hang with no response. Answer them with 404
