@@ -71,25 +71,84 @@ When you are in game, look down where your feet would be and you'll notice a mic
 
 To install Transcend on your computer, you will need [Node.js 24+](https://nodejs.org/en/download/) (see `.nvmrc` / `package.json` `engines`) and [PostgreSQL](http://postgresguide.com/setup/install.html).
 
-Once you have a supported Node.js with NPM, install the game's dependencies with the following command:
+### 1. Install dependencies
 
 ```
 npm install
 ```
 
-When the dependencies have been installed, open PostgreSQL and create a database with the following command:
+### 2. Environment
+
+Copy the example env file and edit values as needed:
 
 ```
-CREATE DATABASE transcend;
+cp .env.example .env
 ```
 
-Then start the server with the following command:
+Important variables (see comments in `.env.example` for the full list):
+
+| Variable | Purpose |
+| --- | --- |
+| `SESSION_SECRET` | Signs the session cookie. **Required in production** — the server refuses to boot without it. In development it falls back to an insecure key with a warning. Generate with `openssl rand -hex 32`. |
+| `DATABASE_URL` | Postgres connection string for the app (default in `.env.example`: `postgres://localhost:5432/transcend`). |
+| `DATABASE_TEST_URL` | Separate database used by `npm test` so force-sync never touches the dev DB (default: `postgres://localhost:5432/transcend_test`). |
+| `PORT` | HTTP listen port. If unset, the server defaults to **1337**. `.env.example` sets `4000` when you copy it. |
+| `CLIENT_ID` / `CLIENT_SECRET` | Optional Google OAuth. Email/password login works without them. |
+
+Node loads `.env` at process start via `process.loadEnvFile()` (`server/load-env.ts`). Variables already set in the shell are not overridden.
+
+### 3. Database
+
+Ensure PostgreSQL is running and reachable at `DATABASE_URL`.
+
+On server start, `prepare()` (see `db/index.ts`):
+
+- In non-production, **creates the database if it does not exist** (connects to the same host’s `postgres` maintenance DB).
+- Runs **pending Umzug migrations** automatically (`migrations/*.ts`). You do not need `npm run migrate` for a normal boot.
+
+Optional but recommended for local play — seed demo accounts (password `1234`, e.g. `sean@transcend.vr`):
+
+```
+npm run seed
+```
+
+Manual migration CLI (usually unnecessary; boot already migrates):
+
+```
+npm run migrate        # up
+npm run migrate:undo   # down one
+```
+
+For the test database, see [TESTING.md](TESTING.md) (`createdb transcend_test` / `DATABASE_TEST_URL`).
+
+### 4. Start the app
 
 ```
 npm start
 ```
 
-The game will then be accessible at `http://localhost:1337`.
+`npm start` runs `npm run build` (esbuild → `public/bundle.js`) then starts the server with file watching. The game is at `http://localhost:1337` (or `http://localhost:$PORT` if `PORT` is set — e.g. `4000` when using the stock `.env.example`).
+
+To rebuild without restarting, or run the server alone after a prior build:
+
+```
+npm run build
+npm run server
+```
+
+### Scripts
+
+| Script | What it does |
+| --- | --- |
+| `npm start` | Build client bundle, then run the server with `--watch` |
+| `npm run build` / `build-watch` / `build-prod` | esbuild client bundle (dev, watch, or minified production) |
+| `npm run server` | Server only (`node --watch server/index.ts`) |
+| `npm run seed` | Insert demo users into the database |
+| `npm run migrate` / `migrate:undo` | Apply or undo Umzug migrations |
+| `npm run lint` / `lint:fix` | Biome check (and auto-fix) |
+| `npm run format` | Biome format |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` / `test-watch` / `test:coverage` | Vitest suite (see [TESTING.md](TESTING.md)) |
 
 ## Help
 
