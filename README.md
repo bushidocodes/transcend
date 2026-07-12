@@ -67,9 +67,9 @@ When you are in game, look down where your feet would be and you'll notice a mic
 
 ## Installation
 
-To install Transcend on your computer, you will need [Node.js with NPM](https://nodejs.org/en/download/) and [PostgreSQL](http://postgresguide.com/setup/install.html).
+To install Transcend on your computer, you will need [Node.js 24+](https://nodejs.org/en/download/) (see `.nvmrc` / `package.json` `engines`) and [PostgreSQL](http://postgresguide.com/setup/install.html).
 
-Once you have Node.js with NPM, install the game's dependencies with the following command:
+Once you have a supported Node.js with NPM, install the game's dependencies with the following command:
 
 ```
 npm install

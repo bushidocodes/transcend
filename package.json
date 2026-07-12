@@ -32,6 +32,9 @@
     "url": "https://github.com/TranscendVR/transcend/issues"
   },
   "homepage": "https://github.com/TranscendVR/transcend#readme",
+  "engines": {
+    "node": ">=24"
+  },
   "dependencies": {
     "aframe": "^1.8.0",
     "aframe-gif-shader": "0.9.1",
