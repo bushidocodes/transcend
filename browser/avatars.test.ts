@@ -114,6 +114,17 @@ describe('AvatarManager – sync', () => {
     expect(head('a')).toBe(el);
     expect(latestPose('a')!.x).toBe(5);
   });
+
+  it('does not set minecraft-nickname to "undefined" when displayName is missing (#173)', () => {
+    avatars.sync({ a: user('a', { displayName: undefined }) });
+    // Attribute absent (or empty) — never the string "undefined".
+    expect(head('a')!.getAttribute('minecraft-nickname')).not.toBe('undefined');
+    expect(head('a')!.hasAttribute('minecraft-nickname')).toBe(false);
+
+    // Empty string is also falsy and must not become a blank/undefined tag.
+    avatars.sync({ b: user('b', { displayName: '' }) });
+    expect(head('b')!.hasAttribute('minecraft-nickname')).toBe(false);
+  });
 });
 
 describe('AvatarManager – remove', () => {

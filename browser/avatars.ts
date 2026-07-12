@@ -44,7 +44,11 @@ function createHead (user: AvatarUser): HTMLElement {
   head.setAttribute('skin', skin);
   scene.appendChild(head);
   head.setAttribute('id', user.id);
-  head.setAttribute('minecraft-nickname', user.displayName!);
+  // Only set the nametag when displayName is a non-empty string — otherwise A-Frame /
+  // the minecraft component stringifies undefined to the literal "undefined" (issue #173).
+  if (user.displayName) {
+    head.setAttribute('minecraft-nickname', user.displayName);
+  }
   head.setAttribute('minecraft', `skinUrl: ../../images/${skin}.png;`);
   head.setAttribute('position', `${user.x} ${user.y} ${user.z}`);
   head.setAttribute('rotation', `${user.xrot} ${user.yrot} ${user.zrot}`);
