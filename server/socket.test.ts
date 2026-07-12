@@ -29,9 +29,22 @@ let server: http.Server;
 let io: SocketIOServer;
 let PORT: number;
 
+// Optional mock Passport user injected for tests that need a real accountId (single-session
+// #30). Production populates socket.request.user via express-session + passport on Engine.IO
+// (issue #167); unit tests only call attachSocketServer(io), so handshake.auth.sessionUser
+// stands in for a logged-in session.
+type SessionUser = { id: number | string, displayName?: string, skin?: string };
+
 beforeAll(() => new Promise<void>(resolve => {
   server = http.createServer();
   io = new SocketIOServer(server, { cors: { origin: '*' } });
+  io.use(function (socket, next) {
+    const auth = socket.handshake.auth as { sessionUser?: SessionUser } | undefined;
+    if (auth && auth.sessionUser) {
+      (socket.request as { user?: SessionUser }).user = auth.sessionUser;
+    }
+    next();
+  });
   attachSocketServer(io);
   server.listen(0, function () {
     PORT = (server.address() as AddressInfo).port;
@@ -49,10 +62,11 @@ afterAll(() => new Promise(resolve => io.close(resolve)));
 // non-null assertion at every `.id` use below.
 type ConnectedClient = ClientSocket & { id: string };
 
-function connect (): ConnectedClient {
+function connect (sessionUser?: SessionUser): ConnectedClient {
   return socketClient('http://localhost:' + PORT, {
     transports: ['websocket'],
-    forceNew: true
+    forceNew: true,
+    auth: sessionUser ? { sessionUser } : undefined
   }) as ConnectedClient;
 }
 
@@ -500,22 +514,24 @@ describe('Socket.io – fixed-rate broadcast loop (issue #115)', function () {
 // -----------------------------------------------------------------
 
 describe('Socket.io – single active session per account (#30)', function () {
+  // Account identity for session replacement comes from socket.request.user (Passport
+  // session / test handshake.auth.sessionUser), not from the joinScene payload (#167).
   it('disconnects the prior socket when the same account joins again', function () {
-    const first = connect();
+    const first = connect({ id: 42, displayName: 'Dup', skin: 'default' });
     let second: ConnectedClient;
 
     return waitFor(first, 'connect')
       .then(function () {
-        first.emit('joinScene', { id: 42, displayName: 'Dup', skin: 'default' }, 'lobby');
+        first.emit('joinScene', { displayName: 'Dup', skin: 'default' }, 'lobby');
         return sleep(120);
       })
       .then(function () {
-        second = connect();
+        second = connect({ id: 42, displayName: 'Dup', skin: 'default' });
         return waitFor(second, 'connect');
       })
       .then(function () {
         const firstClosed = waitFor(first, 'disconnect');
-        second.emit('joinScene', { id: 42, displayName: 'Dup', skin: 'default' }, 'lobby');
+        second.emit('joinScene', { displayName: 'Dup', skin: 'default' }, 'lobby');
         return firstClosed;
       })
       .then(function () {
@@ -526,23 +542,23 @@ describe('Socket.io – single active session per account (#30)', function () {
   });
 
   it('emits sessionReplaced to the prior socket before disconnecting it', function () {
-    const first = connect();
+    const first = connect({ id: 88, displayName: 'Dup', skin: 'default' });
     let second: ConnectedClient;
 
     return waitFor(first, 'connect')
       .then(function () {
-        first.emit('joinScene', { id: 88, displayName: 'Dup', skin: 'default' }, 'lobby');
+        first.emit('joinScene', { displayName: 'Dup', skin: 'default' }, 'lobby');
         return sleep(120);
       })
       .then(function () {
-        second = connect();
+        second = connect({ id: 88, displayName: 'Dup', skin: 'default' });
         return waitFor(second, 'connect');
       })
       .then(function () {
         // The replaced client must hear sessionReplaced — that's the signal the browser
         // uses to stop being a live (locally-movable) zombie session and block its tab.
         const replaced = waitFor(first, 'sessionReplaced');
-        second.emit('joinScene', { id: 88, displayName: 'Dup', skin: 'default' }, 'lobby');
+        second.emit('joinScene', { displayName: 'Dup', skin: 'default' }, 'lobby');
         return replaced;
       })
       .then(function () {
@@ -551,13 +567,13 @@ describe('Socket.io – single active session per account (#30)', function () {
   });
 
   it('carries the prior session position forward to the takeover tab in the same room', function () {
-    const first = connect();
+    const first = connect({ id: 55, displayName: 'Mover', skin: 'default' });
     let second: ConnectedClient;
 
     return waitFor(first, 'connect')
       .then(function () {
         const ss = waitFor(first, 'sceneState');
-        first.emit('joinScene', { id: 55, displayName: 'Mover', skin: 'default' }, 'lobby');
+        first.emit('joinScene', { displayName: 'Mover', skin: 'default' }, 'lobby');
         return ss;
       })
       .then(function () {
@@ -566,12 +582,12 @@ describe('Socket.io – single active session per account (#30)', function () {
         return sleep(80);
       })
       .then(function () {
-        second = connect();
+        second = connect({ id: 55, displayName: 'Mover', skin: 'default' });
         return waitFor(second, 'connect');
       })
       .then(function () {
         const ss = waitFor(second, 'sceneState');
-        second.emit('joinScene', { id: 55, displayName: 'Mover', skin: 'default' }, 'lobby');
+        second.emit('joinScene', { displayName: 'Mover', skin: 'default' }, 'lobby');
         return ss;
       })
       .then(function (state) {
@@ -583,13 +599,13 @@ describe('Socket.io – single active session per account (#30)', function () {
   });
 
   it('does NOT carry position across a takeover into a different room', function () {
-    const first = connect();
+    const first = connect({ id: 56, displayName: 'Mover', skin: 'default' });
     let second: ConnectedClient;
 
     return waitFor(first, 'connect')
       .then(function () {
         const ss = waitFor(first, 'sceneState');
-        first.emit('joinScene', { id: 56, displayName: 'Mover', skin: 'default' }, 'lobby');
+        first.emit('joinScene', { displayName: 'Mover', skin: 'default' }, 'lobby');
         return ss;
       })
       .then(function () {
@@ -597,12 +613,12 @@ describe('Socket.io – single active session per account (#30)', function () {
         return sleep(80);
       })
       .then(function () {
-        second = connect();
+        second = connect({ id: 56, displayName: 'Mover', skin: 'default' });
         return waitFor(second, 'connect');
       })
       .then(function () {
         const ss = waitFor(second, 'sceneState');
-        second.emit('joinScene', { id: 56, displayName: 'Mover', skin: 'default' }, 'spaceroom');
+        second.emit('joinScene', { displayName: 'Mover', skin: 'default' }, 'spaceroom');
         return ss;
       })
       .then(function (state) {
@@ -614,15 +630,15 @@ describe('Socket.io – single active session per account (#30)', function () {
   });
 
   it('shifts chat-room audio peering from the replaced tab to the takeover tab', function () {
-    const peer = connect();   // a DIFFERENT account — the other voice in the room
-    const x1 = connect();     // the account under test, tab 1
+    const peer = connect({ id: 200, displayName: 'Peer' });   // a DIFFERENT account — the other voice in the room
+    const x1 = connect({ id: 100, displayName: 'X' });       // the account under test, tab 1
     let x2: ConnectedClient;
     let x1Id: string;
 
     return Promise.all([waitFor(peer, 'connect'), waitFor(x1, 'connect')])
       .then(function () {
         // The peer joins the scene and the voice room first, alone.
-        peer.emit('joinScene', { id: 200, displayName: 'Peer' }, 'lobby');
+        peer.emit('joinScene', { displayName: 'Peer' }, 'lobby');
         peer.emit('joinChatRoom', 'lobby');
         return sleep(80);
       })
@@ -630,7 +646,7 @@ describe('Socket.io – single active session per account (#30)', function () {
         x1Id = x1.id;
         // Tab 1 joins the voice room → the peer is told to open an audio connection to tab 1.
         const peerPairsX1 = waitFor(peer, 'addPeer');
-        x1.emit('joinScene', { id: 100, displayName: 'X' }, 'lobby');
+        x1.emit('joinScene', { displayName: 'X' }, 'lobby');
         x1.emit('joinChatRoom', 'lobby');
         return peerPairsX1;
       })
@@ -638,10 +654,10 @@ describe('Socket.io – single active session per account (#30)', function () {
         expect(add1.peer_id).toBe(x1Id);          // peer's voice is wired to tab 1
         // Tab 2 opens for the SAME account → server evicts tab 1, which must tear down its
         // voice link: the peer is told to drop tab 1.
-        x2 = connect();
+        x2 = connect({ id: 100, displayName: 'X' });
         return waitFor(x2, 'connect').then(function () {
           const peerDropsX1 = waitFor(peer, 'removePeer');
-          x2.emit('joinScene', { id: 100, displayName: 'X' }, 'lobby');
+          x2.emit('joinScene', { displayName: 'X' }, 'lobby');
           return peerDropsX1;
         });
       })
@@ -660,13 +676,13 @@ describe('Socket.io – single active session per account (#30)', function () {
   });
 
   it('keeps both sockets when they belong to different accounts', function () {
-    const a = connect();
-    const b = connect();
+    const a = connect({ id: 1, displayName: 'A' });
+    const b = connect({ id: 2, displayName: 'B' });
 
     return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
       .then(function () {
-        a.emit('joinScene', { id: 1, displayName: 'A' }, 'lobby');
-        b.emit('joinScene', { id: 2, displayName: 'B' }, 'lobby');
+        a.emit('joinScene', { displayName: 'A' }, 'lobby');
+        b.emit('joinScene', { displayName: 'B' }, 'lobby');
         return sleep(150);
       })
       .then(function () {
@@ -694,30 +710,59 @@ describe('Socket.io – single active session per account (#30)', function () {
   });
 
   it('sends removeUser for the replaced ghost socket to a same-room observer', function () {
-    const observer = connect(); // different account, same room; stays connected to observe
-    const first = connect();
+    const observer = connect({ id: 999, displayName: 'Obs' }); // different account, same room
+    const first = connect({ id: 7, displayName: 'Dup' });
     let second: ConnectedClient;
     let firstId: string;
 
     return Promise.all([waitFor(observer, 'connect'), waitFor(first, 'connect')])
       .then(function () {
-        observer.emit('joinScene', { id: 999, displayName: 'Obs' }, 'lobby');
-        first.emit('joinScene', { id: 7, displayName: 'Dup' }, 'lobby');
+        observer.emit('joinScene', { displayName: 'Obs' }, 'lobby');
+        first.emit('joinScene', { displayName: 'Dup' }, 'lobby');
         return sleep(120);
       })
       .then(function () {
         firstId = first.id;
-        second = connect();
+        second = connect({ id: 7, displayName: 'Dup' });
         return waitFor(second, 'connect');
       })
       .then(function () {
         const removed = waitFor(observer, 'removeUser');
-        second.emit('joinScene', { id: 7, displayName: 'Dup' }, 'lobby');
+        second.emit('joinScene', { displayName: 'Dup' }, 'lobby');
         return removed;
       })
       .then(function (removedId) {
         expect(removedId).toBe(firstId);
         return cleanup(observer, second);
+      });
+  });
+
+  it('does not trust client-supplied user.id for session replacement (#167)', function () {
+    // Two unauthenticated clients both claim id: 1 in the joinScene payload. Before the
+    // fix, the second would kick the first via sessionReplaced. After #167, accountId is
+    // only taken from the Passport session — without one both stay connected.
+    const first = connect();
+    let second: ConnectedClient;
+
+    return waitFor(first, 'connect')
+      .then(function () {
+        first.emit('joinScene', { id: 1, displayName: 'Hacker1' }, 'lobby');
+        return sleep(120);
+      })
+      .then(function () {
+        second = connect();
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        let gotReplaced = false;
+        first.once('sessionReplaced', function () { gotReplaced = true; });
+        second.emit('joinScene', { id: 1, displayName: 'Hacker2' }, 'lobby');
+        return sleep(200).then(function () {
+          expect(gotReplaced).toBe(false);
+          expect(first.connected).toBe(true);
+          expect(second.connected).toBe(true);
+          return cleanup(first, second);
+        });
       });
   });
 });

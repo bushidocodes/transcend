@@ -140,18 +140,24 @@ export default function attachSocketServer (io: Server): void {
     //   render the room in one sceneState message. A single entry point also removes the old
     //   sceneLoad/createdUser ordering race.
     on(socket, EVENTS.JOIN_SCENE, validJoinScene, (user: unknown, scene: unknown) => {
-      // validJoinScene guarantees these at runtime; re-narrow so the compiler knows too, and
-      // so the fields below are read as untrusted wire data rather than a typed auth record —
-      // `user` is fully client-controlled, not something Passport handed us.
+      // validJoinScene guarantees these at runtime; re-narrow so the compiler knows too.
+      // The joinScene `user` payload is still partially client-controlled (displayName/skin
+      // fallbacks), but accountId MUST come from the Passport session on socket.request —
+      // never from the payload — or any client can impersonate an account and kick its live
+      // session (issue #167). Production wires express-session + passport onto Engine.IO in
+      // server/index.ts so socket.request.user is the deserialized User when logged in.
       if (!isObject(user)) return;
       const sceneName = typeof scene === 'string' ? scene : undefined;
       socket.createdUser = true;
-      // Single active session per account ("newest wins"): drop any prior socket for this
-      // account before registering the new one (issue #30). Anonymous (no id) are exempt.
-      // Only a string/number id counts — an object or boolean id must never drive the
-      // eviction comparison below.
-      const accountId = typeof user.id === 'number' || typeof user.id === 'string' ? user.id : null;
+      // Session user is set by passport.session() (or test middleware); shape-check id only.
+      const sessionUser = (socket.request as { user?: { id?: unknown, displayName?: unknown, skin?: unknown } }).user;
+      const accountId = sessionUser && (typeof sessionUser.id === 'number' || typeof sessionUser.id === 'string')
+        ? sessionUser.id
+        : null;
       socket.accountId = accountId;
+      // Single active session per account ("newest wins"): drop any prior socket for this
+      // account before registering the new one (issue #30). Anonymous (no session user) are
+      // exempt — and a spoofed client id can no longer drive eviction (#167).
       // When the new tab takes over an existing session in the SAME room, carry that session's
       // position/rotation forward so the user resumes exactly where they were standing instead of
       // respawning at a random point (new User() seeds a random x/z). A takeover into a DIFFERENT
@@ -182,11 +188,15 @@ export default function attachSocketServer (io: Server): void {
       // A re-join (reconnect, or login after logout) may land in a different scene; drop any
       // stale broadcast-room membership until the client acks ready again.
       leaveSceneRoom();
-      // Field-level narrowing (#113 spirit): a non-string displayName/skin never reaches the
-      // record that gets broadcast to every peer in the room.
+      // Prefer session identity fields when present; allow client displayName/skin only as
+      // fallbacks for anonymous / incomplete sessions. NEVER trust client user.id for accountId.
+      const displayName = (sessionUser && typeof sessionUser.displayName === 'string' && sessionUser.displayName) ||
+        (typeof user.displayName === 'string' ? user.displayName : undefined);
+      const skin = (sessionUser && typeof sessionUser.skin === 'string' && sessionUser.skin) ||
+        (typeof user.skin === 'string' ? user.skin : undefined);
       const me = gameState.addUser(socket.id, {
-        displayName: typeof user.displayName === 'string' ? user.displayName : undefined,
-        skin: typeof user.skin === 'string' ? user.skin : undefined
+        displayName,
+        skin
       }, sceneName);
       // Apply the inherited position over the fresh random spawn before building sceneState, so
       // the takeover tab renders at the carried-forward location.
