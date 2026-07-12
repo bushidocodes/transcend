@@ -42,9 +42,9 @@ export default function Teleporter(props: Props) {
         radius="0.35"
         material="color: #0000ff; opacity: 0.6; roughness: 1; metalness: 0.5;"
       ></a-entity>
+      {/* No static id: one shadow per teleporter; id="shadow" was duplicated (issue #237). */}
       <a-entity
         geometry="primitive: box;"
-        id="shadow"
         position="0 -1 0"
         material="color: #999; opacity: 1;"
         scale="0.4 1 0.4"
