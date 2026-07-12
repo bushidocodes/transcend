@@ -4,6 +4,7 @@ import { EVENTS, isObject, validJoinScene, validRoom } from '../shared/protocol.
 import type { Pose } from '../shared/protocol.ts';
 import GameState from './game-state.ts';
 import VALID_SKINS from './validSkins.ts';
+import { SocketRateLimiter, SOCKET_RATE_LIMITS } from './socket-rate-limit.ts';
 
 // Per-connection bookkeeping the handlers hang off the socket object itself (same as the JS
 // version did): whether joinScene ran, which account owns the session, and current rooms.
@@ -30,6 +31,9 @@ const BROADCAST_INTERVAL_MS = 50;
 // or the message is dropped, and the handler body is caught and logged rather than crashing.
 // The per-event payload validators live with the event names in shared/protocol.ts (#117).
 //
+// Optional `rateLimit` (issue #203): when provided, excess events for this socket are dropped
+// before validation/handler so a flood cannot burn CPU on payload checks or dirty the scene.
+//
 // Payloads are `unknown`, deliberately: a validator only proves the coarse protocol shape, so
 // each handler re-narrows the fields it actually reads (typeof/isObject) instead of asserting
 // a trusted type onto attacker-controlled input.
@@ -37,10 +41,14 @@ function on (
   socket: Socket,
   event: string,
   validate: ((...args: unknown[]) => boolean) | null,
-  handler: (...args: unknown[]) => void
+  handler: (...args: unknown[]) => void,
+  rateLimit?: SocketRateLimiter
 ): void {
   socket.on(event, (...args: unknown[]) => {
     try {
+      if (rateLimit && !rateLimit.allow(socket.id)) {
+        return;
+      }
       if (validate && !validate(...args)) {
         console.log(styleText('red', `[${socket.id}] dropped malformed '${event}' payload`));
         return;
@@ -62,6 +70,15 @@ export default function attachSocketServer (io: Server): void {
   // socket registry is io.sockets.sockets and room membership is socket.io rooms; neither is
   // duplicated into application state anymore.
   const gameState = new GameState();
+
+  // Per-socket rate limiters for chatty events (issue #203). Separate buckets so a burst of
+  // ticks cannot starve a legitimate changeScene, etc. Keys are socket ids; forgotten on
+  // disconnect so the maps stay bounded by live connections.
+  const tickLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.tick.maxPerWindow, SOCKET_RATE_LIMITS.tick.windowMs);
+  const changeSceneLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.changeScene.maxPerWindow, SOCKET_RATE_LIMITS.changeScene.windowMs);
+  const changeSkinLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.changeSkin.maxPerWindow, SOCKET_RATE_LIMITS.changeSkin.windowMs);
+  const joinSceneLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.joinScene.maxPerWindow, SOCKET_RATE_LIMITS.joinScene.windowMs);
+  const relayLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.relay.maxPerWindow, SOCKET_RATE_LIMITS.relay.windowMs);
 
   // Scenes whose users changed since the last broadcast beat. Marking dirty (instead of
   // broadcasting unconditionally) means quiet rooms generate no traffic, and a burst of ticks
@@ -207,7 +224,7 @@ export default function attachSocketServer (io: Server): void {
         others: gameState.peersOf(socket.id),
         tickRate: TICK_RATE
       });
-    });
+    }, joinSceneLimiter);
 
     // ready: the client has rendered the scene and wants live updates. Join the scene's
     //   broadcast room so the fixed-rate loop above starts including this socket. Collapses the
@@ -221,22 +238,22 @@ export default function attachSocketServer (io: Server): void {
     //   the broadcast loop pushes the next snapshot on its own clock. The payload's id is
     //   ignored — the record is keyed on socket.id — and GameState.updatePose merges only
     //   finite numeric pose fields onto an existing record, so a tick can only ever move the
-    //   sender's own avatar and can never create one (issues #56/#113).
+    //   sender's own avatar and can never create one (issues #56/#113). Rate-limited (#203).
     on(socket, EVENTS.TICK, isObject, (userData: unknown) => {
       if (!socket.createdUser || !isObject(userData)) return;
       const me = gameState.updatePose(socket.id, userData);
       if (me) markDirty(me.scene);
-    });
+    }, tickLimiter);
 
     // Skin and scene changes used to ride on every tick, which is what made the tick an
     // injection surface (#113). They are explicit messages now, validated server-side and
     // applied to the sender's own record only. The skin whitelist is server-only state, so its
-    // check composes here with the protocol-level shape check (#117).
+    // check composes here with the protocol-level shape check (#117). Rate-limited (#203).
     on(socket, EVENTS.CHANGE_SKIN, (skin: unknown) => typeof skin === 'string' && VALID_SKINS.has(skin), (skin: unknown) => {
       if (!socket.createdUser || typeof skin !== 'string') return;
       const me = gameState.setSkin(socket.id, skin);
       if (me) markDirty(me.scene);
-    });
+    }, changeSkinLimiter);
 
     on(socket, EVENTS.CHANGE_SCENE, validRoom, (scene: unknown) => {
       if (!socket.createdUser || typeof scene !== 'string') return;
@@ -250,7 +267,7 @@ export default function attachSocketServer (io: Server): void {
         leaveSceneRoom();
         joinSceneRoom(scene);
       }
-    });
+    }, changeSceneLimiter);
 
     // Explicit logout: remove the avatar and leave the broadcast/chat rooms without closing the
     // socket, so the client can re-register (via joinScene) on a subsequent login without
@@ -270,6 +287,12 @@ export default function attachSocketServer (io: Server): void {
     //   from its registry and every room by the time this fires.
     on(socket, EVENTS.DISCONNECT, null, () => {
       removeUserFromWorld();
+      // Drop rate-limit history so disconnected sockets do not leak map entries (#203).
+      tickLimiter.forget(socket.id);
+      changeSceneLimiter.forget(socket.id);
+      changeSkinLimiter.forget(socket.id);
+      joinSceneLimiter.forget(socket.id);
+      relayLimiter.forget(socket.id);
       console.log(styleText('magenta', `${socket.id} has disconnected`));
       leaveChatRoom();
       console.log(`[${socket.id}] disconnected`);
@@ -329,7 +352,8 @@ export default function attachSocketServer (io: Server): void {
       return !!members?.has(peerId);
     }
 
-    // If any user is an Ice Candidate, tells other users to set up a ICE connection with them
+    // If any user is an Ice Candidate, tells other users to set up a ICE connection with them.
+    // Shared relayLimiter covers both ICE and SDP so total signaling volume is capped (#203).
     on(socket, EVENTS.RELAY_ICE_CANDIDATE, isObject, function (config: unknown) {
       if (!isObject(config)) return;
       const peerId = config.peer_id;
@@ -338,7 +362,7 @@ export default function attachSocketServer (io: Server): void {
       console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
       const peer = io.sockets.sockets.get(peerId);
       if (peer) peer.emit(EVENTS.ICE_CANDIDATE, { peer_id: socket.id, ice_candidate: iceCandidate });
-    });
+    }, relayLimiter);
 
     // Send the answer back to the new user in order to complete the handshake
     on(socket, EVENTS.RELAY_SESSION_DESCRIPTION, isObject, function (config: unknown) {
@@ -349,6 +373,6 @@ export default function attachSocketServer (io: Server): void {
       console.log(`[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`);
       const peer = io.sockets.sockets.get(peerId);
       if (peer) peer.emit(EVENTS.SESSION_DESCRIPTION, { peer_id: socket.id, session_description: sessionDescription });
-    });
+    }, relayLimiter);
   });
 }

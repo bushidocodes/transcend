@@ -11,13 +11,13 @@ import User from '../db/models/user.ts';
 // is required — issue #79).
 import VALID_SKINS from './validSkins.ts';
 
-// Throttle local signup/login (issue #140). whoami / logout / skin / Google OAuth stay
-// unlimited — they are not online password-guessing surfaces.
+// Throttle local signup/login (issue #140) and PUT /skin (issue #203). whoami / logout /
+// Google OAuth stay unlimited — they are not online password-guessing or DB-write sprays.
 import { createAuthRateLimiters } from './auth-rate-limit.ts';
 
 const auth = express.Router();
 
-const { ipLimiter, loginEmailLimiter } = createAuthRateLimiters();
+const { ipLimiter, loginEmailLimiter, skinLimiter } = createAuthRateLimiters();
 
 passport.serializeUser((user, done) => {
   done(null, user.id);
@@ -227,8 +227,9 @@ auth.get('/google/callback',
 // Send user info to frontend
 auth.get('/whoami', (req, res) => res.send(req.user));
 
-// Persist a skin selection to the user's account
-auth.put('/skin', (req, res, next) => {
+// Persist a skin selection to the user's account. Rate-limited per IP (issue #203) so a
+// single client cannot unbounded-write the user row.
+auth.put('/skin', skinLimiter, (req, res, next) => {
   if (!req.user) return res.sendStatus(401);
   const { skin } = req.body;
   if (!VALID_SKINS.has(skin)) {
