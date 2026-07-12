@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router';
 import { useDispatch } from 'react-redux';
 import { login, signup } from '../../../redux/reducers/auth';
 import styles from './styles';
