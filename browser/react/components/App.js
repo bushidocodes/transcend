@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { connect } from 'react-redux';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router';
 import '../../aframeComponents/scene-load';
 import '../../aframeComponents/aframe-minecraft';
 import AssetLoader from './AssetLoader';

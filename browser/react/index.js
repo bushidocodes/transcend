@@ -2,7 +2,7 @@ import '../three-compat'; // restore THREE.Math alias for aframe-gif-shader; mus
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider, useSelector, useDispatch } from 'react-redux';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router';
 import store from '../redux/store';
 import App from './components/App';
 import Sean from './components/Sean';

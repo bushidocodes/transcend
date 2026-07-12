@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router';
 import BrandIcon, { GOOGLE_PATH, GOOGLE_VIEWBOX } from './BrandIcon';
 
 export default function Login () {
