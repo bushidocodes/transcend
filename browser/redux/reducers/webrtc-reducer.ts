@@ -1,18 +1,17 @@
 import type { UnknownAction } from 'redux';
 
-// WebRTC connections and media elements for this client. Plain objects (issue #145) —
-// peers is a dictionary of peerId → RTCPeerConnection; peerMediaElements is reserved for
-// any future store-backed audio tags (DOM tags currently live in webRTC/client.ts).
+// Serializable WebRTC descriptors only (issue #176). MediaStream and RTCPeerConnection live
+// in module-level registries in browser/webRTC/client.ts — Redux must stay JSON-safe for
+// time-travel / logging / DevTools, and peerMediaElements was always dead (the real map is
+// the module-level peerMediaElements in client.ts).
 export interface WebrtcState {
-  localMediaStream: MediaStream | null;
-  peers: Record<string, RTCPeerConnection>;
-  peerMediaElements: Record<string, HTMLMediaElement>;
+  peerIds: string[];
+  hasLocalMedia: boolean;
 }
 
 const initialState: WebrtcState = {
-  localMediaStream: null,
-  peers: {},
-  peerMediaElements: {}
+  peerIds: [],
+  hasLocalMedia: false
 };
 
 /* --------------- ACTIONS --------------- */
@@ -25,7 +24,6 @@ const CLEAR_PEERS = 'CLEAR_PEERS';
 
 interface SetUserMediaAction {
   type: typeof SET_USER_MEDIA;
-  stream: MediaStream;
 }
 
 interface ClearUserMediaAction {
@@ -35,7 +33,6 @@ interface ClearUserMediaAction {
 interface AddPeerAction {
   type: typeof ADD_PEER;
   peerId: string;
-  peerConnection: RTCPeerConnection;
 }
 
 interface DeletePeerAction {
@@ -45,27 +42,24 @@ interface DeletePeerAction {
 
 /* --------------- ACTION CREATORS --------------- */
 
-export const setUserMedia = (stream: MediaStream): SetUserMediaAction => {
+// Caller registers the MediaStream in client.ts first, then dispatches this flag-only action.
+export const setUserMedia = (): SetUserMediaAction => {
   return {
-    type: SET_USER_MEDIA,
-    stream
+    type: SET_USER_MEDIA
   };
 };
 
-// Drop the local stream reference after tracks are stopped (logout / sessionReplaced).
-// Without this, joinChatRoom's localMediaStream != null guard reuses ended tracks and the
-// next login is silent until a full reload (issue #172).
 export const clearUserMedia = (): ClearUserMediaAction => {
   return {
     type: CLEAR_USER_MEDIA
   };
 };
 
-export const addPeer = (peerId: string, peerConnection: RTCPeerConnection): AddPeerAction => {
+// Caller registers the RTCPeerConnection in client.ts first; only the id is stored here.
+export const addPeer = (peerId: string): AddPeerAction => {
   return {
     type: ADD_PEER,
-    peerId,
-    peerConnection
+    peerId
   };
 };
 
@@ -87,28 +81,31 @@ export const clearPeers = (): { type: typeof CLEAR_PEERS } => {
 export default function webrtcReducer (state: WebrtcState = initialState, action: UnknownAction): WebrtcState {
   switch (action.type) {
     case SET_USER_MEDIA:
-      return { ...state, localMediaStream: (action as unknown as SetUserMediaAction).stream };
+      return { ...state, hasLocalMedia: true };
 
     case CLEAR_USER_MEDIA:
-      return { ...state, localMediaStream: null };
+      return { ...state, hasLocalMedia: false };
 
     case ADD_PEER: {
-      const { peerId, peerConnection } = action as unknown as AddPeerAction;
+      const { peerId } = action as unknown as AddPeerAction;
+      if (state.peerIds.includes(peerId)) return state;
       return {
         ...state,
-        peers: { ...state.peers, [peerId]: peerConnection }
+        peerIds: [...state.peerIds, peerId]
       };
     }
 
     case DELETE_PEER: {
-      const peers = { ...state.peers };
-      delete peers[(action as unknown as DeletePeerAction).peerId];
-      return { ...state, peers };
+      const peerId = (action as unknown as DeletePeerAction).peerId;
+      return {
+        ...state,
+        peerIds: state.peerIds.filter(id => id !== peerId)
+      };
     }
 
     case CLEAR_PEERS:
-      // Keep localMediaStream; only drop peer connections / media-element maps.
-      return { ...state, peers: {}, peerMediaElements: {} };
+      // Keep hasLocalMedia; only drop peer id list (mic stream is reused across room changes).
+      return { ...state, peerIds: [] };
 
     default:
       return state;

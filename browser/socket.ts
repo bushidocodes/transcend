@@ -3,7 +3,6 @@ import { getSocket, setSocket } from './socket-holder.ts';
 import { EVENTS, type SceneState, type UsersMap } from '../shared/protocol.ts';
 import store from './redux/store.ts';
 import { setTickRate } from './redux/reducers/config-reducer.ts';
-import { clearUserMedia } from './redux/reducers/webrtc-reducer.ts';
 import { addFirstPersonProperties } from './utils.ts';
 import { currentRoom } from './navigate.ts';
 import * as avatars from './avatars.ts';
@@ -11,7 +10,7 @@ import './aframeComponents/publish-location.ts';
 import './aframeComponents/remote-pose.ts';
 import './aframeComponents/webrtc-controls.ts';
 import './aframeComponents/wall-collision.ts';
-import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate, joinChatRoom } from './webRTC/client.ts';
+import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate, joinChatRoom, releaseLocalMediaStream } from './webRTC/client.ts';
 
 // joinScene is emitted once by <App> on mount (browser/react/components/App.tsx). The
 // 'connect' event, however, also fires on every socket.io *re*connect, where <App> is
@@ -167,13 +166,10 @@ function showSessionReplacedOverlay (): void {
 // Stop the local microphone tracks so a terminated tab releases the input device. Safe only on a
 // terminal teardown (e.g. sessionReplaced, logout) — NOT on a transient disconnect, where the
 // stream is reused on reconnect. Exported so Logout can free the mic without going through
-// the socket event path (issue #172).
+// the socket event path (issue #172). Delegates to client.ts, which owns the MediaStream
+// registry and clears hasLocalMedia (issue #176).
 export function releaseLocalMedia (): void {
-  const stream = store.getState().webrtc.localMediaStream;
-  if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
-  // Clear Redux so joinChatRoom does not reuse ended tracks on the next login without a
-  // page reload (sessionReplaced forces reload; logout does not — issue #172).
-  if (stream != null) store.dispatch(clearUserMedia());
+  releaseLocalMediaStream();
 }
 
 export default initSocket;

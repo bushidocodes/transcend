@@ -1,7 +1,5 @@
-// Pure reducer tests for the current (master) webrtc slice API (issue #175).
-// Non-serializable MediaStream / RTCPeerConnection payloads are mocked as plain objects
-// so the reducer path can be exercised without a real browser WebRTC stack.
-// clearUserMedia coverage is issue #172 (logout must drop the stream so getUserMedia re-runs).
+// Pure reducer tests for the serializable WebRTC slice (issue #176).
+// clearUserMedia is required so logout can clear hasLocalMedia (issue #172).
 
 import type { UnknownAction } from 'redux';
 import webrtcReducer, {
@@ -15,72 +13,54 @@ import webrtcReducer, {
 
 const asAction = (a: object): UnknownAction => a as UnknownAction;
 
-const empty: WebrtcState = {
-  localMediaStream: null,
-  peers: {},
-  peerMediaElements: {}
-};
-
-// Stand-ins for the non-serializable objects the current reducer stores.
-const fakeStream = { id: 'stream-1' } as unknown as MediaStream;
-const fakePeerA = { id: 'pc-a' } as unknown as RTCPeerConnection;
-const fakePeerB = { id: 'pc-b' } as unknown as RTCPeerConnection;
+const empty: WebrtcState = { peerIds: [], hasLocalMedia: false };
 
 describe('webrtcReducer', () => {
   it('returns the initial state for an unknown action', () => {
     expect(webrtcReducer(undefined, { type: '@@INIT' })).toEqual(empty);
   });
 
-  it('setUserMedia stores the local media stream', () => {
-    const next = webrtcReducer(empty, asAction(setUserMedia(fakeStream)));
-    expect(next.localMediaStream).toBe(fakeStream);
-    expect(next.peers).toEqual({});
+  it('setUserMedia sets hasLocalMedia true without storing a stream', () => {
+    const next = webrtcReducer(empty, asAction(setUserMedia()));
+    expect(next).toEqual({ peerIds: [], hasLocalMedia: true });
+    // Action payload must stay serializable — no stream field.
+    expect(setUserMedia()).toEqual({ type: 'SET_USER_MEDIA' });
   });
 
-  it('clearUserMedia clears localMediaStream so the next join does not reuse a stopped stream (#172)', () => {
-    const withStream = webrtcReducer(empty, asAction(setUserMedia(fakeStream)));
-    const cleared = webrtcReducer(withStream, asAction(clearUserMedia()));
-    expect(cleared.localMediaStream).toBeNull();
+  it('clearUserMedia clears the hasLocalMedia flag', () => {
+    const withMedia = webrtcReducer(empty, asAction(setUserMedia()));
+    expect(webrtcReducer(withMedia, asAction(clearUserMedia()))).toEqual(empty);
   });
 
-  it('addPeer registers a peer connection under its id', () => {
-    const one = webrtcReducer(empty, asAction(addPeer('peer-a', fakePeerA)));
-    expect(one.peers).toEqual({ 'peer-a': fakePeerA });
-    const two = webrtcReducer(one, asAction(addPeer('peer-b', fakePeerB)));
-    expect(two.peers).toEqual({ 'peer-a': fakePeerA, 'peer-b': fakePeerB });
+  it('addPeer appends a peer id (and is idempotent)', () => {
+    const one = webrtcReducer(empty, asAction(addPeer('peer-a')));
+    expect(one.peerIds).toEqual(['peer-a']);
+    const same = webrtcReducer(one, asAction(addPeer('peer-a')));
+    expect(same.peerIds).toEqual(['peer-a']);
+    const two = webrtcReducer(one, asAction(addPeer('peer-b')));
+    expect(two.peerIds).toEqual(['peer-a', 'peer-b']);
   });
 
-  it('deletePeer removes a peer and is a no-op for unknown ids', () => {
+  it('deletePeer removes a peer id and is a no-op for unknown ids', () => {
     const state = webrtcReducer(
-      webrtcReducer(empty, asAction(addPeer('peer-a', fakePeerA))),
-      asAction(addPeer('peer-b', fakePeerB))
+      webrtcReducer(empty, asAction(addPeer('peer-a'))),
+      asAction(addPeer('peer-b'))
     );
-    expect(webrtcReducer(state, asAction(deletePeer('peer-a'))).peers).toEqual({ 'peer-b': fakePeerB });
-    expect(webrtcReducer(state, asAction(deletePeer('nobody'))).peers).toEqual(state.peers);
+    expect(webrtcReducer(state, asAction(deletePeer('peer-a'))).peerIds).toEqual(['peer-b']);
+    expect(webrtcReducer(state, asAction(deletePeer('nobody'))).peerIds).toEqual(['peer-a', 'peer-b']);
   });
 
-  it('clearPeers drops peers and peerMediaElements but keeps localMediaStream', () => {
-    let state = webrtcReducer(empty, asAction(setUserMedia(fakeStream)));
-    state = webrtcReducer(state, asAction(addPeer('peer-a', fakePeerA)));
-    // Simulate a stale peerMediaElements entry (field is currently unused by the app).
-    state = { ...state, peerMediaElements: { 'peer-a': {} as HTMLMediaElement } };
+  it('clearPeers drops peer ids but keeps hasLocalMedia', () => {
+    let state = webrtcReducer(empty, asAction(setUserMedia()));
+    state = webrtcReducer(state, asAction(addPeer('peer-a')));
+    state = webrtcReducer(state, asAction(addPeer('peer-b')));
     const cleared = webrtcReducer(state, asAction(clearPeers()));
-    expect(cleared).toEqual({
-      localMediaStream: fakeStream,
-      peers: {},
-      peerMediaElements: {}
-    });
+    expect(cleared).toEqual({ peerIds: [], hasLocalMedia: true });
   });
 
-  it('action creators shape actions correctly', () => {
-    expect(setUserMedia(fakeStream)).toEqual({ type: 'SET_USER_MEDIA', stream: fakeStream });
-    expect(clearUserMedia()).toEqual({ type: 'CLEAR_USER_MEDIA' });
-    expect(addPeer('x', fakePeerA)).toEqual({
-      type: 'ADD_PEER',
-      peerId: 'x',
-      peerConnection: fakePeerA
-    });
-    expect(deletePeer('x')).toEqual({ type: 'DELETE_PEER', peerId: 'x' });
-    expect(clearPeers()).toEqual({ type: 'CLEAR_PEERS' });
+  it('state shape is fully serializable (JSON round-trip)', () => {
+    let state = webrtcReducer(empty, asAction(setUserMedia()));
+    state = webrtcReducer(state, asAction(addPeer('abc')));
+    expect(JSON.parse(JSON.stringify(state))).toEqual(state);
   });
 });

@@ -1,5 +1,5 @@
 import AFRAME from 'aframe';
-import store from '../redux/store.ts';
+import { getLocalMediaStream } from '../webRTC/client.ts';
 
 // Places buttons at the user's feet to mute self, mute people in the room, and see who is currently in the room
 
@@ -16,7 +16,8 @@ AFRAME.registerComponent('mute-self', {
   },
   handler: function (this: any) {
     console.log('Muting');
-    const stream = store.getState().webrtc.localMediaStream;
+    // MediaStream lives in the client.ts module registry (issue #176), not Redux.
+    const stream = getLocalMediaStream();
     console.log('stream', stream);
     // No mic stream (user denied access or it never initialized) — nothing to mute. Bail out
     // instead of throwing on stream.getAudioTracks(), which would crash the click handler.
