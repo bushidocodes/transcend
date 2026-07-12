@@ -24,16 +24,9 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare updatedAt: CreationOptional<Date>;
 
   authenticate(plaintext: string): Promise<boolean> {
-    // Google OAuth (and any other passwordless) accounts have password_digest = NULL.
-    // bcrypt.compare(string, null) throws "Illegal arguments: string, object", which
-    // LocalStrategy surfaces as a 500. Treat a missing digest as "no local password" and
-    // fail the check cleanly so login returns the normal 401 (issue #138).
-    const digest = this.password_digest;
-    if (!digest) return Promise.resolve(false);
-
-    return new Promise((resolve, reject) =>
-      bcrypt.compare(plaintext, digest, (err, result) => (err ? reject(err) : resolve(!!result)))
-    );
+    // Always bcrypt-compare (including null digest → dummy hash) so OAuth-only rows
+    // are not distinguishable from password mismatches by timing (issues #138, #240).
+    return comparePassword(plaintext, this.password_digest);
   }
 
   // Never serialize the password hash (or the virtual plaintext password) to clients. This is
@@ -97,6 +90,34 @@ User.init(
 // Cost factor 12 is the commonly recommended floor for new deployments (issue #207).
 // Existing digests (cost 10) still verify via bcrypt.compare; only new hashes use 12.
 export const BCRYPT_ROUNDS = 12;
+
+// Precomputed bcrypt hash of a fixed throwaway password at BCRYPT_ROUNDS, used only so
+// missing-user / null-digest login paths still burn bcrypt CPU comparable to a real
+// compare (issue #240). Never accept a match against this digest as authentication.
+// Plaintext was: "timing-dummy-not-a-real-password". If BCRYPT_ROUNDS changes, regenerate:
+//   node -e "import('bcryptjs').then(b=>b.hash('timing-dummy-not-a-real-password', ROUNDS).then(console.log))"
+export const DUMMY_PASSWORD_DIGEST = '$2b$12$Rx6CCkeKMhrGV9RWTZWAduaWbGucrUF9ZD1W2rVYRUkqogrSz/tXW';
+
+/**
+ * Constant-work password check (issue #240).
+ *
+ * Always runs bcrypt.compare against either the real digest or DUMMY_PASSWORD_DIGEST so
+ * callers cannot distinguish "no user" / "OAuth-only (null digest)" from "wrong password"
+ * by response timing. Returns true only when a real digest was supplied and matched.
+ */
+export function comparePassword(
+  plaintext: string,
+  digest: string | null | undefined
+): Promise<boolean> {
+  const hash = digest || DUMMY_PASSWORD_DIGEST;
+  return new Promise((resolve, reject) =>
+    bcrypt.compare(plaintext, hash, (err, result) => {
+      if (err) return reject(err);
+      // Dummy-hash matches must never authenticate.
+      resolve(!!digest && !!result);
+    })
+  );
+}
 
 // Sequelize ignores a hook's resolved value (HookReturn is Promise<void>); the mutation of
 // `user` is the effect.

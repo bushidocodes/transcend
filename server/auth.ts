@@ -5,7 +5,7 @@ import { Strategy as LocalStrategy } from 'passport-local';
 // maintained OAuth 2.0 strategy directly (issue #152).
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 
-import User from '../db/models/user.ts';
+import User, { comparePassword } from '../db/models/user.ts';
 
 // Shared with the changeSkin socket event (see server/validSkins.ts for why validation
 // is required — issue #79).
@@ -88,13 +88,19 @@ auth.post('/local/login', requireSameOrigin, ipLimiter, loginEmailLimiter, (req,
 
 // Local login cont. Passport-local passes the "username" field as the first arg; the client
 // sends the email there (browser/redux/reducers/auth.ts login()).
+//
+// Missing-user path still runs comparePassword against a dummy digest so response timing
+// matches a real bcrypt failure (issue #240). Wrong-password / OAuth-only digests use the
+// same helper via user.authenticate.
 passport.use(
   new LocalStrategy((email, password, done) => {
     const normalizedEmail = typeof email === 'string' ? normalizeEmail(email) : email;
     User.findOne({ where: { email: normalizedEmail } })
       .then(user => {
         if (!user) {
-          return done(null, false, { message: 'Login incorrect' });
+          return comparePassword(password, null).then(() =>
+            done(null, false, { message: 'Login incorrect' })
+          );
         }
         return user.authenticate(password).then(ok => {
           if (!ok) {

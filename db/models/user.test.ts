@@ -1,5 +1,6 @@
+import bcrypt from 'bcryptjs';
 import { prepare } from '../index.ts';
-import User, { BCRYPT_ROUNDS } from './user.ts';
+import User, { BCRYPT_ROUNDS, DUMMY_PASSWORD_DIGEST, comparePassword } from './user.ts';
 
 // describe/it/expect/beforeAll are provided as globals by Vitest (test.globals).
 
@@ -20,6 +21,7 @@ describe('User', () => {
 
     // Regression for #138: passwordless rows (Google OAuth) used to make bcrypt throw and
     // surface as HTTP 500 on local login. Must resolve false without rejecting.
+    // Issue #240: still runs a real bcrypt compare (dummy digest) so timing matches.
     it('resolves false when password_digest is null (passwordless / Google account)', async () => {
       const user = await User.create({
         email: 'oauth@example.com',
@@ -28,6 +30,41 @@ describe('User', () => {
       });
       expect(user.password_digest).toBeNull();
       await expect(user.authenticate('anything')).resolves.toBe(false);
+    });
+  });
+
+  // Issue #240: both null-digest and real-digest paths must invoke bcrypt.compare so
+  // missing/OAuth accounts are not faster than wrong-password accounts.
+  describe('comparePassword constant work (issue #240)', () => {
+    it('exports a dummy digest at cost matching BCRYPT_ROUNDS', () => {
+      const match = /^\$2[aby]?\$(\d{2})\$/.exec(DUMMY_PASSWORD_DIGEST);
+      expect(match).not.toBeNull();
+      expect(Number(match![1])).toBe(BCRYPT_ROUNDS);
+    });
+
+    it('returns false for a null digest and never authenticates the dummy hash', async () => {
+      await expect(comparePassword('anything', null)).resolves.toBe(false);
+      await expect(comparePassword('timing-dummy-not-a-real-password', null)).resolves.toBe(false);
+    });
+
+    it('returns true only when a real digest matches', async () => {
+      const digest = await bcrypt.hash('correct-horse', BCRYPT_ROUNDS);
+      await expect(comparePassword('correct-horse', digest)).resolves.toBe(true);
+      await expect(comparePassword('wrong-battery', digest)).resolves.toBe(false);
+    });
+
+    it('invokes bcrypt.compare for both null and real digests', async () => {
+      const spy = vi.spyOn(bcrypt, 'compare');
+      try {
+        await comparePassword('p', null);
+        await comparePassword('p', DUMMY_PASSWORD_DIGEST);
+        // Two compare calls: missing digest (dummy) + explicit dummy digest argument.
+        expect(spy).toHaveBeenCalledTimes(2);
+        expect(spy.mock.calls[0][1]).toBe(DUMMY_PASSWORD_DIGEST);
+        expect(spy.mock.calls[1][1]).toBe(DUMMY_PASSWORD_DIGEST);
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 
