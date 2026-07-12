@@ -240,6 +240,19 @@ function shutdown(signal: string): void {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
+// Process-level safety nets (issue #241): anything that escapes request/socket try/catch
+// (or a future async path that forgets .catch) would otherwise kill the process under
+// Node's unhandled-rejection default. Log and enter the same graceful-shutdown path so
+// orchestrators restart a clean process instead of serving from a half-dead instance.
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error(styleText('red', 'unhandledRejection:'), reason);
+  shutdown('unhandledRejection');
+});
+process.on('uncaughtException', (err: Error) => {
+  console.error(styleText('red', 'uncaughtException:'), err);
+  shutdown('uncaughtException');
+});
+
 app.use(
   '/',
   (err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
