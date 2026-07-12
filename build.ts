@@ -9,7 +9,11 @@ const options: esbuild.BuildOptions = {
   entryPoints: ['browser/react/index.tsx'],
   bundle: true,
   outfile: 'public/bundle.js',
-  sourcemap: true,
+  // Dev: linked maps for debugging. Prod: never emit public/bundle.js.map — the static
+  // server would ship the full original TypeScript source (~MB) to every visitor and
+  // defeat minify on the next line (issue #230). Use external maps uploaded to an error
+  // tracker if production stack traces are needed later.
+  sourcemap: !prod,
   // React 19 requires the modern JSX transform (issue #151). `automatic` injects
   // jsx-runtime imports so we don't need the classic React.createElement factory.
   jsx: 'automatic',
