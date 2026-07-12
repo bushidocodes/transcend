@@ -17,7 +17,8 @@
 import type http from 'http';
 import type { AddressInfo } from 'net';
 import express from 'express';
-import auth from './auth.ts';
+import passport from 'passport';
+import auth, { normalizeEmail } from './auth.ts';
 
 // vi.hoisted runs before the (also hoisted) vi.mock factory and before any static import
 // executes: the mock needs mockUser, and passport-google-oauth20's strategy constructor (run
@@ -42,9 +43,9 @@ let baseUrl: string;
 beforeAll(() => new Promise<void>(resolve => {
   const app = express();
   app.use(express.json());
-  // The real app establishes req.login via passport.initialize()/session(); the signup
-  // handler only needs it to exist and succeed, so stub it rather than standing up
-  // express-session + passport middleware here.
+  // Passport is required for LocalStrategy login; req.login is still stubbed so we don't
+  // need a real session store for these route-level assertions.
+  app.use(passport.initialize());
   app.use((req, res, next) => {
     req.login = ((user: unknown, cb: (err?: unknown) => void) => cb()) as typeof req.login;
     next();
@@ -60,6 +61,7 @@ afterAll(() => new Promise(resolve => server.close(resolve)));
 
 beforeEach(() => {
   mockUser.create.mockClear();
+  mockUser.findOne.mockReset();
 });
 
 function signup (body: Record<string, unknown>) {
@@ -67,6 +69,15 @@ function signup (body: Record<string, unknown>) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
+  });
+}
+
+function login (body: Record<string, unknown>) {
+  return fetch(baseUrl + '/local/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    redirect: 'manual'
   });
 }
 
@@ -147,5 +158,42 @@ describe('POST /local/signup – email and password required (issue #139)', func
     const empty = await signup({ email: 'x@example.com', password: '', displayName: 'NoPass' });
     expect(empty.status).toBe(400);
     expect(mockUser.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('normalizeEmail (issue #170)', function () {
+  it('lowercases mixed-case emails to match stored rows', function () {
+    expect(normalizeEmail('Foo@Bar.com')).toBe('foo@bar.com');
+    expect(normalizeEmail('ALICE@EXAMPLE.COM')).toBe('alice@example.com');
+    expect(normalizeEmail('already.lower@example.com')).toBe('already.lower@example.com');
+  });
+});
+
+describe('POST /local/login – mixed-case email (issue #170)', function () {
+  it('queries findOne with a lowercased email when login uses mixed case', async function () {
+    // Signup stores email lowercased (setEmailAndPassword); login used to query the raw
+    // client value and miss the row. Assert the strategy normalizes before findOne.
+    mockUser.findOne.mockResolvedValue(null);
+
+    await login({ username: 'Foo@Bar.com', password: 'secret123' });
+
+    expect(mockUser.findOne).toHaveBeenCalled();
+    expect(mockUser.findOne).toHaveBeenCalledWith({ where: { email: 'foo@bar.com' } });
+  });
+
+  it('looks up the lowercased email before calling authenticate', async function () {
+    // Return a user so the strategy reaches authenticate(); fail the password check so
+    // passport does not attempt a session login (this harness has no express-session).
+    const user = {
+      id: 7,
+      email: 'foo@bar.com',
+      authenticate: vi.fn().mockResolvedValue(false)
+    };
+    mockUser.findOne.mockResolvedValue(user);
+
+    await login({ username: 'Foo@Bar.com', password: 'wrong' });
+
+    expect(mockUser.findOne).toHaveBeenCalledWith({ where: { email: 'foo@bar.com' } });
+    expect(user.authenticate).toHaveBeenCalledWith('wrong');
   });
 });
