@@ -74,8 +74,9 @@ export function initSocket (): Socket {
     socket.emit(EVENTS.READY);
   });
 
-  // The server sends usersUpdated with only the OTHER users in this client's room (#58);
-  //   AvatarManager reconciles the scene against it (add/update/redraw/remove, issue #118).
+  // The server room-broadcasts the full scene snapshot once per beat (#115/#200). Room
+  // scoping is still server-side (#58); AvatarManager skips the local id and reconciles
+  // remotes (add/update/redraw/remove, issue #118).
   socket.on(EVENTS.USERS_UPDATED, (users: UsersMap) => avatars.sync(users));
 
   socket.on(EVENTS.REMOVE_USER, (userId: string) => avatars.remove(userId));

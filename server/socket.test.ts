@@ -203,23 +203,29 @@ describe('Socket.io – real-time position sync', function () {
     });
   });
 
-  it('usersUpdated sent to B does not include B\'s own entry', function () {
+  // Room broadcast sends the full scene snapshot once (issue #200). Clients skip their own
+  // id in avatars.sync; the wire payload may include the recipient.
+  it('usersUpdated room snapshot includes peers (and may include self)', function () {
     return withTwoSubscribers(function (cA, cB) {
       const updatesForB = waitFor(cB, 'usersUpdated');
       cA.emit('tick', { id: cA.id, x: 1, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
       return updatesForB.then(function (users) {
-        expect(users).not.toHaveProperty(cB.id);
+        expect(users).toHaveProperty(cA.id);
+        expect(users[cA.id].x).toBe(1);
       });
     });
   });
 
-  it('usersUpdated sent to A does not include A\'s own entry', function () {
+  it('both ready members receive the same room snapshot on a tick', function () {
     return withTwoSubscribers(function (cA, cB) {
       const updatesForA = waitFor(cA, 'usersUpdated');
+      const updatesForB = waitFor(cB, 'usersUpdated');
       cB.emit('tick', { id: cB.id, x: 2, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0, skin: 'default', scene: 'lobby' });
-      return updatesForA.then(function (users) {
-        expect(users).not.toHaveProperty(cA.id);
-        expect(users).toHaveProperty(cB.id);
+      return Promise.all([updatesForA, updatesForB]).then(function ([usersA, usersB]) {
+        expect(usersA).toHaveProperty(cB.id);
+        expect(usersB).toHaveProperty(cB.id);
+        expect(usersA[cB.id].x).toBe(2);
+        expect(usersB[cB.id].x).toBe(2);
       });
     });
   });
