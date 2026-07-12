@@ -82,6 +82,10 @@ export default function attachSocketServer(io: Server): void {
   // Durable domain state only — plain user records keyed by socket id (issue #116). The
   // socket registry is io.sockets.sockets and room membership is socket.io rooms; neither is
   // duplicated into application state anymore.
+  //
+  // Per-process only (issue #239): this Map and the rate-limit maps below are not shared
+  // across Node instances. Deploy as a single process until a socket.io adapter + shared
+  // stores exist (documented in README "Deployment: single-instance only").
   const gameState = new GameState();
 
   // Per-socket rate limiters for chatty events (issue #203). Separate buckets so a burst of
