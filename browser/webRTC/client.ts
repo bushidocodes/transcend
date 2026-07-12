@@ -24,6 +24,12 @@ interface IceCandidateConfig {
   ice_candidate: RTCIceCandidateInit;
 }
 
+// Opt-in debug logging for WebRTC signaling noise. Enable in the browser console with:
+//   (globalThis as any).__WEBRTC_DEBUG__ = true
+const webrtcDebug = (...a: unknown[]) => {
+  if ((globalThis as any).__WEBRTC_DEBUG__) console.log(...a);
+};
+
 let cachedIceServers: RTCIceServer[] | null = null;
 
 // If the backend is unreachable, fall back to a public STUN server so peering still works on
@@ -78,23 +84,24 @@ export function releaseLocalMediaStream (): void {
 //   informing them that voice is unavailable.
 
 export function joinChatRoom (room: string | null, errorback?: () => void): void {
-  console.log(store.getState());
+  // Do not dump store.getState() here — it retains MediaStream / RTCPeerConnection refs in
+  // the console (issue #180). Use module-level localMediaStream (issue #176).
 
   if (!room) {
-    console.log('No room was provided');
+    webrtcDebug('No room was provided');
     return;
   }
   if (localMediaStream != null) {  /* ie, if we've already been initialized */
     getSocket()?.emit(EVENTS.JOIN_CHAT_ROOM, room);
     return;
   }
-  console.log('Requesting access to local audio / video inputs');
+  webrtcDebug('Requesting access to local audio / video inputs');
   // navigator.mediaDevices.getUserMedia (Promise-based) replaces the removed callback-style
   // navigator.getUserMedia / webkitGetUserMedia (issue #77).
   navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     // On Success
     .then(stream => {
-      console.log('Access granted to audio');
+      webrtcDebug('Access granted to audio');
       // Register the non-serializable stream here first, then flag Redux.
       localMediaStream = stream;
       store.dispatch(setUserMedia());
@@ -105,7 +112,7 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
     })
     // On Failure... likely because user denied access to a/v
     .catch(() => {
-      console.log('Access denied for audio/video');
+      webrtcDebug('Access denied for audio/video');
       window.alert('You chose not to provide access to your microphone, so real-time voice chat is unavailable.');
       if (errorback) errorback();
     });
@@ -122,11 +129,11 @@ export function leaveChatRoom (): void {
 
 // accepts conifg
 export async function addPeerConn (config: AddPeerConfig): Promise<void> {
-  console.log('Signaling server said to add peer:', config);
+  webrtcDebug('Signaling server said to add peer:', config);
   const peerId = config.peer_id;
   // If for some reason, this client aready is connected to the peer, return
   if (peers[peerId]) {
-    console.log('Already connected to peer ', peerId);
+    webrtcDebug('Already connected to peer ', peerId);
     return;
   }
 
@@ -154,7 +161,7 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   //   the peerID, and set it to autoplay. ontrack replaces the removed onaddstream; its event
   //   carries a streams array rather than a single stream (issue #77).
   peerConnection.ontrack = function (event) {
-    console.log('onTrack', event);
+    webrtcDebug('onTrack', event);
     // A connection can fire ontrack more than once; reuse the element we already made.
     let remoteAudio = peerMediaElements[peerId];
     if (!remoteAudio) {
@@ -182,13 +189,13 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   * create an offer, then send back an answer 'sessionDescription' to us
   */
   if (config.should_create_offer) {
-    console.log('Creating RTC offer to ', peerId);
+    webrtcDebug('Creating RTC offer to ', peerId);
     try {
       const localDescription = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(localDescription);
       getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
         { peer_id: peerId, session_description: localDescription });
-      console.log('Offer setLocalDescription succeeded');
+      webrtcDebug('Offer setLocalDescription succeeded');
     } catch (error) {
       console.error('Error creating/sending offer: ', error);
     }
@@ -196,7 +203,7 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
 }
 
 export function removePeerConn (config: RemovePeerConfig): void {
-  console.log('Signaling server said to remove peer:', config);
+  webrtcDebug('Signaling server said to remove peer:', config);
   const peerId = config.peer_id;
   if (peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
@@ -212,7 +219,7 @@ export function removePeerConn (config: RemovePeerConfig): void {
 }
 
 export async function setRemoteAnswer (config: SessionDescriptionConfig): Promise<void> {
-  console.log('Remote description received: ', config);
+  webrtcDebug('Remote description received: ', config);
   const peerId = config.peer_id;
   const peer = peers[peerId];
   if (!peer) {
@@ -224,14 +231,14 @@ export async function setRemoteAnswer (config: SessionDescriptionConfig): Promis
   // deprecated RTCSessionDescription wrapper and callback forms are gone (issue #77).
   try {
     await peer.setRemoteDescription(remoteDescription);
-    console.log('setRemoteDescription succeeded');
+    webrtcDebug('setRemoteDescription succeeded');
     if (remoteDescription.type === 'offer') {
-      console.log('Creating answer');
+      webrtcDebug('Creating answer');
       const localDescription = await peer.createAnswer();
       await peer.setLocalDescription(localDescription);
       getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
         { peer_id: peerId, session_description: localDescription });
-      console.log('Answer setLocalDescription succeeded');
+      webrtcDebug('Answer setLocalDescription succeeded');
     }
   } catch (error) {
     console.error('setRemoteAnswer error: ', error);
