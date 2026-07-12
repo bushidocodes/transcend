@@ -38,11 +38,13 @@ auth.post('/local/signup', (req, res, next) => {
   if (!displayName || displayName.length < 1 || displayName.length > 8) {
     return res.status(400).json({ error: 'Display name must be 1–8 characters' });
   }
-  // Basic shape only — full isEmail still runs on the model after create. Require `local@domain.tld`
-  // (no spaces) so missing/blank emails never reach the DB as NULL. A bare `@` check would let
-  // `bad@` through, and the model's isEmail would then reject it via a thrown ValidationError that
-  // surfaces as a 500 rather than this clean 400.
-  if (typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+  // Basic shape only — full isEmail still runs on the model after create. Require exactly one @
+  // with non-empty, whitespace-free sides and a dotted domain, so obviously-malformed values get a
+  // clean 400 instead of a 500 from the model's thrown ValidationError. The @-structure is matched
+  // with a linear regex (two disjoint classes around a required @), then the domain dot is checked
+  // with a plain string op — avoiding the polynomial-backtracking pattern CodeQL flagged.
+  const trimmedEmail = typeof email === 'string' ? email.trim() : '';
+  if (!/^[^\s@]+@[^\s@]+$/.test(trimmedEmail) || !trimmedEmail.split('@')[1].includes('.')) {
     return res.status(400).json({ error: 'A valid email is required' });
   }
   // Non-empty password so setEmailAndPassword always produces a password_digest. (Google
