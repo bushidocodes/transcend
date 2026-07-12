@@ -1,9 +1,27 @@
 import { User } from './utils.ts';
 import type { AuthUser, Pose } from '../shared/protocol.ts';
+import {
+  POSE_XZ_MIN,
+  POSE_XZ_MAX,
+  POSE_Y_MIN,
+  POSE_Y_MAX
+} from '../shared/protocol.ts';
 
 // The only fields a position tick may update (issue #113). displayName/skin/scene must never
 // ride in on a tick: skin/scene changes are their own explicit methods below.
 const POSE_FIELDS = ['x', 'y', 'z', 'xrot', 'yrot', 'zrot'] as const;
+
+// Clamp finite pose numbers into world bounds so a client cannot teleport peers to extreme
+// coordinates (issue #232). Rotations stay unbounded (they wrap naturally in render).
+function clampPoseValue(field: (typeof POSE_FIELDS)[number], value: number): number {
+  if (field === 'x' || field === 'z') {
+    return Math.min(POSE_XZ_MAX, Math.max(POSE_XZ_MIN, value));
+  }
+  if (field === 'y') {
+    return Math.min(POSE_Y_MAX, Math.max(POSE_Y_MIN, value));
+  }
+  return value;
+}
 
 // Durable multiplayer domain state: plain-data user records keyed by socket id (issue #116).
 // This replaces the server-side Redux store. Transport state — which sockets exist and who is
@@ -44,7 +62,7 @@ export default class GameState {
     if (!user) return null;
     for (const field of POSE_FIELDS) {
       const value = data[field];
-      if (Number.isFinite(value)) user[field] = value as number;
+      if (Number.isFinite(value)) user[field] = clampPoseValue(field, value as number);
     }
     return user;
   }

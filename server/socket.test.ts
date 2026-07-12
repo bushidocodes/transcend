@@ -1243,15 +1243,16 @@ describe('Socket.io – tick identity & field whitelist (issue #113)', () => {
       })
       .then(() => {
         // The attacker knows the victim's socket id (it's broadcast in usersUpdated) and
-        // tries to teleport them.
-        attacker.emit('tick', { id: victim.id, x: 999, y: 999, z: 999, xrot: 0, yrot: 0, zrot: 0 });
+        // tries to teleport them. Pose values stay inside world bounds (issue #232 clamp);
+        // the point of this test is identity, not out-of-range coordinates.
+        attacker.emit('tick', { id: victim.id, x: 50, y: 2, z: 40, xrot: 0, yrot: 0, zrot: 0 });
         return sleep(80);
       })
       .then(() => handshake(observer, 'Obs', 'lobby'))
       .then(state => {
         expect(state.others[victim.id].x).toBe(5); // unmoved
         expect(state.others[victim.id].z).toBe(-3);
-        expect(state.others[attacker.id].x).toBe(999); // the attacker only moved themselves
+        expect(state.others[attacker.id].x).toBe(50); // the attacker only moved themselves
         return cleanup(victim, attacker, observer);
       });
   });

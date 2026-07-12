@@ -1,6 +1,12 @@
 import { styleText } from 'node:util';
 import type { Server, Socket } from 'socket.io';
-import { EVENTS, isObject, validJoinScene, validRoom } from '../shared/protocol.ts';
+import {
+  EVENTS,
+  clampDisplayName,
+  isObject,
+  validJoinScene,
+  validRoom
+} from '../shared/protocol.ts';
 import type { Pose } from '../shared/protocol.ts';
 import GameState from './game-state.ts';
 import VALID_SKINS from './validSkins.ts';
@@ -227,9 +233,12 @@ export default function attachSocketServer(io: Server): void {
         leaveSceneRoom();
         // Prefer session identity fields when present; allow client displayName/skin only as
         // fallbacks for anonymous / incomplete sessions. NEVER trust client user.id for accountId.
-        const displayName =
+        // Clamp displayName to the signup max so socket join cannot broadcast unbounded strings
+        // (issue #232). Session names are already bounded at write time; clamp is defence in depth.
+        const rawDisplayName =
           (sessionUser && typeof sessionUser.displayName === 'string' && sessionUser.displayName) ||
           (typeof user.displayName === 'string' ? user.displayName : undefined);
+        const displayName = clampDisplayName(rawDisplayName);
         // Skin must pass the same VALID_SKINS whitelist as changeSkin / PUT /skin (issue #227).
         // joinScene used to accept any string, reopening the #79 injection surface on the join
         // path. Invalid or unknown skins fall back to undefined (browser defaults to 3djesus).

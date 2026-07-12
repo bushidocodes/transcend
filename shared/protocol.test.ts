@@ -4,7 +4,19 @@
 // would still compile. This test makes that a deliberate act instead of a refactor accident.
 // describe/it/expect are Vitest globals (test.globals).
 
-import { EVENTS, isObject, validJoinScene, validRoom } from './protocol.ts';
+import {
+  EVENTS,
+  MAX_DISPLAY_NAME_LENGTH,
+  MAX_ROOM_LENGTH,
+  POSE_XZ_MAX,
+  POSE_XZ_MIN,
+  POSE_Y_MAX,
+  POSE_Y_MIN,
+  clampDisplayName,
+  isObject,
+  validJoinScene,
+  validRoom
+} from './protocol.ts';
 
 describe('wire protocol', () => {
   it('event names match the deployed wire strings exactly', () => {
@@ -60,12 +72,36 @@ describe('wire protocol', () => {
       expect(validJoinScene({ displayName: 'A' }, { evil: true })).toBe(false);
     });
 
-    it('validRoom requires a string', () => {
+    it('validJoinScene rejects oversize scene strings (issue #232)', () => {
+      expect(validJoinScene({ displayName: 'A' }, 'x'.repeat(MAX_ROOM_LENGTH))).toBe(true);
+      expect(validJoinScene({ displayName: 'A' }, 'x'.repeat(MAX_ROOM_LENGTH + 1))).toBe(false);
+    });
+
+    it('validRoom requires a string within MAX_ROOM_LENGTH (issue #232)', () => {
       expect(validRoom('lobby')).toBe(true);
       expect(validRoom('')).toBe(true);
+      expect(validRoom('x'.repeat(MAX_ROOM_LENGTH))).toBe(true);
+      expect(validRoom('x'.repeat(MAX_ROOM_LENGTH + 1))).toBe(false);
       expect(validRoom({ room: 'lobby' })).toBe(false);
       expect(validRoom(7)).toBe(false);
       expect(validRoom(undefined)).toBe(false);
+    });
+
+    it('exports the payload bound constants used by game-state clamp (issue #232)', () => {
+      expect(MAX_DISPLAY_NAME_LENGTH).toBe(8);
+      expect(MAX_ROOM_LENGTH).toBe(64);
+      expect(POSE_XZ_MIN).toBe(-100);
+      expect(POSE_XZ_MAX).toBe(100);
+      expect(POSE_Y_MIN).toBe(-50);
+      expect(POSE_Y_MAX).toBe(100);
+    });
+
+    it('clampDisplayName truncates to MAX_DISPLAY_NAME_LENGTH (issue #232)', () => {
+      expect(clampDisplayName('Alice')).toBe('Alice');
+      expect(clampDisplayName('ABCDEFGHIJK')).toBe('ABCDEFGH');
+      expect(clampDisplayName('')).toBeUndefined();
+      expect(clampDisplayName(null)).toBeUndefined();
+      expect(clampDisplayName(42)).toBeUndefined();
     });
   });
 });

@@ -94,6 +94,34 @@ describe('GameState', () => {
       expect(user.scene).toBe('lobby');
       expect(user.id).toBe('s1');
     });
+
+    it('clamps x/z and y into world bounds (issue #232)', () => {
+      state.addUser('s1', { displayName: 'Alice' }, 'lobby');
+      const user = state.updatePose('s1', {
+        x: 1e9,
+        y: -999,
+        z: -1e9,
+        xrot: 45,
+        yrot: 180,
+        zrot: -90
+      })!;
+
+      expect(user.x).toBe(100);
+      expect(user.z).toBe(-100);
+      expect(user.y).toBe(-50);
+      // Rotations are not clamped.
+      expect(user.xrot).toBe(45);
+      expect(user.yrot).toBe(180);
+      expect(user.zrot).toBe(-90);
+    });
+
+    it('clamps y high and leaves in-range coordinates alone (issue #232)', () => {
+      state.addUser('s1', { displayName: 'Alice' }, 'lobby');
+      const user = state.updatePose('s1', { x: 10, y: 500, z: -10 })!;
+      expect(user.x).toBe(10);
+      expect(user.y).toBe(100);
+      expect(user.z).toBe(-10);
+    });
   });
 
   describe('setSkin / setScene', () => {
