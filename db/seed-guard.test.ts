@@ -22,9 +22,9 @@ describe('assertSeedAllowed (issue #233)', () => {
   });
 
   it('refuses when SEED_ALLOW_FORCE is set to a non-1 value in production', () => {
-    expect(() =>
-      assertSeedAllowed({ NODE_ENV: 'production', SEED_ALLOW_FORCE: 'true' })
-    ).toThrow(/production/i);
+    expect(() => assertSeedAllowed({ NODE_ENV: 'production', SEED_ALLOW_FORCE: 'true' })).toThrow(
+      /production/i
+    );
   });
 
   it('allows production only when SEED_ALLOW_FORCE=1', () => {
