@@ -723,6 +723,139 @@ describe('Socket.io – single active session per account (#30)', function () {
 });
 
 // -----------------------------------------------------------------
+// 7b. WebRTC signaling room membership (issue #168)
+// -----------------------------------------------------------------
+
+describe('Socket.io – WebRTC signaling room membership (#168)', function () {
+  it('does not relay iceCandidate to a peer outside the sender\'s chat room', function () {
+    const a = connect();
+    const b = connect();
+
+    return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
+      .then(function () {
+        a.emit('joinScene', { displayName: 'A' }, 'lobby');
+        b.emit('joinScene', { displayName: 'B' }, 'lobby');
+        return sleep(80);
+      })
+      .then(function () {
+        // Different voice rooms — A must not be able to inject ICE into B.
+        a.emit('joinChatRoom', 'voice-a');
+        b.emit('joinChatRoom', 'voice-b');
+        return sleep(80);
+      })
+      .then(function () {
+        let bGotIce = false;
+        b.once('iceCandidate', function () { bGotIce = true; });
+        a.emit('relayICECandidate', {
+          peer_id: b.id,
+          ice_candidate: { candidate: 'fake', sdpMid: '0', sdpMLineIndex: 0 }
+        });
+        return sleep(200).then(function () {
+          expect(bGotIce).toBe(false);
+          return cleanup(a, b);
+        });
+      });
+  });
+
+  it('relays iceCandidate when both peers share the same chat room', function () {
+    const a = connect();
+    const b = connect();
+
+    return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
+      .then(function () {
+        a.emit('joinScene', { displayName: 'A' }, 'lobby');
+        b.emit('joinScene', { displayName: 'B' }, 'lobby');
+        return sleep(80);
+      })
+      .then(function () {
+        a.emit('joinChatRoom', 'voice-shared');
+        b.emit('joinChatRoom', 'voice-shared');
+        return sleep(80);
+      })
+      .then(function () {
+        const ice = waitFor(b, 'iceCandidate');
+        a.emit('relayICECandidate', {
+          peer_id: b.id,
+          ice_candidate: { candidate: 'candidate:1 1 udp 1 127.0.0.1 9 typ host', sdpMid: '0', sdpMLineIndex: 0 }
+        });
+        return ice;
+      })
+      .then(function (payload) {
+        // Source peer_id is always the server's view of the sender, never the client-supplied value.
+        expect(payload.peer_id).toBe(a.id);
+        expect(payload.ice_candidate).toEqual({
+          candidate: 'candidate:1 1 udp 1 127.0.0.1 9 typ host',
+          sdpMid: '0',
+          sdpMLineIndex: 0
+        });
+        return cleanup(a, b);
+      });
+  });
+
+  it('does not relay sessionDescription to a peer outside the sender\'s chat room', function () {
+    const a = connect();
+    const b = connect();
+
+    return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
+      .then(function () {
+        a.emit('joinScene', { displayName: 'A' }, 'lobby');
+        b.emit('joinScene', { displayName: 'B' }, 'lobby');
+        return sleep(80);
+      })
+      .then(function () {
+        a.emit('joinChatRoom', 'sdp-a');
+        b.emit('joinChatRoom', 'sdp-b');
+        return sleep(80);
+      })
+      .then(function () {
+        let bGotSdp = false;
+        b.once('sessionDescription', function () { bGotSdp = true; });
+        a.emit('relaySessionDescription', {
+          peer_id: b.id,
+          session_description: { type: 'offer', sdp: 'v=0' }
+        });
+        return sleep(200).then(function () {
+          expect(bGotSdp).toBe(false);
+          return cleanup(a, b);
+        });
+      });
+  });
+
+  it('relays sessionDescription when both peers share the same chat room', function () {
+    const a = connect();
+    const b = connect();
+
+    return Promise.all([waitFor(a, 'connect'), waitFor(b, 'connect')])
+      .then(function () {
+        a.emit('joinScene', { displayName: 'A' }, 'lobby');
+        b.emit('joinScene', { displayName: 'B' }, 'lobby');
+        return sleep(80);
+      })
+      .then(function () {
+        a.emit('joinChatRoom', 'sdp-shared');
+        b.emit('joinChatRoom', 'sdp-shared');
+        return sleep(80);
+      })
+      .then(function () {
+        const sdp = waitFor(b, 'sessionDescription');
+        a.emit('relaySessionDescription', {
+          peer_id: b.id,
+          session_description: { type: 'answer', sdp: 'v=0\r\no=- 0 0 IN IP4 127.0.0.1' }
+        });
+        return sdp;
+      })
+      .then(function (payload) {
+        expect(payload.peer_id).toBe(a.id);
+        expect(payload.session_description).toEqual({
+          type: 'answer',
+          sdp: 'v=0\r\no=- 0 0 IN IP4 127.0.0.1'
+        });
+        return cleanup(a, b);
+      });
+  });
+});
+
+// -----------------------------------------------------------------
 // 8. Malformed payloads must not crash the server (issue #112)
 // -----------------------------------------------------------------
 
