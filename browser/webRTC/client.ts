@@ -8,6 +8,10 @@ import {
 } from '../redux/reducers/webrtc-reducer.ts';
 import { EVENTS } from '../../shared/protocol.ts';
 import { getSocket } from '../socket-holder.ts';
+import {
+  isTerminalConnectionState,
+  reservePeerSlot
+} from './peer-guards.ts';
 
 /* ---------- signaling payload shapes (see shared/protocol.ts for the events) ---------- */
 
@@ -64,6 +68,10 @@ async function getIceServers(): Promise<RTCIceServer[]> {
 // <audio> element instances.
 let localMediaStream: MediaStream | null = null;
 const peers: Record<string, RTCPeerConnection> = {};
+// Peer ids currently inside addPeerConn between the guard and peers[id] assignment (issue #231).
+// Without this, two concurrent ADD_PEER events both pass `if (peers[peerId])` during the
+// await getIceServers() gap and the first RTCPeerConnection is leaked.
+const inFlightPeers = new Set<string>();
 let peerMediaElements: Record<string, HTMLAudioElement> = {};
 
 export function getLocalMediaStream(): MediaStream | null {
@@ -141,88 +149,111 @@ export function leaveChatRoom(): void {
 export async function addPeerConn(config: AddPeerConfig): Promise<void> {
   webrtcDebug('Signaling server said to add peer:', config);
   const peerId = config.peer_id;
-  // If for some reason, this client aready is connected to the peer, return
-  if (peers[peerId]) {
-    webrtcDebug('Already connected to peer ', peerId);
+  // Reserve before any await so concurrent ADD_PEER for the same id cannot double-create
+  // (issue #231). inFlightPeers covers the gap until peers[peerId] is set below.
+  if (!reservePeerSlot(peerId, peers, inFlightPeers)) {
+    webrtcDebug('Already connected (or connecting) to peer ', peerId);
     return;
   }
 
-  const iceServers = await getIceServers();
+  try {
+    const iceServers = await getIceServers();
 
-  // Create a webRTC peer connection to the ICE servers. Unprefixed RTCPeerConnection
-  // replaces the removed webkitRTCPeerConnection; the legacy second constraints argument
-  // (DtlsSrtpKeyAgreement) is obsolete now that DTLS-SRTP is mandatory (issue #77).
-  const peerConnection = new RTCPeerConnection({ iceServers });
+    // Create a webRTC peer connection to the ICE servers. Unprefixed RTCPeerConnection
+    // replaces the removed webkitRTCPeerConnection; the legacy second constraints argument
+    // (DtlsSrtpKeyAgreement) is obsolete now that DTLS-SRTP is mandatory (issue #77).
+    const peerConnection = new RTCPeerConnection({ iceServers });
 
-  // I'm not 100% sure what this does, but it sets up ice candidates ¯\_(ツ)_/¯
-  peerConnection.onicecandidate = event => {
-    if (event.candidate) {
-      getSocket()?.emit(EVENTS.RELAY_ICE_CANDIDATE, {
-        peer_id: peerId,
-        ice_candidate: {
-          sdpMLineIndex: event.candidate.sdpMLineIndex,
-          candidate: event.candidate.candidate
-        }
-      });
+    // I'm not 100% sure what this does, but it sets up ice candidates ¯\_(ツ)_/¯
+    peerConnection.onicecandidate = event => {
+      if (event.candidate) {
+        getSocket()?.emit(EVENTS.RELAY_ICE_CANDIDATE, {
+          peer_id: peerId,
+          ice_candidate: {
+            sdpMLineIndex: event.candidate.sdpMLineIndex,
+            candidate: event.candidate.candidate
+          }
+        });
+      }
+    };
+
+    // When we receive a peer's WebRTC track, add an audio tag to the DOM with an ID equal to
+    //   the peerID, and set it to autoplay. ontrack replaces the removed onaddstream; its event
+    //   carries a streams array rather than a single stream (issue #77).
+    peerConnection.ontrack = event => {
+      webrtcDebug('onTrack', event);
+      // A connection can fire ontrack more than once; reuse the element we already made.
+      let remoteAudio = peerMediaElements[peerId];
+      if (!remoteAudio) {
+        remoteAudio = document.createElement('audio');
+        remoteAudio.setAttribute('id', peerId);
+        remoteAudio.setAttribute('autoplay', 'autoplay');
+        document.getElementsByTagName('body')[0].appendChild(remoteAudio);
+        peerMediaElements[peerId] = remoteAudio; // map of all peer WebRTC streams
+      }
+      remoteAudio.srcObject = event.streams[0];
+    };
+
+    // Tear down on terminal connection states (ICE/network failure) so dead RTCPeerConnections
+    // do not leak in the module-level peers map forever (issue #231).
+    peerConnection.onconnectionstatechange = () => {
+      const state = peerConnection.connectionState;
+      webrtcDebug('connectionstatechange', peerId, state);
+      if (isTerminalConnectionState(state)) {
+        console.warn(`WebRTC peer ${peerId} entered terminal state: ${state}`);
+        removePeerConn({ peer_id: peerId });
+      }
+    };
+
+    /* Add our local stream's tracks. addTrack replaces the removed addStream. */
+    if (localMediaStream) {
+      localMediaStream
+        .getTracks()
+        .forEach(track => peerConnection.addTrack(track, localMediaStream!));
     }
-  };
 
-  // When we receive a peer's WebRTC track, add an audio tag to the DOM with an ID equal to
-  //   the peerID, and set it to autoplay. ontrack replaces the removed onaddstream; its event
-  //   carries a streams array rather than a single stream (issue #77).
-  peerConnection.ontrack = event => {
-    webrtcDebug('onTrack', event);
-    // A connection can fire ontrack more than once; reuse the element we already made.
-    let remoteAudio = peerMediaElements[peerId];
-    if (!remoteAudio) {
-      remoteAudio = document.createElement('audio');
-      remoteAudio.setAttribute('id', peerId);
-      remoteAudio.setAttribute('autoplay', 'autoplay');
-      document.getElementsByTagName('body')[0].appendChild(remoteAudio);
-      peerMediaElements[peerId] = remoteAudio; // map of all peer WebRTC streams
+    // Register the peer before negotiating so an incoming answer / ICE candidate can find it.
+    peers[peerId] = peerConnection;
+    store.dispatch(addPeer(peerId));
+
+    /* Only one side of the peer connection should create the
+     * offer, the signaling server picks one to be the offerer.
+     * The other user will get a 'sessionDescription' event and will
+     * create an offer, then send back an answer 'sessionDescription' to us
+     */
+    if (config.should_create_offer) {
+      webrtcDebug('Creating RTC offer to ', peerId);
+      try {
+        const localDescription = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(localDescription);
+        getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION, {
+          peer_id: peerId,
+          session_description: localDescription
+        });
+        webrtcDebug('Offer setLocalDescription succeeded');
+      } catch (error) {
+        console.error('Error creating/sending offer: ', error);
+      }
     }
-    remoteAudio.srcObject = event.streams[0];
-  };
-
-  /* Add our local stream's tracks. addTrack replaces the removed addStream. */
-  if (localMediaStream) {
-    localMediaStream
-      .getTracks()
-      .forEach(track => peerConnection.addTrack(track, localMediaStream!));
-  }
-
-  // Register the peer before negotiating so an incoming answer / ICE candidate can find it.
-  peers[peerId] = peerConnection;
-  store.dispatch(addPeer(peerId));
-
-  /* Only one side of the peer connection should create the
-   * offer, the signaling server picks one to be the offerer.
-   * The other user will get a 'sessionDescription' event and will
-   * create an offer, then send back an answer 'sessionDescription' to us
-   */
-  if (config.should_create_offer) {
-    webrtcDebug('Creating RTC offer to ', peerId);
-    try {
-      const localDescription = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(localDescription);
-      getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION, {
-        peer_id: peerId,
-        session_description: localDescription
-      });
-      webrtcDebug('Offer setLocalDescription succeeded');
-    } catch (error) {
-      console.error('Error creating/sending offer: ', error);
-    }
+  } catch (error) {
+    // If setup fails after reserve, drop the in-flight claim so a later ADD_PEER can retry.
+    console.error('addPeerConn failed for', peerId, error);
+    delete peers[peerId];
+  } finally {
+    inFlightPeers.delete(peerId);
   }
 }
 
 export function removePeerConn(config: RemovePeerConfig): void {
   webrtcDebug('Signaling server said to remove peer:', config);
   const peerId = config.peer_id;
+  inFlightPeers.delete(peerId);
   if (peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
   }
   if (peers[peerId]) {
+    // Drop the handler first so peer.close() → 'closed' does not re-enter removePeerConn.
+    peers[peerId].onconnectionstatechange = null;
     peers[peerId].close();
     delete peers[peerId];
   }
@@ -281,9 +312,11 @@ export function disconnectUser(): void {
     peerMediaElements[peerId].remove();
   }
   Object.keys(peers).forEach(peerId => {
+    peers[peerId].onconnectionstatechange = null;
     peers[peerId].close();
     delete peers[peerId];
   });
+  inFlightPeers.clear();
   store.dispatch(clearPeers());
   peerMediaElements = {};
 }
