@@ -14,7 +14,7 @@ export const setAsLoaded = (): { type: typeof SET_AS_LOADED } => {
 
 /* --------------- REDUCER --------------- */
 
-export default function configReducer (state: boolean = false, action: UnknownAction): boolean {
+export default function isLoadedReducer (state: boolean = false, action: UnknownAction): boolean {
   switch (action.type) {
     case SET_AS_LOADED:
       return true;
