@@ -180,6 +180,11 @@ export async function resolveGoogleUser (profile: {
     return byEmail;
   }
 
+  // Residual race: two concurrent first-time Google logins for the same new email (neither
+  // googleId nor email row exists yet) can both pass the lookups above and race on insert.
+  // findOrCreate is keyed only on googleId, so a unique-email collision can still surface as
+  // a rejected promise (done(err) → 500). Acceptable for now — same email+new Google id in
+  // the same millisecond is rare; a later migration could use a single upsert / advisory lock.
   const [user] = await User.findOrCreate({
     where: { googleId },
     defaults: { name, email, displayName, googleId }
@@ -209,10 +214,13 @@ passport.use(
   })
 );
 
-// Google OAuth cont. - handle the callback after Google has authenticated the user
+// Google OAuth cont. - handle the callback after Google has authenticated the user.
+// failureRedirect covers strategy failures including "no email on profile" (done(null, false));
+// without it Passport falls through to a bare 401 with no UI path back to login.
 auth.get('/google/callback',
   passport.authenticate('google', {
-    successRedirect: '/vr'
+    successRedirect: '/vr',
+    failureRedirect: '/login'
   })
 );
 
