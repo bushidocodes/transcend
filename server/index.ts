@@ -13,23 +13,11 @@ import { Server as SocketIOServer } from 'socket.io';
 import db, { connectionUrl, prepare } from '../db/index.ts';
 import attachSocketServer from './socket.ts';
 import api from './api.ts';
+// Open-redirect-safe HTTPS redirect (issue #169): never builds Location from req Host.
+import { forceSSL } from './force-ssl.ts';
 
 const server = http.createServer();
 const app = express();
-
-// Custom Middleware to redirect HTTP to https using request headers appended
-// By one of Heroku's AWS ELB instances.
-// http://docs.aws.amazon.com/elasticloadbalancing/latest/classic/x-forwarded-headers.html
-// Note that this is technically vulnerable to man-in-the-middle attacks
-const forceSSL = function (req: Request, res: Response, next: NextFunction) {
-  if (req.headers['x-forwarded-proto'] !== 'https') {
-    const clientIP = req.headers['x-forwarded-for'];
-    const redirectTarget = ['https://', req.get('Host'), req.url].join('');
-    console.log(styleText('blue', `Redirecting ${clientIP} to ${redirectTarget}`));
-    return res.redirect(redirectTarget);
-  }
-  return next();
-};
 
 if (process.env.NODE_ENV === 'production') {
   console.log(styleText('blue', 'Production Environment detected, so redirect to HTTPS'));
