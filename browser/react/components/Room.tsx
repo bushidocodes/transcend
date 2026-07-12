@@ -17,13 +17,13 @@ export default (props: Props) => (
     <a-entity
       geometry={`primitive: plane; width:${props.floorWidth}; height:${props.floorHeight}`}
       rotation="-90 0 0"
-      material={`color:${props.floorColor}; src: ${props.floorTexture}; repeat:${props.floorWidth}, ${props.floorWidth} `}
+      material={`color:${props.floorColor}; src: ${props.floorTexture}; repeat: ${props.floorWidth} ${props.floorWidth} `}
     />
 
     <a-entity
       geometry={`primitive: plane; width:${props.floorWidth}; height:${props.floorHeight}`}
       rotation="90 0 0"
-      position={`0, ${props.wallHeight}, 0`}
+      position={`0 ${props.wallHeight} 0`}
       material={`color: ${props.ceilingColor}`}
     />
 
