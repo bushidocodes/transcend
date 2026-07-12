@@ -12,6 +12,7 @@ import connectPgSimple from 'connect-pg-simple';
 import { Server as SocketIOServer } from 'socket.io';
 import db, { connectionUrl, prepare } from '../db/index.ts';
 import attachSocketServer from './socket.ts';
+import { attachSessionToEngine } from './share-session-with-socket.ts';
 import api from './api.ts';
 
 const server = http.createServer();
@@ -108,9 +109,7 @@ const io = new SocketIOServer(server, {
 // Share Express session + Passport with Engine.IO so socket handlers can read the
 // authenticated user off socket.request (issue #167). express-session and passport
 // middleware accept the (req, res, next) Engine.IO signature.
-io.engine.use(sessionMiddleware);
-io.engine.use(passportInit);
-io.engine.use(passportSession);
+attachSessionToEngine(io, sessionMiddleware, passportInit, passportSession);
 attachSocketServer(io);
 
 // Serve static files
