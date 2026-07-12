@@ -11,6 +11,11 @@ const User = require('../db').model('users');
 // is required — issue #79).
 const VALID_SKINS = require('./validSkins');
 
+// Throttle local signup/login (issue #140). whoami / logout / skin / Google OAuth stay
+// unlimited — they are not online password-guessing surfaces.
+const { createAuthRateLimiters } = require('./auth-rate-limit');
+const { ipLimiter, loginEmailLimiter } = createAuthRateLimiters();
+
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
@@ -35,7 +40,7 @@ passport.deserializeUser(
 // email and password are also required here (issue #139). Without them the model would
 // create unusable rows: Sequelize skips isEmail when the field is null, and setEmailAndPassword
 // early-returns when password is empty so password_digest stays NULL.
-auth.post('/local/signup', (req, res, next) => {
+auth.post('/local/signup', ipLimiter, (req, res, next) => {
   const { email, password, displayName } = req.body;
   if (!displayName || displayName.length < 1 || displayName.length > 8) {
     return res.status(400).json({ error: 'Display name must be 1–8 characters' });
@@ -65,7 +70,7 @@ auth.post('/local/signup', (req, res, next) => {
 });
 
 // Local login
-auth.post('/local/login', (req, res, next) => {
+auth.post('/local/login', ipLimiter, loginEmailLimiter, (req, res, next) => {
   passport.authenticate('local', {
     successRedirect: '/api/auth/whoami'
   })(req, res, next);
