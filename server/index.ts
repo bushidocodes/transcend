@@ -66,7 +66,10 @@ if (!sessionSecret) {
 // Postgres (a `session` table, auto-created; expired rows are pruned by the store), Passport's
 // regenerate() genuinely rotates the id on login, and deleting a row revokes that session.
 const PgSessionStore = connectPgSimple(session);
-app.use(session({
+// Named middleware so the same session instance can be shared with socket.io (issue #167):
+// Engine.IO runs this on the handshake request, so Passport can populate socket.request.user
+// and joinScene can trust accountId from the session instead of the client payload.
+const sessionMiddleware = session({
   store: new PgSessionStore({
     conString: connectionUrl,
     createTableIfMissing: true
@@ -81,15 +84,18 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production',
     maxAge: 7 * 24 * 60 * 60 * 1000
   }
-}));
+});
+app.use(sessionMiddleware);
 
 // Body parsing middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Authentication middleware
-app.use(passport.initialize());
-app.use(passport.session());
+// Authentication middleware (same instances shared with socket.io below)
+const passportInit = passport.initialize();
+const passportSession = passport.session();
+app.use(passportInit);
+app.use(passportSession);
 
 // Setting up socket.io
 server.on('request', app);
@@ -99,6 +105,12 @@ const io = new SocketIOServer(server, {
             (process.env.NODE_ENV === 'production' ? false : '*')
   }
 });
+// Share Express session + Passport with Engine.IO so socket handlers can read the
+// authenticated user off socket.request (issue #167). express-session and passport
+// middleware accept the (req, res, next) Engine.IO signature.
+io.engine.use(sessionMiddleware);
+io.engine.use(passportInit);
+io.engine.use(passportSession);
 attachSocketServer(io);
 
 // Serve static files
