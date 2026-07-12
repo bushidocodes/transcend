@@ -6,6 +6,7 @@ import http from 'http';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { resolve } from 'path';
 import { styleText } from 'node:util';
+import helmet from 'helmet';
 import passport from 'passport';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
@@ -20,6 +21,31 @@ import { notFound } from './not-found.ts';
 
 const server = http.createServer();
 const app = express();
+
+// Security headers (issue #201): hide Express, and apply helmet with a CSP loose enough for
+// A-Frame/WebGL (inline scripts/styles, data/blob images, WebSocket connect).
+app.disable('x-powered-by');
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      fontSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'", 'ws:', 'wss:'],
+      mediaSrc: ["'self'", 'blob:'],
+      workerSrc: ["'self'", 'blob:'],
+      // A-Frame may create child frames / WebXR layers; allow same-origin only.
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"]
+    }
+  },
+  // crossOriginEmbedderPolicy blocks some A-Frame/WebGL asset patterns; leave off.
+  crossOriginEmbedderPolicy: false
+}));
 
 if (process.env.NODE_ENV === 'production') {
   console.log(styleText('blue', 'Production Environment detected, so redirect to HTTPS'));
