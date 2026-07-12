@@ -1,9 +1,13 @@
 # Ignore all node_modules
 node_modules/*
 
-# Compiled JS
+# Compiled JS (content-hashed; see build.ts / issue #243)
 public/bundle.js
 public/bundle.js.map
+public/bundle.*.js
+public/bundle.*.js.map
+public/app.html
+public/app-assets.json
 
 # NPM errors
 npm-debug.log

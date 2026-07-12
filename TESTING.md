@@ -45,7 +45,7 @@ Perform this after every dependency bump to confirm the golden path still works.
 
 ### Prerequisites
 
-- `npm run build` completes without error (esbuild emits `public/bundle.js`).
+- `npm run build` completes without error (esbuild emits `public/bundle.[hash].js` and `public/app.html`).
 - Server running: `npm run server` (or `npm start` which also builds).
 - At least one user account exists: run `npm run seed` for demo accounts
   (password `1234`, emails like `sean@transcend.vr`) or register with

@@ -4,12 +4,14 @@ import './load-env.ts';
 
 import http from 'http';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { existsSync } from 'node:fs';
 import { resolve } from 'path';
 import { styleText } from 'node:util';
 import helmet from 'helmet';
 import passport from 'passport';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
+import { rateLimit } from 'express-rate-limit';
 import { Server as SocketIOServer } from 'socket.io';
 import db, { connectionUrl, prepare } from '../db/index.ts';
 import attachSocketServer from './socket.ts';
@@ -147,9 +149,18 @@ const io = new SocketIOServer(server, {
 attachSessionToEngine(io, sessionMiddleware, passportInit, passportSession);
 attachSocketServer(io);
 
-// Serve static files
+// Serve static files. Content-hashed bundles (public/bundle.[hash].js, issue #243) get
+// long-lived immutable caching; everything else keeps express.static defaults.
 app.use(express.static(resolve(import.meta.dirname, '../browser/stylesheets')));
-app.use(express.static(resolve(import.meta.dirname, '../public')));
+app.use(
+  express.static(resolve(import.meta.dirname, '../public'), {
+    setHeaders(res, filePath) {
+      if (/[\\/]bundle\.[a-zA-Z0-9_-]+\.js$/.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    }
+  })
+);
 
 // Readiness probe (issue #121): 200 only when the database is reachable, so a load balancer /
 // container orchestrator can tell a booting-or-broken instance from a healthy one.
@@ -184,9 +195,26 @@ app.get('/healthz', (_req, res) => {
 // Routes
 app.use('/api', api);
 
-// Send index.html for anything else
-app.get('/{*path}', (_req, res) => {
-  res.sendFile('app.html', { root: resolve(import.meta.dirname, '../browser') });
+// SPA shell: serve the build-generated public/app.html (script src points at the
+// content-hashed bundle; see build.ts / issue #243). Prefer that path when the file
+// exists at process start (not per request — avoids re-statting under load). Fall
+// back to browser/app.html only for unbuilt local trees (still references /bundle.js).
+// no-cache so clients always pick up a new hash after deploy.
+// Rate-limit FS-backed sendFile (CodeQL js/missing-rate-limiting): generous for SPA
+// navigations/refreshes while still bounding unbounded spray of the catch-all route.
+const publicDir = resolve(import.meta.dirname, '../public');
+const browserDir = resolve(import.meta.dirname, '../browser');
+const spaAppHtmlRoot = existsSync(resolve(publicDir, 'app.html')) ? publicDir : browserDir;
+const spaShellLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+app.get('/{*path}', spaShellLimiter, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile('app.html', { root: spaAppHtmlRoot });
 });
 
 // Unmatched non-GET methods would otherwise hang with no response. Answer them with 404
