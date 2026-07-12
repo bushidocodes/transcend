@@ -15,11 +15,13 @@ import { currentRoom } from '../../navigate';
 const style = { width: '100%', height: '100%' };
 
 function App (props) {
-  // Gate the room (Outlet) on <a-assets> finishing. Under React 18 + A-Frame 1.7, an entity that
+  // Gate the room (Outlet) on <a-assets> finishing. Under React 19 + A-Frame 1.x, an entity that
   // references an asset by #id selector can parse before <a-assets> has registered the matching
   // element, resolving to null with no retry. The static images / gltf monitors / floors now use
   // direct URLs (race-immune), but the cat-room gif materials still reference assets by selector,
   // so waiting for a-assets 'loaded' before creating any room entity keeps those resolving too.
+  // A-Frame entities stay as custom elements; React 19's improved CE support sets string props as
+  // attributes (what A-Frame reads) when the DOM property is absent.
   const [assetsReady, setAssetsReady] = useState(false);
   // joinScene must be emitted exactly once, even across re-renders.
   const joinedScene = useRef(false);
