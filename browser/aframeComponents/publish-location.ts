@@ -3,6 +3,7 @@ import store from '../redux/store.ts';
 import { EVENTS } from '../../shared/protocol.ts';
 import { getSocket } from '../socket-holder.ts';
 import { updateMuteButtonPosition } from './update-mute-button-position.ts';
+import { readPublishPose } from './read-publish-pose.ts';
 
 // This component is attached to the user who the scene belongs to.
 // A-Frame calls tick() every animation frame, but we publish position only every Nth frame,
@@ -23,15 +24,9 @@ export default AFRAME.registerComponent('publish-location', {
     // Pose only (issue #113): the server keys the update on the socket's own identity and
     // ignores everything else, so id no longer rides along, and skin/scene travel via the
     // dedicated changeSkin/changeScene events instead of every tick.
-    const el = this.el;
-    const userPosition = {
-      x: el.getAttribute('position').x,
-      y: el.getAttribute('position').y,
-      z: el.getAttribute('position').z,
-      xrot: el.getAttribute('rotation').x,
-      yrot: el.getAttribute('rotation').y,
-      zrot: el.getAttribute('rotation').z
-    };
+    // Null-guard position/rotation reads during entity teardown (#224); same spirit as #202.
+    const userPosition = readPublishPose(this.el);
+    if (!userPosition) return;
     // Null-guard: #mutebutton is destroyed on logout while tick may still fire (#202).
     updateMuteButtonPosition(userPosition);
     // getSocket() is null pre-init (see socket-holder.ts); skip the emit rather than crash
