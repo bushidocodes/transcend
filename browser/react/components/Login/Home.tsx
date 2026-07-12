@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import { useDispatch } from 'react-redux';
 import { login, signup } from '../../../redux/reducers/auth.ts';
@@ -11,11 +11,18 @@ export interface LoginOutletContext {
   login: (event: FormEvent<HTMLFormElement>) => void;
   signup: (event: FormEvent<HTMLFormElement>) => void;
   styles: typeof styles;
+  /** Login-form failure message; null when none (issue #228). Not shared with signup. */
+  loginError: string | null;
+  /** Signup-form failure message; null when none (issue #228). Not shared with login. */
+  signupError: string | null;
 }
 
 export default function Home() {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+  // Separate form errors so a failed login does not appear above signup (and vice versa).
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [signupError, setSignupError] = useState<string | null>(null);
 
   function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,7 +32,12 @@ export default function Home() {
     };
     const email = form.email.value;
     const password = form.password.value;
-    dispatch(login(email, password)).then(() => navigate('/vr'));
+    setLoginError(null);
+    // Only navigate on success; surface failure so the user is not silently bounced (#228).
+    dispatch(login(email, password)).then(ok => {
+      if (ok) navigate('/vr');
+      else setLoginError('Login failed. Check your email and password.');
+    });
   }
 
   function handleSignup(event: FormEvent<HTMLFormElement>) {
@@ -40,14 +52,27 @@ export default function Home() {
     const displayName = form.displayName.value;
     const email = form.email.value;
     const password = form.password.value;
-    dispatch(signup(name, displayName, email, password)).then(() => navigate('/vr'));
+    setSignupError(null);
+    dispatch(signup(name, displayName, email, password)).then(ok => {
+      if (ok) navigate('/vr');
+      else
+        setSignupError('Signup failed. That email may already be in use, or the form is invalid.');
+    });
   }
 
   return (
     <div>
       <Title styles={styles} />
       <Outlet
-        context={{ login: handleLogin, signup: handleSignup, styles } satisfies LoginOutletContext}
+        context={
+          {
+            login: handleLogin,
+            signup: handleSignup,
+            styles,
+            loginError,
+            signupError
+          } satisfies LoginOutletContext
+        }
       />
     </div>
   );

@@ -49,7 +49,10 @@ export const authenticated = (user: AuthState): AuthenticatedAction => ({
   user
 });
 
-export const login = (username: string, password: string): AppThunk<Promise<void>> => {
+// Returns true on success so Home can navigate only then; false on failure (issue #228).
+// Previously .catch dispatched authenticated({}) and still resolved, so the UI always
+// navigated to /vr and RequireAuth bounced back with zero feedback.
+export const login = (username: string, password: string): AppThunk<Promise<boolean>> => {
   return (dispatch: AppDispatch) =>
     fetch('/api/auth/local/login', {
       method: 'POST',
@@ -59,18 +62,21 @@ export const login = (username: string, password: string): AppThunk<Promise<void
       .then(handleJson)
       .then(data => {
         dispatch(authenticated(asUser(data)));
+        return true;
       })
       .catch(() => {
         dispatch(authenticated({}));
+        return false;
       });
 };
 
+// Returns true only when signup + the follow-up login both succeed (issue #228).
 export const signup = (
   name: string,
   displayName: string,
   email: string,
   password: string
-): AppThunk<Promise<void>> => {
+): AppThunk<Promise<boolean>> => {
   return (dispatch: AppDispatch) =>
     fetch('/api/auth/local/signup', {
       method: 'POST',
@@ -83,7 +89,7 @@ export const signup = (
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return dispatch(login(email, password));
       })
-      .catch(err => console.log(err.message));
+      .catch(() => false);
 };
 
 // Returns (not just fires) the chained whoami so callers await the auth slice actually
