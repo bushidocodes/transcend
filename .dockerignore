@@ -1,0 +1,19 @@
+# Keep the Docker build context small and free of local secrets (issue #238).
+node_modules
+.git
+.github
+.env
+.env.*
+!.env.example
+coverage
+.playwright-mcp
+*.md
+!README.md
+.issue-review
+mcps
+terminals
+.claude
+public/bundle.js
+public/bundle.js.map
+npm-debug.log
+.DS_Store

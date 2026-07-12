@@ -150,6 +150,16 @@ npm run server
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` / `test-watch` / `test:coverage` | Vitest suite (see [TESTING.md](TESTING.md)) |
 
+### Docker (prod-parity)
+
+A multi-stage `Dockerfile` and `docker-compose.yml` run the production build together with Postgres:
+
+```
+docker compose up --build
+```
+
+Then open `http://localhost:1337`. Compose sets `DATABASE_URL` and a throwaway `SESSION_SECRET`; replace the secret before any real deploy. The app image healthcheck hits `/healthz`.
+
 ## Help
 
 Create an [issue](https://github.com/bushidocodes/transcend/issues) or submit a pull request if you need help or find a bug. Contributions and ideas welcome!
