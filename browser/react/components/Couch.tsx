@@ -7,9 +7,10 @@ interface Props {
   rotz: string;
 }
 
+// No static id: multiple couches share a scene; a shared id="couch" would be invalid HTML
+// and break any future getElementById / A-Frame selector (issue #237).
 export default (props: Props) => (
   <a-entity
-    id="couch"
     position={`${props.x} ${props.y} ${props.z}`}
     rotation={`${props.rotx} ${props.roty} ${props.rotz}`}
   >

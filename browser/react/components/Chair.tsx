@@ -4,8 +4,10 @@ interface Props {
   z: string;
 }
 
+// No static id: Lobby alone renders ~20 chairs; a shared id="chair" would be invalid HTML
+// and break any future getElementById / A-Frame selector (issue #237).
 export default (props: Props) => (
-  <a-entity id="chair" position={`${props.x} ${props.y} ${props.z}`} rotation="0 180 0">
+  <a-entity position={`${props.x} ${props.y} ${props.z}`} rotation="0 180 0">
     <a-entity
       mixin="chair-part"
       geometry="height: 1; depth: 0.05; width: 0.05"
