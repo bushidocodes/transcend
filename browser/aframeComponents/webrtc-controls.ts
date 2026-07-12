@@ -14,6 +14,10 @@ AFRAME.registerComponent('mute-self', {
     this.el.addEventListener('click', this.handler);
     this.el.addEventListener('gripdown', this.handler);
   },
+  remove: function (this: any) {
+    this.el.removeEventListener('click', this.handler);
+    this.el.removeEventListener('gripdown', this.handler);
+  },
   handler: function (this: any) {
     console.log('Muting');
     // MediaStream lives in the client.ts module registry (issue #176), not Redux.

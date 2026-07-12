@@ -20,10 +20,19 @@ export default function createHyperlinkComponent (handler: (this: any) => void) 
       this.setupHighlight();
     },
 
-    // Remove cleans up event listeners when removed.
+    // Remove cleans up event listeners and the highlight mesh clone when removed.
     remove: function (this: any) {
       this.el.removeEventListener('click', this.handler);
       this.el.removeEventListener('gripdown', this.handler);
+      if (this.onMouseEnter) {
+        this.el.removeEventListener('mouseenter', this.onMouseEnter);
+      }
+      if (this.onMouseLeave) {
+        this.el.removeEventListener('mouseleave', this.onMouseLeave);
+      }
+      if (this.highlightClone && this.highlightClone.parent) {
+        this.highlightClone.parent.remove(this.highlightClone);
+      }
     },
 
     // Dummy Handler that will be replaced by handler argument
@@ -47,15 +56,17 @@ export default function createHyperlinkComponent (handler: (this: any) => void) 
       clone.scale.set(1.2, 1.2, 1.2);
       clone.visible = false;
       mesh.parent.add(clone);
+      this.highlightClone = clone;
 
-      // Toggle highlighter on mouse events.
-      this.el.addEventListener('mouseenter', function () {
+      // Toggle highlighter on mouse events. Named handlers so remove() can detach them.
+      this.onMouseEnter = function () {
         clone.visible = true;
-      });
-
-      this.el.addEventListener('mouseleave', function () {
+      };
+      this.onMouseLeave = function () {
         clone.visible = false;
-      });
+      };
+      this.el.addEventListener('mouseenter', this.onMouseEnter);
+      this.el.addEventListener('mouseleave', this.onMouseLeave);
     }
   };
   // Overwrite the handler with one passed by the user.
