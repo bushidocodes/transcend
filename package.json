@@ -82,5 +82,8 @@
     "morgan": "^1.11.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }
