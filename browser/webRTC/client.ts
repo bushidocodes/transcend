@@ -8,7 +8,12 @@ import {
 } from '../redux/reducers/webrtc-reducer.ts';
 import { EVENTS } from '../../shared/protocol.ts';
 import { getSocket } from '../socket-holder.ts';
-import { isTerminalConnectionState, reservePeerSlot } from './peer-guards.ts';
+import {
+  isReservationHeld,
+  isTerminalConnectionState,
+  releasePeerReservation,
+  reservePeerSlot
+} from './peer-guards.ts';
 
 /* ---------- signaling payload shapes (see shared/protocol.ts for the events) ---------- */
 
@@ -68,7 +73,7 @@ const peers: Record<string, RTCPeerConnection> = {};
 // Peer ids currently inside addPeerConn between the guard and peers[id] assignment (issue #231).
 // Without this, two concurrent ADD_PEER events both pass `if (peers[peerId])` during the
 // await getIceServers() gap and the first RTCPeerConnection is leaked.
-const inFlightPeers = new Set<string>();
+const inFlightPeers = new Map<string, number>();
 let peerMediaElements: Record<string, HTMLAudioElement> = {};
 
 export function getLocalMediaStream(): MediaStream | null {
@@ -148,13 +153,20 @@ export async function addPeerConn(config: AddPeerConfig): Promise<void> {
   const peerId = config.peer_id;
   // Reserve before any await so concurrent ADD_PEER for the same id cannot double-create
   // (issue #231). inFlightPeers covers the gap until peers[peerId] is set below.
-  if (!reservePeerSlot(peerId, peers, inFlightPeers)) {
+  const reservation = reservePeerSlot(peerId, peers, inFlightPeers);
+  if (reservation === false) {
     webrtcDebug('Already connected (or connecting) to peer ', peerId);
     return;
   }
 
   try {
     const iceServers = await getIceServers();
+    // If removePeerConn (or a newer reserve) ran during the await, do not register a peer
+    // the signaling path already asked us to drop (issue #231 residual ADD→REMOVE→ADD race).
+    if (!isReservationHeld(peerId, inFlightPeers, reservation)) {
+      webrtcDebug('Peer reservation released during await; aborting addPeerConn for', peerId);
+      return;
+    }
 
     // Create a webRTC peer connection to the ICE servers. Unprefixed RTCPeerConnection
     // replaces the removed webkitRTCPeerConnection; the legacy second constraints argument
@@ -237,14 +249,14 @@ export async function addPeerConn(config: AddPeerConfig): Promise<void> {
     console.error('addPeerConn failed for', peerId, error);
     delete peers[peerId];
   } finally {
-    inFlightPeers.delete(peerId);
+    releasePeerReservation(peerId, inFlightPeers, reservation);
   }
 }
 
 export function removePeerConn(config: RemovePeerConfig): void {
   webrtcDebug('Signaling server said to remove peer:', config);
   const peerId = config.peer_id;
-  inFlightPeers.delete(peerId);
+  releasePeerReservation(peerId, inFlightPeers);
   if (peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
   }
