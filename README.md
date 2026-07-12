@@ -93,4 +93,4 @@ The game will then be accessible at `http://localhost:1337`.
 
 ## Help
 
-Create an [issue](https://github.com/TranscendVR/transcend/issues) or submit a pull request if you need help or find a bug. Contributions and ideas welcome!
+Create an [issue](https://github.com/bushidocodes/transcend/issues) or submit a pull request if you need help or find a bug. Contributions and ideas welcome!
