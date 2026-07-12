@@ -15,6 +15,7 @@ import attachSocketServer from './socket.ts';
 import api from './api.ts';
 // Open-redirect-safe HTTPS redirect (issue #169): never builds Location from req Host.
 import { forceSSL } from './force-ssl.ts';
+import { notFound } from './not-found.ts';
 
 const server = http.createServer();
 const app = express();
@@ -127,6 +128,10 @@ app.use('/api', api);
 app.get('/{*path}', (req, res) => {
   res.sendFile('app.html', { root: resolve(import.meta.dirname, '../browser') });
 });
+
+// Unmatched non-GET methods would otherwise hang with no response. Answer them with 404
+// before the error middleware below (which expects 4 args and only runs on errors).
+app.use(notFound);
 
 const port = process.env.PORT || 1337;
 // Don't accept traffic until the database is confirmed ready (issue #121): prepare() runs
