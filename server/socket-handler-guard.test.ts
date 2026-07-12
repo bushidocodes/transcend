@@ -15,7 +15,11 @@ function flushMicrotasks(): Promise<void> {
 describe('runGuardedHandler (issue #241)', () => {
   it('invokes the handler with the provided args', () => {
     const seen: unknown[] = [];
-    runGuardedHandler((a, b) => seen.push(a, b), ['x', 2], () => {});
+    runGuardedHandler(
+      (a, b) => seen.push(a, b),
+      ['x', 2],
+      () => {}
+    );
     expect(seen).toEqual(['x', 2]);
   });
 
@@ -53,8 +57,10 @@ describe('runGuardedHandler (issue #241)', () => {
 
   it('catches an explicitly returned rejected Promise', async () => {
     const errors: unknown[] = [];
-    runGuardedHandler(() => Promise.reject(new Error('rejected-promise')), [], err =>
-      errors.push(err)
+    runGuardedHandler(
+      () => Promise.reject(new Error('rejected-promise')),
+      [],
+      err => errors.push(err)
     );
     await flushMicrotasks();
     expect(errors).toHaveLength(1);
@@ -63,8 +69,16 @@ describe('runGuardedHandler (issue #241)', () => {
 
   it('does not call onError when the handler succeeds', async () => {
     const errors: unknown[] = [];
-    runGuardedHandler(() => 'ok', [], err => errors.push(err));
-    runGuardedHandler(async () => 'ok-async', [], err => errors.push(err));
+    runGuardedHandler(
+      () => 'ok',
+      [],
+      err => errors.push(err)
+    );
+    runGuardedHandler(
+      async () => 'ok-async',
+      [],
+      err => errors.push(err)
+    );
     await flushMicrotasks();
     expect(errors).toEqual([]);
   });
