@@ -91,22 +91,15 @@ export default function attachSocketServer (io: Server): void {
   // Fixed-rate, room-scoped broadcast loop (issue #115). This replaces the old per-socket
   // store.subscribe fan-out, which re-filtered the whole user map and emitted for EVERY
   // subscriber on EVERY dispatch — N ticking clients cost N×tickrate dispatches × N
-  // subscriptions × O(N) filtering. Here each dirty scene is filtered ONCE per beat, and each
-  // member gets that snapshot minus its own record (the local avatar is driven by the
-  // first-person camera, not by server echo).
+  // subscriptions × O(N) filtering. Build the scene snapshot ONCE per beat and emit the same
+  // object to the whole scene room (issue #200). Clients ignore their own id in avatars.sync
+  // (local avatar is camera-driven); the previous per-member Object.assign+delete was O(M²).
   const broadcastTimer = setInterval(() => {
     for (const scene of dirtyScenes) {
-      const members = io.sockets.adapter.rooms.get(sceneRoomOf(scene));
-      if (members) {
-        const snapshot = gameState.usersInScene(scene);
-        for (const id of members) {
-          const member = io.sockets.sockets.get(id);
-          if (!member) continue;
-          const others = Object.assign({}, snapshot);
-          delete others[id];
-          member.emit(EVENTS.USERS_UPDATED, others);
-        }
-      }
+      const room = sceneRoomOf(scene);
+      if (!io.sockets.adapter.rooms.get(room)?.size) continue;
+      const snapshot = gameState.usersInScene(scene);
+      io.to(room).emit(EVENTS.USERS_UPDATED, snapshot);
     }
     dirtyScenes.clear();
   }, BROADCAST_INTERVAL_MS);

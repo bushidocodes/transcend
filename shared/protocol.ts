@@ -13,9 +13,9 @@
 //   2. server emits  SCENE_STATE                — { you, others, tickRate }: everything needed
 //                                                 to render the room in one message
 //   3. client emits  READY                      — scene rendered; start streaming
-//   4. server emits  USERS_UPDATED              — room-scoped snapshots of the OTHER users, on
-//                                                 a fixed server clock (#115), until the client
-//                                                 disconnects, logs out, or is replaced
+//   4. server emits  USERS_UPDATED              — room-scoped full scene snapshot once per beat
+//                                                 (#115/#200); clients ignore their own id
+//                                                 until disconnect, logout, or session replace
 
 /* ---------- payload shapes ----------
    The wire types, shared so the server's game state and the browser's avatar/pose code agree
