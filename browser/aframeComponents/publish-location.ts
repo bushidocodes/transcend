@@ -2,6 +2,7 @@ import AFRAME from 'aframe';
 import store from '../redux/store.ts';
 import { EVENTS } from '../../shared/protocol.ts';
 import { getSocket } from '../socket-holder.ts';
+import { updateMuteButtonPosition } from './update-mute-button-position.ts';
 
 // This component is attached to the user who the scene belongs to.
 // A-Frame calls tick() every animation frame, but we publish position only every Nth frame,
@@ -31,8 +32,8 @@ export default AFRAME.registerComponent('publish-location', {
       yrot: el.getAttribute('rotation').y,
       zrot: el.getAttribute('rotation').z
     };
-    const mutebutton = document.getElementById('mutebutton')!;
-    mutebutton.setAttribute('position', `${userPosition.x} 0.1 ${userPosition.z - 1}`);
+    // Null-guard: #mutebutton is destroyed on logout while tick may still fire (#202).
+    updateMuteButtonPosition(userPosition);
     // getSocket() is null pre-init (see socket-holder.ts); skip the emit rather than crash
     // if a tick races login/teardown.
     getSocket()?.emit(EVENTS.TICK, userPosition);
