@@ -14,7 +14,8 @@ const options: esbuild.BuildOptions = {
   // jsx-runtime imports so we don't need the classic React.createElement factory.
   jsx: 'automatic',
   define: { 'process.env.NODE_ENV': JSON.stringify(prod ? 'production' : 'development') },
-  target: 'es2020',
+  // Match tsconfig.json "target": "es2022" (Node 24 / modern browsers).
+  target: 'es2022',
   minify: prod,
   logLevel: 'info',
 };
