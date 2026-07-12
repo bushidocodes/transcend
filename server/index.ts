@@ -4,6 +4,7 @@ import './load-env.ts';
 
 import http from 'http';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { existsSync } from 'node:fs';
 import { resolve } from 'path';
 import { styleText } from 'node:util';
 import helmet from 'helmet';
@@ -147,9 +148,18 @@ const io = new SocketIOServer(server, {
 attachSessionToEngine(io, sessionMiddleware, passportInit, passportSession);
 attachSocketServer(io);
 
-// Serve static files
+// Serve static files. Content-hashed bundles (public/bundle.[hash].js, issue #243) get
+// long-lived immutable caching; everything else keeps express.static defaults.
 app.use(express.static(resolve(import.meta.dirname, '../browser/stylesheets')));
-app.use(express.static(resolve(import.meta.dirname, '../public')));
+app.use(
+  express.static(resolve(import.meta.dirname, '../public'), {
+    setHeaders(res, filePath) {
+      if (/[\\/]bundle\.[a-zA-Z0-9_-]+\.js$/.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    }
+  })
+);
 
 // Readiness probe (issue #121): 200 only when the database is reachable, so a load balancer /
 // container orchestrator can tell a booting-or-broken instance from a healthy one.
@@ -184,9 +194,18 @@ app.get('/healthz', (_req, res) => {
 // Routes
 app.use('/api', api);
 
-// Send index.html for anything else
+// SPA shell: serve the build-generated public/app.html (script src points at the
+// content-hashed bundle; see build.ts / issue #243). no-cache so clients always pick
+// up a new hash after deploy. Fall back to the browser/ template only if build has
+// not run yet (dev mistake); that template still references /bundle.js.
 app.get('/{*path}', (_req, res) => {
-  res.sendFile('app.html', { root: resolve(import.meta.dirname, '../browser') });
+  res.setHeader('Cache-Control', 'no-cache');
+  const generated = resolve(import.meta.dirname, '../public/app.html');
+  if (existsSync(generated)) {
+    res.sendFile(generated);
+  } else {
+    res.sendFile('app.html', { root: resolve(import.meta.dirname, '../browser') });
+  }
 });
 
 // Unmatched non-GET methods would otherwise hang with no response. Answer them with 404
