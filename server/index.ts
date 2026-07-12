@@ -128,6 +128,12 @@ app.get('/{*path}', (req, res) => {
   res.sendFile('app.html', { root: resolve(import.meta.dirname, '../browser') });
 });
 
+// Unmatched non-GET methods would otherwise hang with no response. Answer them with 404
+// before the error middleware below (which expects 4 args and only runs on errors).
+app.use((req, res) => {
+  res.status(404).end();
+});
+
 const port = process.env.PORT || 1337;
 // Don't accept traffic until the database is confirmed ready (issue #121): prepare() runs
 // pending migrations (#133) and resolves only once the schema is usable. On failure, exit
