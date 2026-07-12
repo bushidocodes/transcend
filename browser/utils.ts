@@ -11,7 +11,8 @@ export function changeUserSkin (skin: string): void {
   // Tell the server (and thus everyone else in the room) about the new skin. Skins used to
   // piggyback on every position tick; the server no longer merges skin from ticks (issue
   // #113), so this is the one live-update path peers see.
-  getSocket()!.emit(EVENTS.CHANGE_SKIN, skin);
+  // getSocket() is null pre-init; if it somehow is, still persist the choice below.
+  getSocket()?.emit(EVENTS.CHANGE_SKIN, skin);
   fetch('/api/auth/skin', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

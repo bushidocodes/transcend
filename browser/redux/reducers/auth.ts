@@ -80,11 +80,14 @@ export const signup = (name: string, displayName: string, email: string, passwor
       .catch(err => console.log(err.message));
 };
 
+// Returns (not just fires) the chained whoami so callers await the auth slice actually
+// clearing — the Logout route navigates on this promise, and RequireAuth would otherwise
+// still see the stale auth.id.
 export const logout = (): AppThunk<Promise<void>> =>
   (dispatch: AppDispatch) =>
     fetch('/api/auth/logout', { method: 'POST' })
-      .then(() => { dispatch(whoami()); })
-      .catch(() => { dispatch(whoami()); });
+      .then(() => dispatch(whoami()))
+      .catch(() => dispatch(whoami()));
 
 export const whoami = (): AppThunk<Promise<void>> => {
   return (dispatch: AppDispatch) =>

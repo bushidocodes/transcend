@@ -67,7 +67,7 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
     return;
   }
   if (localMediaStream != null) {  /* ie, if we've already been initialized */
-    getSocket()!.emit(EVENTS.JOIN_CHAT_ROOM, room);
+    getSocket()?.emit(EVENTS.JOIN_CHAT_ROOM, room);
     return;
   }
   console.log('Requesting access to local audio / video inputs');
@@ -81,7 +81,7 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
       const audioEl = document.getElementById('localAudio') as HTMLAudioElement;
       audioEl.muted = true;
       audioEl.srcObject = stream;
-      getSocket()!.emit(EVENTS.JOIN_CHAT_ROOM, room);
+      getSocket()?.emit(EVENTS.JOIN_CHAT_ROOM, room);
     })
     // On Failure... likely because user denied access to a/v
     .catch(() => {
@@ -95,7 +95,9 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
 //   triggers server-side logic to leave the matching socket.io room and tear down
 //   existing WebRTC connections.
 export function leaveChatRoom (): void {
-  getSocket()!.emit(EVENTS.LEAVE_CHAT_ROOM);
+  // Null pre-init (socket-holder.ts contract) — leaving a room you could never have joined
+  // is a no-op, not a crash.
+  getSocket()?.emit(EVENTS.LEAVE_CHAT_ROOM);
 }
 
 // accepts conifg
@@ -119,7 +121,7 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   // I'm not 100% sure what this does, but it sets up ice candidates ¯\_(ツ)_/¯
   peerConnection.onicecandidate = function (event) {
     if (event.candidate) {
-      getSocket()!.emit(EVENTS.RELAY_ICE_CANDIDATE, {
+      getSocket()?.emit(EVENTS.RELAY_ICE_CANDIDATE, {
         peer_id: peerId,
         ice_candidate: {
           sdpMLineIndex: event.candidate.sdpMLineIndex,
@@ -163,7 +165,7 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
     try {
       const localDescription = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(localDescription);
-      getSocket()!.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
+      getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
         { peer_id: peerId, session_description: localDescription });
       console.log('Offer setLocalDescription succeeded');
     } catch (error) {
@@ -202,7 +204,7 @@ export async function setRemoteAnswer (config: SessionDescriptionConfig): Promis
       console.log('Creating answer');
       const localDescription = await peer.createAnswer();
       await peer.setLocalDescription(localDescription);
-      getSocket()!.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
+      getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
         { peer_id: peerId, session_description: localDescription });
       console.log('Answer setLocalDescription succeeded');
     }

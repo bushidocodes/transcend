@@ -94,7 +94,7 @@ function setEmailAndPassword (user: User): Promise<void> {
 
   return new Promise((resolve, reject) =>
     bcrypt.hash(password, 10, (err, hash) => {
-      if (err || hash === undefined) return reject(err);
+      if (err || hash === undefined) return reject(err ?? new Error('bcrypt produced no hash'));
       user.set('password_digest', hash);
       resolve();
     })

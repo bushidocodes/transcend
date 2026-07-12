@@ -1,7 +1,7 @@
 import { styleText } from 'node:util';
 import type { Server, Socket } from 'socket.io';
 import { EVENTS, isObject, validJoinScene, validRoom } from '../shared/protocol.ts';
-import type { AuthUser, Pose } from '../shared/protocol.ts';
+import type { Pose } from '../shared/protocol.ts';
 import GameState from './game-state.ts';
 import VALID_SKINS from './validSkins.ts';
 
@@ -29,13 +29,17 @@ const BROADCAST_INTERVAL_MS = 50;
 // handler through this guarded path instead: `validate` (when given) must accept the payload
 // or the message is dropped, and the handler body is caught and logged rather than crashing.
 // The per-event payload validators live with the event names in shared/protocol.ts (#117).
+//
+// Payloads are `unknown`, deliberately: a validator only proves the coarse protocol shape, so
+// each handler re-narrows the fields it actually reads (typeof/isObject) instead of asserting
+// a trusted type onto attacker-controlled input.
 function on (
   socket: Socket,
   event: string,
-  validate: ((...args: any[]) => boolean) | null,
-  handler: (...args: any[]) => void
+  validate: ((...args: unknown[]) => boolean) | null,
+  handler: (...args: unknown[]) => void
 ): void {
-  socket.on(event, (...args: any[]) => {
+  socket.on(event, (...args: unknown[]) => {
     try {
       if (validate && !validate(...args)) {
         console.log(styleText('red', `[${socket.id}] dropped malformed '${event}' payload`));
@@ -135,11 +139,18 @@ export default function attachSocketServer (io: Server): void {
     //   assets are ready), and the server creates the user and returns everything needed to
     //   render the room in one sceneState message. A single entry point also removes the old
     //   sceneLoad/createdUser ordering race.
-    on(socket, EVENTS.JOIN_SCENE, validJoinScene, (user: AuthUser, scene?: string) => {
+    on(socket, EVENTS.JOIN_SCENE, validJoinScene, (user: unknown, scene: unknown) => {
+      // validJoinScene guarantees these at runtime; re-narrow so the compiler knows too, and
+      // so the fields below are read as untrusted wire data rather than a typed auth record —
+      // `user` is fully client-controlled, not something Passport handed us.
+      if (!isObject(user)) return;
+      const sceneName = typeof scene === 'string' ? scene : undefined;
       socket.createdUser = true;
       // Single active session per account ("newest wins"): drop any prior socket for this
       // account before registering the new one (issue #30). Anonymous (no id) are exempt.
-      const accountId = user && user.id != null ? user.id : null;
+      // Only a string/number id counts — an object or boolean id must never drive the
+      // eviction comparison below.
+      const accountId = typeof user.id === 'number' || typeof user.id === 'string' ? user.id : null;
       socket.accountId = accountId;
       // When the new tab takes over an existing session in the SAME room, carry that session's
       // position/rotation forward so the user resumes exactly where they were standing instead of
@@ -153,7 +164,7 @@ export default function attachSocketServer (io: Server): void {
           if (existing.id !== socket.id && existing.accountId === accountId) {
             console.log(styleText('red', `Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`));
             const prev = gameState.getUser(existing.id);
-            if (prev && prev.scene === scene) {
+            if (prev && prev.scene === sceneName) {
               inheritedPosition = {
                 x: prev.x,
                 y: prev.y,
@@ -171,7 +182,12 @@ export default function attachSocketServer (io: Server): void {
       // A re-join (reconnect, or login after logout) may land in a different scene; drop any
       // stale broadcast-room membership until the client acks ready again.
       leaveSceneRoom();
-      const me = gameState.addUser(socket.id, user, scene);
+      // Field-level narrowing (#113 spirit): a non-string displayName/skin never reaches the
+      // record that gets broadcast to every peer in the room.
+      const me = gameState.addUser(socket.id, {
+        displayName: typeof user.displayName === 'string' ? user.displayName : undefined,
+        skin: typeof user.skin === 'string' ? user.skin : undefined
+      }, sceneName);
       // Apply the inherited position over the fresh random spawn before building sceneState, so
       // the takeover tab renders at the carried-forward location.
       if (inheritedPosition) gameState.updatePose(socket.id, inheritedPosition);
@@ -196,8 +212,8 @@ export default function attachSocketServer (io: Server): void {
     //   ignored — the record is keyed on socket.id — and GameState.updatePose merges only
     //   finite numeric pose fields onto an existing record, so a tick can only ever move the
     //   sender's own avatar and can never create one (issues #56/#113).
-    on(socket, EVENTS.TICK, isObject, (userData: Record<string, unknown>) => {
-      if (!socket.createdUser) return;
+    on(socket, EVENTS.TICK, isObject, (userData: unknown) => {
+      if (!socket.createdUser || !isObject(userData)) return;
       const me = gameState.updatePose(socket.id, userData);
       if (me) markDirty(me.scene);
     });
@@ -206,14 +222,14 @@ export default function attachSocketServer (io: Server): void {
     // injection surface (#113). They are explicit messages now, validated server-side and
     // applied to the sender's own record only. The skin whitelist is server-only state, so its
     // check composes here with the protocol-level shape check (#117).
-    on(socket, EVENTS.CHANGE_SKIN, (skin: unknown) => typeof skin === 'string' && VALID_SKINS.has(skin), (skin: string) => {
-      if (!socket.createdUser) return;
+    on(socket, EVENTS.CHANGE_SKIN, (skin: unknown) => typeof skin === 'string' && VALID_SKINS.has(skin), (skin: unknown) => {
+      if (!socket.createdUser || typeof skin !== 'string') return;
       const me = gameState.setSkin(socket.id, skin);
       if (me) markDirty(me.scene);
     });
 
-    on(socket, EVENTS.CHANGE_SCENE, validRoom, (scene: string) => {
-      if (!socket.createdUser) return;
+    on(socket, EVENTS.CHANGE_SCENE, validRoom, (scene: unknown) => {
+      if (!socket.createdUser || typeof scene !== 'string') return;
       const change = gameState.setScene(socket.id, scene);
       if (!change) return;
       // The old room's next snapshot no longer contains the mover (clients reconcile the
@@ -253,7 +269,8 @@ export default function attachSocketServer (io: Server): void {
     //   connetions with the person entering the room. socket.io's own room registry replaces the
     //   old room reducer (issue #116): enumerate the existing members BEFORE joining so we don't
     //   pair the newcomer with itself.
-    on(socket, EVENTS.JOIN_CHAT_ROOM, validRoom, function (room: string) {
+    on(socket, EVENTS.JOIN_CHAT_ROOM, validRoom, function (room: unknown) {
+      if (typeof room !== 'string') return;
       console.log(`[${socket.id}] join ${room}`);
       const peers = io.sockets.adapter.rooms.get(chatRoomOf(room)) || new Set<string>();
       for (const peerId of peers) {
@@ -291,7 +308,8 @@ export default function attachSocketServer (io: Server): void {
     on(socket, EVENTS.LEAVE_CHAT_ROOM, null, () => leaveChatRoom());
 
     // If any user is an Ice Candidate, tells other users to set up a ICE connection with them
-    on(socket, EVENTS.RELAY_ICE_CANDIDATE, isObject, function (config: Record<string, unknown>) {
+    on(socket, EVENTS.RELAY_ICE_CANDIDATE, isObject, function (config: unknown) {
+      if (!isObject(config)) return;
       const peerId = config.peer_id;
       const iceCandidate = config.ice_candidate;
       console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
@@ -301,7 +319,8 @@ export default function attachSocketServer (io: Server): void {
     });
 
     // Send the answer back to the new user in order to complete the handshake
-    on(socket, EVENTS.RELAY_SESSION_DESCRIPTION, isObject, function (config: Record<string, unknown>) {
+    on(socket, EVENTS.RELAY_SESSION_DESCRIPTION, isObject, function (config: unknown) {
+      if (!isObject(config)) return;
       const peerId = config.peer_id;
       const sessionDescription = config.session_description;
       console.log(`[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`);

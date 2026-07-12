@@ -33,6 +33,8 @@ export default AFRAME.registerComponent('publish-location', {
     };
     const mutebutton = document.getElementById('mutebutton')!;
     mutebutton.setAttribute('position', `${userPosition.x} 0.1 ${userPosition.z - 1}`);
-    getSocket()!.emit(EVENTS.TICK, userPosition);
+    // getSocket() is null pre-init (see socket-holder.ts); skip the emit rather than crash
+    // if a tick races login/teardown.
+    getSocket()?.emit(EVENTS.TICK, userPosition);
   }
 });

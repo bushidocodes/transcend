@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react';
 
-// Some entries carry legacy Radium-era ':hover'/':focus' pseudo blocks. React ignores unknown
-// inline-style keys, so they are inert at runtime and preserved verbatim here.
-type Style = CSSProperties & { [pseudo: `:${string}`]: CSSProperties };
-
+// Plain inline-style objects. The ':hover'/':focus' pseudo blocks that used to sit on
+// formControl and the two buttons were Radium-era leftovers — React ignores unknown
+// inline-style keys, so they had been inert since Radium was dropped — and were deleted
+// during the TypeScript conversion. If interactive styling comes back, it belongs in a
+// stylesheet (or CSS-in-JS lib), not inline styles.
 const styles = {
   aboutContainer: {
     position: 'relative',
@@ -91,14 +92,7 @@ const styles = {
     border: '2px solid rgba(255, 255, 255, 0)',
     borderRadius: '2px',
     overflow: 'hidden',
-    transition: 'all 0.5s ease-in-out',
-    ':focus': {
-      outline: 'none',
-      border: '2px solid rgba(255, 255, 255, 0.5)',
-      borderRadius: '2px',
-      background: 'rgba(0, 0, 0, 0)',
-      opacity: '0.6'
-    }
+    transition: 'all 0.5s ease-in-out'
   },
   loginButton: {
     backgroundColor: '#2F75B8',
@@ -114,13 +108,7 @@ const styles = {
     border: 'none',
     borderRadius: '2px',
     fontSize: '14px',
-    transition: 'all 0.25s ease-in-out',
-    ':hover': {
-      cursor: 'pointer'
-    },
-    ':focus': {
-      outline: 'none'
-    }
+    transition: 'all 0.25s ease-in-out'
   },
   signupLink: {
     textDecoration: 'none'
@@ -139,13 +127,7 @@ const styles = {
     border: 'none',
     borderRadius: '2px',
     fontSize: '14px',
-    transition: 'all 0.25s ease-in-out',
-    ':hover': {
-      cursor: 'pointer'
-    },
-    ':focus': {
-      outline: 'none'
-    }
+    transition: 'all 0.25s ease-in-out'
   },
   // The `or-divider` is the thingy that divides local login from OAuth login
   orDividerLineDiv: {
@@ -207,7 +189,7 @@ const styles = {
     textDecoration: 'none',
     color: '#2F75B8'
   }
-} satisfies Record<string, Style>;
+} satisfies Record<string, CSSProperties>;
 
 export type LoginStyles = typeof styles;
 
