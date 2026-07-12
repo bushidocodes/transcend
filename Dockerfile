@@ -38,6 +38,10 @@ COPY public ./public
 # Overlay the production bundle from the build stage (public/ also has source assets).
 COPY --from=build /app/public/bundle.js /app/public/bundle.js.map ./public/
 
+# Non-root runtime (least privilege). node:24-slim includes a `node` user (uid 1000).
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 1337
 
 # Wire to the existing /healthz readiness probe (DB-backed).
@@ -47,5 +51,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
 # Required at runtime (compose / orchestrator must set these):
 #   DATABASE_URL    postgres://user:pass@host:5432/dbname
 #   SESSION_SECRET  long random string (server exits if missing in production)
-# Optional: CLIENT_ID / CLIENT_SECRET (Google OAuth), APP_ORIGIN, PORT, etc.
+# Optional: CLIENT_ID / CLIENT_SECRET (Google OAuth), APP_ORIGIN, PORT,
+#   FORCE_SSL=false for plain-HTTP local compose (see docker-compose.yml).
 CMD ["node", "server/index.ts"]

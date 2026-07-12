@@ -6,10 +6,15 @@
 # Override SESSION_SECRET before any real deploy. CLIENT_ID/CLIENT_SECRET are
 # dummy placeholders so the Google strategy can construct; local password auth
 # works without real Google credentials.
+#
+# FORCE_SSL=false is required here: NODE_ENV=production would otherwise enable
+# HTTPS redirects (500 without APP_ORIGIN, or a redirect loop with http:// APP_ORIGIN)
+# and Secure session cookies that browsers refuse over plain HTTP.
 
 services:
   db:
-    image: postgres:16-alpine
+    # Match CI (.github/workflows/ci.yml uses postgres:14).
+    image: postgres:14-alpine
     environment:
       POSTGRES_USER: transcend
       POSTGRES_PASSWORD: transcend
@@ -28,8 +33,12 @@ services:
       - '1337:1337'
     environment:
       NODE_ENV: production
+      # Plain-HTTP local stack: skip forceSSL + Secure cookies (see server/index.ts).
+      FORCE_SSL: 'false'
       PORT: 1337
       DATABASE_URL: postgres://transcend:transcend@db:5432/transcend
+      # Socket.io CORS allowlist (optional for same-origin browser use).
+      APP_ORIGIN: http://localhost:1337
       # REQUIRED in production — replace for anything beyond local compose.
       SESSION_SECRET: compose-dev-only-change-me-before-real-deploy
       # Passport Google strategy constructs at boot; dummies keep the process up.

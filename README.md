@@ -158,7 +158,7 @@ A multi-stage `Dockerfile` and `docker-compose.yml` run the production build tog
 docker compose up --build
 ```
 
-Then open `http://localhost:1337`. Compose sets `DATABASE_URL` and a throwaway `SESSION_SECRET`; replace the secret before any real deploy. The app image healthcheck hits `/healthz`.
+Then open `http://localhost:1337`. Compose sets `DATABASE_URL`, a throwaway `SESSION_SECRET`, and `FORCE_SSL=false` so production mode works over plain HTTP without redirect loops or Secure-cookie login failures. Replace the secret before any real deploy; leave `FORCE_SSL` unset (default on) behind a TLS proxy. The app image healthcheck hits `/healthz`. Postgres is 14 to match CI.
 
 ## Help
 

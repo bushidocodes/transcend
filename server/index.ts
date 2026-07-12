@@ -55,12 +55,22 @@ app.use(
   })
 );
 
-if (process.env.NODE_ENV === 'production') {
+// HTTPS redirect + Secure cookies in production unless FORCE_SSL=false|0|off|no.
+// Local docker-compose runs NODE_ENV=production over plain HTTP (issue #238); without this
+// opt-out, forceSSL 500s when APP_ORIGIN is unset, and Secure cookies never stick on http://.
+const forceSslEnabled =
+  process.env.NODE_ENV === 'production' &&
+  !/^(0|false|off|no)$/i.test(String(process.env.FORCE_SSL ?? 'true').trim());
+if (forceSslEnabled) {
   console.log(styleText('blue', 'Production Environment detected, so redirect to HTTPS'));
   // TLS terminates at the platform's proxy/ELB; trust X-Forwarded-* so express sees the
   // original protocol — forceSSL reads it, and the session cookie's `secure` flag needs it.
   app.set('trust proxy', 1);
   app.use(forceSSL);
+} else if (process.env.NODE_ENV === 'production') {
+  console.log(
+    styleText('yellow', 'FORCE_SSL disabled — serving production over HTTP (compose / local only)')
+  );
 }
 
 if (process.env.NODE_ENV !== 'production') {
@@ -120,7 +130,8 @@ const sessionMiddleware = session({
     // Defence-in-depth: requireSameOrigin on state-changing auth routes also rejects a present
     // but mismatched Origin header (see server/csrf-origin.ts).
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // Match forceSSL: Secure cookies only when we actually expect HTTPS (issue #238 compose).
+    secure: forceSslEnabled,
     maxAge: 7 * 24 * 60 * 60 * 1000
   }
 });
