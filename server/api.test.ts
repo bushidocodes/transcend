@@ -31,22 +31,25 @@ let baseUrl: string;
 // When true, middleware attaches a fake logged-in user on the request.
 let attachUser = false;
 
-beforeAll(() => new Promise<void>(resolve => {
-  const app = express();
-  app.use((req, _res, next) => {
-    if (attachUser) {
-      // Minimal stand-in — ice-servers only checks truthiness of req.user. Cast past the
-      // passport/User model augmentation so tsc accepts a stub without a full Sequelize row.
-      req.user = { id: 1 } as unknown as Express.User;
-    }
-    next();
-  });
-  app.use(api);
-  server = app.listen(0, () => {
-    baseUrl = 'http://localhost:' + (server.address() as AddressInfo).port;
-    resolve();
-  });
-}));
+beforeAll(
+  () =>
+    new Promise<void>(resolve => {
+      const app = express();
+      app.use((req, _res, next) => {
+        if (attachUser) {
+          // Minimal stand-in — ice-servers only checks truthiness of req.user. Cast past the
+          // passport/User model augmentation so tsc accepts a stub without a full Sequelize row.
+          req.user = { id: 1 } as unknown as Express.User;
+        }
+        next();
+      });
+      app.use(api);
+      server = app.listen(0, () => {
+        baseUrl = 'http://localhost:' + (server.address() as AddressInfo).port;
+        resolve();
+      });
+    })
+);
 
 afterAll(() => new Promise(resolve => server.close(resolve)));
 
@@ -71,9 +74,7 @@ describe('GET /ice-servers (issue #175)', () => {
     const res = await fetch(baseUrl + '/ice-servers');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.iceServers).toEqual([
-      { urls: 'stun:stun.l.google.com:19302' }
-    ]);
+    expect(body.iceServers).toEqual([{ urls: 'stun:stun.l.google.com:19302' }]);
   });
 
   it('uses STUN_URL when set', async () => {

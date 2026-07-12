@@ -9,6 +9,6 @@
 declare module 'aframe';
 declare module 'aframe-gif-shader';
 
-// Installed on window by the aframe import; also listed as ESLint globals.
-declare var AFRAME: any; // eslint-disable-line no-var
-declare var THREE: any; // eslint-disable-line no-var
+// Installed on window by the aframe import.
+declare var AFRAME: any;
+declare var THREE: any;

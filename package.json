@@ -11,8 +11,9 @@
     "seed": "node db/seed.ts",
     "migrate": "node db/migrate-cli.ts up",
     "migrate:undo": "node db/migrate-cli.ts down",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "server": "node --watch server/index.ts",
     "start": "node build.ts && node --watch server/index.ts",
@@ -63,6 +64,7 @@
     "umzug": "^3.8.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.19.0",
@@ -76,13 +78,9 @@
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "^0.28.1",
-    "eslint": "^10.7.0",
-    "eslint-plugin-react": "^7.0.0",
-    "globals": "^17.7.0",
     "happy-dom": "^20.10.6",
     "morgan": "^1.11.0",
-    "neostandard": "github:neostandard/neostandard#5015236c3a2278969cc72b2f417c5f09ee861284",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.1-rc",
     "vitest": "^4.1.10"
   }
 }

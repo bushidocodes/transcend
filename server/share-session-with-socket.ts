@@ -18,7 +18,7 @@ export interface SocketIoLike {
   engine: EngineLike;
 }
 
-export function attachSessionToEngine (
+export function attachSessionToEngine(
   io: SocketIoLike,
   sessionMiddleware: RequestHandler,
   passportInit: RequestHandler,

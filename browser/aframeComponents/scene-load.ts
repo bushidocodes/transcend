@@ -11,7 +11,7 @@ import { setAsLoaded } from '../redux/reducers/is-loaded-reducer.ts';
 // just flips the client's isLoaded flag (which hides the loading spinner).
 
 export default AFRAME.registerComponent('scene-load', {
-  init: function () {
+  init: () => {
     console.log('scene-load component initialized');
     store.dispatch(setAsLoaded());
   }

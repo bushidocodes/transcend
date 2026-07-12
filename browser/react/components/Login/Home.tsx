@@ -13,19 +13,22 @@ export interface LoginOutletContext {
   styles: typeof styles;
 }
 
-export default function Home () {
+export default function Home() {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
-  function handleLogin (event: FormEvent<HTMLFormElement>) {
+  function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.target as HTMLFormElement & { email: HTMLInputElement; password: HTMLInputElement };
+    const form = event.target as HTMLFormElement & {
+      email: HTMLInputElement;
+      password: HTMLInputElement;
+    };
     const email = form.email.value;
     const password = form.password.value;
     dispatch(login(email, password)).then(() => navigate('/vr'));
   }
 
-  function handleSignup (event: FormEvent<HTMLFormElement>) {
+  function handleSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.target as HTMLFormElement & {
       name: HTMLInputElement;
@@ -43,7 +46,9 @@ export default function Home () {
   return (
     <div>
       <Title styles={styles} />
-      <Outlet context={{ login: handleLogin, signup: handleSignup, styles } satisfies LoginOutletContext} />
+      <Outlet
+        context={{ login: handleLogin, signup: handleSignup, styles } satisfies LoginOutletContext}
+      />
     </div>
   );
 }

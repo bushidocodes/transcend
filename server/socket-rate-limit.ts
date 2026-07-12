@@ -22,11 +22,7 @@ export class SocketRateLimiter {
    */
   // Explicit field assignment (not parameter properties): tsconfig erasableSyntaxOnly
   // forbids constructor param properties that emit runtime JS.
-  constructor (
-    maxPerWindow: number,
-    windowMs: number,
-    now: () => number = Date.now
-  ) {
+  constructor(maxPerWindow: number, windowMs: number, now: () => number = Date.now) {
     this.maxPerWindow = maxPerWindow;
     this.windowMs = windowMs;
     this.now = now;
@@ -36,7 +32,7 @@ export class SocketRateLimiter {
    * Record a hit for `key` and return whether it is still under the limit.
    * Timestamps older than the window are pruned so memory stays bounded.
    */
-  allow (key: string): boolean {
+  allow(key: string): boolean {
     const t = this.now();
     const cutoff = t - this.windowMs;
     let stamps = this.hits.get(key);
@@ -57,12 +53,12 @@ export class SocketRateLimiter {
   }
 
   /** Forget a key (call on disconnect so the map does not grow forever). */
-  forget (key: string): void {
+  forget(key: string): void {
     this.hits.delete(key);
   }
 
   /** Number of keys currently tracked (test helper). */
-  get size (): number {
+  get size(): number {
     return this.hits.size;
   }
 }

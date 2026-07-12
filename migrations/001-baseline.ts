@@ -8,7 +8,11 @@
 
 import type { MigrationContext } from '../db/migrator.ts';
 
-export async function up ({ context: { queryInterface, Sequelize } }: { context: MigrationContext }): Promise<void> {
+export async function up({
+  context: { queryInterface, Sequelize }
+}: {
+  context: MigrationContext;
+}): Promise<void> {
   const tables = await queryInterface.showAllTables();
   if (tables.includes('users')) {
     console.log('baseline: users table already exists — adopting it as-is');
@@ -32,6 +36,10 @@ export async function up ({ context: { queryInterface, Sequelize } }: { context:
   });
 }
 
-export async function down ({ context: { queryInterface } }: { context: MigrationContext }): Promise<void> {
+export async function down({
+  context: { queryInterface }
+}: {
+  context: MigrationContext;
+}): Promise<void> {
   await queryInterface.dropTable('users');
 }

@@ -1,7 +1,7 @@
 {
   // Typecheck-only config: nothing here ever emits JS. Node 24 runs server/db .ts files
   // directly via type stripping, esbuild bundles the browser, and vitest transforms tests —
-  // so tsc's single job is `npm run typecheck`.
+  // so tsc's single job is `npm run typecheck` (TypeScript 7 native / Go compiler).
   "compilerOptions": {
     "target": "es2022",
     // Match Node's real ESM resolution: relative imports carry explicit .ts extensions
@@ -19,6 +19,10 @@
     "lib": ["es2022", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     "strict": true,
+    // Correctness rules that used to be ESLint's job (no-unused-vars, fallthrough, etc.).
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,

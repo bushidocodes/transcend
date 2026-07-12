@@ -5,7 +5,7 @@ import { getSocket } from './socket-holder.ts';
 // Avatar entity creation/reconciliation lives in browser/avatars.ts (AvatarManager, #118);
 // this module keeps the first-person rig wiring and misc scene helpers.
 
-export function changeUserSkin (skin: string): void {
+export function changeUserSkin(skin: string): void {
   // The local avatar's DOM is owned by AvatarManager (#118).
   setLocalSkin(skin);
   // Tell the server (and thus everyone else in the room) about the new skin. Skins used to
@@ -22,7 +22,7 @@ export function changeUserSkin (skin: string): void {
 
 // `avatar` is an A-Frame entity: its setAttribute accepts non-string values (booleans,
 // component data objects), which the DOM's HTMLElement typing doesn't model — hence `any`.
-export function addFirstPersonProperties (avatar: any, user: Pose): void {
+export function addFirstPersonProperties(avatar: any, user: Pose): void {
   console.log('avatar: ', avatar);
   const scene = document.getElementById('scene')!;
   const mutebutton = document.createElement('a-entity') as any;
@@ -80,7 +80,7 @@ export function addFirstPersonProperties (avatar: any, user: Pose): void {
 }
 
 // creates an array of x and z coordinates that can be mapped over to create rows of chairs
-export function createArray (num: number): Array<[number, number]> {
+export function createArray(num: number): Array<[number, number]> {
   const arr: Array<[number, number]> = [];
   for (let i = 1; i <= Math.abs(num); i++) {
     for (let j = 1; j <= Math.abs(num); j++) {

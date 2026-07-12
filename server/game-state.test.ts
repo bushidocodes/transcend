@@ -81,7 +81,11 @@ describe('GameState', () => {
     it('ignores non-pose fields entirely (identity comes from joinScene, #113)', () => {
       state.addUser('s1', { displayName: 'Alice', skin: 'batman' }, 'lobby');
       const user = state.updatePose('s1', {
-        x: 3, displayName: 'Hacked', skin: 'god', scene: 'spaceroom', id: 'someone-else'
+        x: 3,
+        displayName: 'Hacked',
+        skin: 'god',
+        scene: 'spaceroom',
+        id: 'someone-else'
       })!;
 
       expect(user.x).toBe(3);

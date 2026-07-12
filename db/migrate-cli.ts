@@ -4,7 +4,9 @@
 import db from './index.ts';
 import createMigrator from './migrator.ts';
 
-createMigrator(db).runAsCLI().then(ok => {
-  db.close();
-  if (!ok) process.exitCode = 1;
-});
+createMigrator(db)
+  .runAsCLI()
+  .then(ok => {
+    db.close();
+    if (!ok) process.exitCode = 1;
+  });

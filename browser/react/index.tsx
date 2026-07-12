@@ -37,10 +37,12 @@ const ROOM_COMPONENTS: Record<string, ComponentType> = {
   thegap: ChangingRoom
 };
 ROOMS.forEach(({ path }) => {
-  if (!ROOM_COMPONENTS[path]) throw new Error(`Room '${path}' is in the manifest but has no component`);
+  if (!ROOM_COMPONENTS[path])
+    throw new Error(`Room '${path}' is in the manifest but has no component`);
 });
 Object.keys(ROOM_COMPONENTS).forEach(path => {
-  if (!ROOMS.some(room => room.path === path)) throw new Error(`Room component '${path}' is not in the manifest`);
+  if (!ROOMS.some(room => room.path === path))
+    throw new Error(`Room component '${path}' is not in the manifest`);
 });
 
 // Hide the pre-bundle loading placeholder once React takes over
@@ -49,7 +51,7 @@ if (prebundle) prebundle.style.display = 'none';
 
 // Guards the /vr subtree. On a hard refresh the Redux store is empty, so we
 // dispatch whoami() once to rehydrate auth from the server session cookie.
-function RequireAuth ({ children }: { children: ReactNode }) {
+function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
   const alreadyAuthed = auth.id != null;
@@ -67,14 +69,16 @@ function RequireAuth ({ children }: { children: ReactNode }) {
 }
 
 // Populates the module-level navigate shim used by A-Frame components (aframe-hyperlink.ts).
-function NavigateCapture () {
+function NavigateCapture() {
   const navigate = useNavigate();
-  useEffect(() => { setNavigateFn(navigate); }, [navigate]);
+  useEffect(() => {
+    setNavigateFn(navigate);
+  }, [navigate]);
   return null;
 }
 
 // Handles the /logout route: tears down the avatar, dispatches logout, then redirects home.
-function Logout () {
+function Logout() {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
@@ -112,7 +116,14 @@ createRoot(document.getElementById('react-app')!).render(
 
         {/* VR section — RequireAuth checks session before rendering App. One route per
             manifest entry (issue #119). */}
-        <Route path="/vr" element={<RequireAuth><App /></RequireAuth>}>
+        <Route
+          path="/vr"
+          element={
+            <RequireAuth>
+              <App />
+            </RequireAuth>
+          }
+        >
           <Route index element={<Navigate to={DEFAULT_ROOM} replace />} />
           {ROOMS.map(({ path }) => {
             const RoomComponent = ROOM_COMPONENTS[path];

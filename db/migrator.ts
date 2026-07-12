@@ -20,7 +20,7 @@ export interface MigrationModule {
   down: (params: { context: MigrationContext }) => Promise<unknown>;
 }
 
-export default function createMigrator (sequelize: Sequelize): Umzug<MigrationContext> {
+export default function createMigrator(sequelize: Sequelize): Umzug<MigrationContext> {
   return new Umzug<MigrationContext>({
     // Migration files live in <repo>/migrations and run in filename order. umzug's default
     // resolver refuses .ts (it predates Node's type stripping and suggests ts-node), so load

@@ -34,7 +34,11 @@ const buffers = new Map<string, PoseSnapshot[]>();
 
 // Record one snapshot for a user. Non-finite fields (defensive; the server sends full
 // records) inherit the previous snapshot's value, or 0 with nothing to inherit.
-export function pushPose (id: string, user: Partial<Record<PoseField, unknown>>, t: number = performance.now()): void {
+export function pushPose(
+  id: string,
+  user: Partial<Record<PoseField, unknown>>,
+  t: number = performance.now()
+): void {
   let buf = buffers.get(id);
   if (!buf) {
     buf = [];
@@ -44,7 +48,8 @@ export function pushPose (id: string, user: Partial<Record<PoseField, unknown>>,
   const snapshot = { t } as PoseSnapshot;
   for (const field of POSE_FIELDS) {
     const value = user[field];
-    snapshot[field] = typeof value === 'number' && Number.isFinite(value) ? value : (prev ? prev[field] : 0);
+    snapshot[field] =
+      typeof value === 'number' && Number.isFinite(value) ? value : prev ? prev[field] : 0;
   }
   buf.push(snapshot);
   while (buf.length > MAX_SNAPSHOTS) buf.shift();
@@ -52,7 +57,7 @@ export function pushPose (id: string, user: Partial<Record<PoseField, unknown>>,
 
 // Linear interpolation for the rotation fields along the shortest arc, so a yaw crossing the
 // 359°→1° seam turns 2° rather than spinning 358° the long way round.
-function lerpAngle (a: number, b: number, f: number): number {
+function lerpAngle(a: number, b: number, f: number): number {
   const delta = ((b - a + 540) % 360) - 180;
   return a + delta * f;
 }
@@ -61,7 +66,7 @@ function lerpAngle (a: number, b: number, f: number): number {
 // Before the first snapshot -> hold the first (a fresh joiner stands at its spawn until the
 // stream begins). Past the last -> hold the last, never extrapolate (a stopped peer freezes
 // in place; extrapolation overshoots on direction changes). Returns null with no data.
-export function samplePose (id: string, now: number = performance.now()): PoseSnapshot | null {
+export function samplePose(id: string, now: number = performance.now()): PoseSnapshot | null {
   const buf = buffers.get(id);
   if (!buf || buf.length === 0) return null;
   const target = now - INTERP_DELAY_MS;
@@ -89,6 +94,6 @@ export function samplePose (id: string, now: number = performance.now()): PoseSn
 }
 
 // Forget a user (their avatar was removed).
-export function dropPose (id: string): void {
+export function dropPose(id: string): void {
   buffers.delete(id);
 }

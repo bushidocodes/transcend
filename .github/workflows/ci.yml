@@ -36,6 +36,7 @@ jobs:
 
       - run: npm ci
 
+      # Format + light lint (Biome). Correctness is enforced by typecheck (TS 7 / tsconfig).
       - name: Lint
         run: npm run lint
 

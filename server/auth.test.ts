@@ -28,7 +28,9 @@ const mockUser = vi.hoisted(() => {
   process.env.CLIENT_ID = process.env.CLIENT_ID || 'dummy-client-id';
   process.env.CLIENT_SECRET = process.env.CLIENT_SECRET || 'dummy-client-secret';
   return {
-    create: vi.fn((attrs: Record<string, unknown>) => Promise.resolve(Object.assign({ id: 1 }, attrs))),
+    create: vi.fn((attrs: Record<string, unknown>) =>
+      Promise.resolve(Object.assign({ id: 1 }, attrs))
+    ),
     findByPk: vi.fn(),
     findOne: vi.fn(),
     findOrCreate: vi.fn()
@@ -40,22 +42,25 @@ vi.mock('../db/models/user.ts', () => ({ default: mockUser, User: mockUser }));
 let server: http.Server;
 let baseUrl: string;
 
-beforeAll(() => new Promise<void>(resolve => {
-  const app = express();
-  app.use(express.json());
-  // Passport is required for LocalStrategy login; req.login is still stubbed so we don't
-  // need a real session store for these route-level assertions.
-  app.use(passport.initialize());
-  app.use((req, res, next) => {
-    req.login = ((user: unknown, cb: (err?: unknown) => void) => cb()) as typeof req.login;
-    next();
-  });
-  app.use(auth);
-  server = app.listen(0, () => {
-    baseUrl = 'http://localhost:' + (server.address() as AddressInfo).port;
-    resolve();
-  });
-}));
+beforeAll(
+  () =>
+    new Promise<void>(resolve => {
+      const app = express();
+      app.use(express.json());
+      // Passport is required for LocalStrategy login; req.login is still stubbed so we don't
+      // need a real session store for these route-level assertions.
+      app.use(passport.initialize());
+      app.use((req, _res, next) => {
+        req.login = ((_user: unknown, cb: (err?: unknown) => void) => cb()) as typeof req.login;
+        next();
+      });
+      app.use(auth);
+      server = app.listen(0, () => {
+        baseUrl = 'http://localhost:' + (server.address() as AddressInfo).port;
+        resolve();
+      });
+    })
+);
 
 afterAll(() => new Promise(resolve => server.close(resolve)));
 
@@ -64,7 +69,7 @@ beforeEach(() => {
   mockUser.findOne.mockReset();
 });
 
-function signup (body: Record<string, unknown>) {
+function signup(body: Record<string, unknown>) {
   return fetch(baseUrl + '/local/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -72,7 +77,7 @@ function signup (body: Record<string, unknown>) {
   });
 }
 
-function login (body: Record<string, unknown>) {
+function login(body: Record<string, unknown>) {
   return fetch(baseUrl + '/local/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -81,8 +86,8 @@ function login (body: Record<string, unknown>) {
   });
 }
 
-describe('POST /local/signup – mass assignment guard (issue #114)', function () {
-  it('creates the user from exactly { email, password, displayName }', async function () {
+describe('POST /local/signup – mass assignment guard (issue #114)', () => {
+  it('creates the user from exactly { email, password, displayName }', async () => {
     const res = await signup({
       email: 'alice@example.com',
       password: 'secret123',
@@ -97,15 +102,15 @@ describe('POST /local/signup – mass assignment guard (issue #114)', function (
     });
   });
 
-  it('ignores skin, googleId, password_digest, and any other extra fields', async function () {
+  it('ignores skin, googleId, password_digest, and any other extra fields', async () => {
     const res = await signup({
       email: 'mallory@example.com',
       password: 'secret123',
       displayName: 'Mallory',
       // Everything below must never reach the model:
-      skin: '../../evil; component: injected',   // re-opens the #79 injection via signup
-      googleId: 'victim-google-id-12345',        // account pre-binding / takeover primitive
-      password_digest: '$2a$10$attackerchosen',  // forged credential material
+      skin: '../../evil; component: injected', // re-opens the #79 injection via signup
+      googleId: 'victim-google-id-12345', // account pre-binding / takeover primitive
+      password_digest: '$2a$10$attackerchosen', // forged credential material
       name: 'admin',
       id: 9999
     });
@@ -118,23 +123,27 @@ describe('POST /local/signup – mass assignment guard (issue #114)', function (
     });
   });
 
-  it('still rejects a missing or over-long displayName', async function () {
+  it('still rejects a missing or over-long displayName', async () => {
     const missing = await signup({ email: 'a@b.com', password: 'x' });
     expect(missing.status).toBe(400);
-    const tooLong = await signup({ email: 'a@b.com', password: 'x', displayName: 'waytoolongname' });
+    const tooLong = await signup({
+      email: 'a@b.com',
+      password: 'x',
+      displayName: 'waytoolongname'
+    });
     expect(tooLong.status).toBe(400);
     expect(mockUser.create).not.toHaveBeenCalled();
   });
 });
 
-describe('POST /local/signup – email and password required (issue #139)', function () {
-  it('rejects a missing email', async function () {
+describe('POST /local/signup – email and password required (issue #139)', () => {
+  it('rejects a missing email', async () => {
     const res = await signup({ password: 'secret', displayName: 'NoMail' });
     expect(res.status).toBe(400);
     expect(mockUser.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a blank or non-email email', async function () {
+  it('rejects a blank or non-email email', async () => {
     const blank = await signup({ email: '   ', password: 'secret', displayName: 'Blank' });
     expect(blank.status).toBe(400);
     const noAt = await signup({ email: 'not-an-email', password: 'secret', displayName: 'NoAt' });
@@ -146,13 +155,17 @@ describe('POST /local/signup – email and password required (issue #139)', func
     expect(mockUser.create).not.toHaveBeenCalled();
   });
 
-  it('accepts a well-formed email and password', async function () {
-    const res = await signup({ email: 'valid@example.com', password: 'secret', displayName: 'Valid' });
+  it('accepts a well-formed email and password', async () => {
+    const res = await signup({
+      email: 'valid@example.com',
+      password: 'secret',
+      displayName: 'Valid'
+    });
     expect(res.status).toBe(201);
     expect(mockUser.create).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects a missing or empty password', async function () {
+  it('rejects a missing or empty password', async () => {
     const missing = await signup({ email: 'x@example.com', displayName: 'NoPass' });
     expect(missing.status).toBe(400);
     const empty = await signup({ email: 'x@example.com', password: '', displayName: 'NoPass' });
@@ -161,16 +174,16 @@ describe('POST /local/signup – email and password required (issue #139)', func
   });
 });
 
-describe('normalizeEmail (issue #170)', function () {
-  it('lowercases mixed-case emails to match stored rows', function () {
+describe('normalizeEmail (issue #170)', () => {
+  it('lowercases mixed-case emails to match stored rows', () => {
     expect(normalizeEmail('Foo@Bar.com')).toBe('foo@bar.com');
     expect(normalizeEmail('ALICE@EXAMPLE.COM')).toBe('alice@example.com');
     expect(normalizeEmail('already.lower@example.com')).toBe('already.lower@example.com');
   });
 });
 
-describe('POST /local/login – mixed-case email (issue #170)', function () {
-  it('queries findOne with a lowercased email when login uses mixed case', async function () {
+describe('POST /local/login – mixed-case email (issue #170)', () => {
+  it('queries findOne with a lowercased email when login uses mixed case', async () => {
     // Signup stores email lowercased (setEmailAndPassword); login used to query the raw
     // client value and miss the row. Assert the strategy normalizes before findOne.
     mockUser.findOne.mockResolvedValue(null);
@@ -181,7 +194,7 @@ describe('POST /local/login – mixed-case email (issue #170)', function () {
     expect(mockUser.findOne).toHaveBeenCalledWith({ where: { email: 'foo@bar.com' } });
   });
 
-  it('looks up the lowercased email before calling authenticate', async function () {
+  it('looks up the lowercased email before calling authenticate', async () => {
     // Return a user so the strategy reaches authenticate(); fail the password check so
     // passport does not attempt a session login (this harness has no express-session).
     const user = {

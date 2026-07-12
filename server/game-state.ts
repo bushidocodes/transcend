@@ -13,7 +13,7 @@ const POSE_FIELDS = ['x', 'y', 'z', 'xrot', 'yrot', 'zrot'] as const;
 export default class GameState {
   users: Map<string, User>;
 
-  constructor () {
+  constructor() {
     this.users = new Map();
   }
 
@@ -23,7 +23,7 @@ export default class GameState {
   // Missing/empty scene must NOT leave the user in the shared '' room (issue #204): every
   // unplaced user would then share peersOf/usersInScene and leak identity + pose. Assign a
   // private `__unplaced:<id>` key instead so unplaced users never group with strangers.
-  addUser (id: string, { displayName, skin }: AuthUser, scene?: string): User {
+  addUser(id: string, { displayName, skin }: AuthUser, scene?: string): User {
     const user = new User(id, displayName ?? undefined, skin ?? undefined);
     if (scene) user.scene = scene;
     else user.scene = `__unplaced:${id}`;
@@ -31,7 +31,7 @@ export default class GameState {
     return user;
   }
 
-  getUser (id: string): User | undefined {
+  getUser(id: string): User | undefined {
     return this.users.get(id);
   }
 
@@ -39,7 +39,7 @@ export default class GameState {
   // an EXISTING record — a tick must never create a user (issues #56/#113). The old immutable
   // mergeIn auto-vivified missing ids, which is how post-restart ticks materialized ghost
   // "John" records; enforcing "update, never create" in this one method removes that footgun.
-  updatePose (id: string, data: Partial<Pose> | Record<string, unknown>): User | null {
+  updatePose(id: string, data: Partial<Pose> | Record<string, unknown>): User | null {
     const user = this.users.get(id);
     if (!user) return null;
     for (const field of POSE_FIELDS) {
@@ -49,7 +49,7 @@ export default class GameState {
     return user;
   }
 
-  setSkin (id: string, skin: string): User | null {
+  setSkin(id: string, skin: string): User | null {
     const user = this.users.get(id);
     if (!user) return null;
     user.skin = skin;
@@ -58,7 +58,7 @@ export default class GameState {
 
   // Move a user to another scene. Returns { user, from } so the caller can refresh both the
   // old and the new room, or null if the user doesn't exist.
-  setScene (id: string, scene: string): { user: User, from: string } | null {
+  setScene(id: string, scene: string): { user: User; from: string } | null {
     const user = this.users.get(id);
     if (!user) return null;
     const from = user.scene;
@@ -67,14 +67,14 @@ export default class GameState {
   }
 
   // Delete the record and return it (the caller needs the scene to notify that room).
-  removeUser (id: string): User | undefined {
+  removeUser(id: string): User | undefined {
     const user = this.users.get(id);
     this.users.delete(id);
     return user;
   }
 
   // ALL users in `scene`, keyed by id — one filter pass per room per broadcast (issue #115).
-  usersInScene (scene: string): Record<string, User> {
+  usersInScene(scene: string): Record<string, User> {
     const result: Record<string, User> = {};
     for (const [id, user] of this.users) {
       if (user.scene === scene) result[id] = user;
@@ -86,7 +86,7 @@ export default class GameState {
   // Filtering server-side keeps cross-room position data off the wire entirely (issue #58).
   // Unplaced users get a unique `__unplaced:<id>` scene from addUser (issue #204), so they
   // never share a room with other unplaced users — peersOf is empty until they join a real scene.
-  peersOf (id: string): Record<string, User> {
+  peersOf(id: string): Record<string, User> {
     const self = this.users.get(id);
     if (!self) return {};
     // Defence in depth: never treat the legacy empty string as a shared room.

@@ -13,18 +13,18 @@ let socket: Socket | null = null;
 // Returns null before initSocket() has run (pre-login), so callers that can race init must
 // guard — the same contract the old window.socket global had, but visible to the bundler and
 // stubbable in tests.
-export function getSocket (): Socket | null {
+export function getSocket(): Socket | null {
   return socket;
 }
 
-export function setSocket (instance: Socket): Socket {
+export function setSocket(instance: Socket): Socket {
   socket = instance;
   return socket;
 }
 
 // Disconnect and drop the singleton so the next initSocket() opens a new Engine.IO connection
 // (and re-runs passport.session() on the handshake). Safe when no socket exists.
-export function clearSocket (): void {
+export function clearSocket(): void {
   if (socket) {
     socket.disconnect();
     socket = null;

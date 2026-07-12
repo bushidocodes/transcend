@@ -17,7 +17,7 @@ const options: esbuild.BuildOptions = {
   // Match tsconfig.json "target": "es2022" (Node 24 / modern browsers).
   target: 'es2022',
   minify: prod,
-  logLevel: 'info',
+  logLevel: 'info'
 };
 
 if (process.argv.includes('--watch')) {

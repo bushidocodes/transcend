@@ -1,7 +1,6 @@
-export default function AssetLoader () {
+export default function AssetLoader() {
   return (
     <a-assets timeout="60000">
-
       {/* Lobby assets */}
       <a-mixin id="chair-part" geometry="primitive: box" material="color: #BFBFBF"></a-mixin>
 

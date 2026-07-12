@@ -37,7 +37,7 @@ const BROADCAST_INTERVAL_MS = 50;
 // Payloads are `unknown`, deliberately: a validator only proves the coarse protocol shape, so
 // each handler re-narrows the fields it actually reads (typeof/isObject) instead of asserting
 // a trusted type onto attacker-controlled input.
-function on (
+function on(
   socket: Socket,
   event: string,
   validate: ((...args: unknown[]) => boolean) | null,
@@ -65,7 +65,7 @@ function on (
 const sceneRoomOf = (scene: string): string => `scene:${scene}`;
 const chatRoomOf = (room: string): string => `chat:${room}`;
 
-export default function attachSocketServer (io: Server): void {
+export default function attachSocketServer(io: Server): void {
   // Durable domain state only — plain user records keyed by socket id (issue #116). The
   // socket registry is io.sockets.sockets and room membership is socket.io rooms; neither is
   // duplicated into application state anymore.
@@ -74,11 +74,26 @@ export default function attachSocketServer (io: Server): void {
   // Per-socket rate limiters for chatty events (issue #203). Separate buckets so a burst of
   // ticks cannot starve a legitimate changeScene, etc. Keys are socket ids; forgotten on
   // disconnect so the maps stay bounded by live connections.
-  const tickLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.tick.maxPerWindow, SOCKET_RATE_LIMITS.tick.windowMs);
-  const changeSceneLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.changeScene.maxPerWindow, SOCKET_RATE_LIMITS.changeScene.windowMs);
-  const changeSkinLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.changeSkin.maxPerWindow, SOCKET_RATE_LIMITS.changeSkin.windowMs);
-  const joinSceneLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.joinScene.maxPerWindow, SOCKET_RATE_LIMITS.joinScene.windowMs);
-  const relayLimiter = new SocketRateLimiter(SOCKET_RATE_LIMITS.relay.maxPerWindow, SOCKET_RATE_LIMITS.relay.windowMs);
+  const tickLimiter = new SocketRateLimiter(
+    SOCKET_RATE_LIMITS.tick.maxPerWindow,
+    SOCKET_RATE_LIMITS.tick.windowMs
+  );
+  const changeSceneLimiter = new SocketRateLimiter(
+    SOCKET_RATE_LIMITS.changeScene.maxPerWindow,
+    SOCKET_RATE_LIMITS.changeScene.windowMs
+  );
+  const changeSkinLimiter = new SocketRateLimiter(
+    SOCKET_RATE_LIMITS.changeSkin.maxPerWindow,
+    SOCKET_RATE_LIMITS.changeSkin.windowMs
+  );
+  const joinSceneLimiter = new SocketRateLimiter(
+    SOCKET_RATE_LIMITS.joinScene.maxPerWindow,
+    SOCKET_RATE_LIMITS.joinScene.windowMs
+  );
+  const relayLimiter = new SocketRateLimiter(
+    SOCKET_RATE_LIMITS.relay.maxPerWindow,
+    SOCKET_RATE_LIMITS.relay.windowMs
+  );
 
   // Scenes whose users changed since the last broadcast beat. Marking dirty (instead of
   // broadcasting unconditionally) means quiet rooms generate no traffic, and a burst of ticks
@@ -124,11 +139,11 @@ export default function attachSocketServer (io: Server): void {
 
     // Membership in the per-scene broadcast room, granted on 'ready' (a client must not be
     // streamed usersUpdated before it has rendered the scene) and moved on changeScene.
-    function joinSceneRoom (scene: string): void {
+    function joinSceneRoom(scene: string): void {
       socket.sceneRoom = sceneRoomOf(scene);
       socket.join(socket.sceneRoom);
     }
-    function leaveSceneRoom (): void {
+    function leaveSceneRoom(): void {
       if (socket.sceneRoom) {
         socket.leave(socket.sceneRoom);
         socket.sceneRoom = null;
@@ -137,7 +152,7 @@ export default function attachSocketServer (io: Server): void {
 
     // Shared by logoutUser and disconnect: drop the user record, tell the room the avatar is
     // gone, and refresh that room's snapshot.
-    function removeUserFromWorld (): void {
+    function removeUserFromWorld(): void {
       const removed = gameState.removeUser(socket.id);
       if (!removed) return;
       emitToScene(removed.scene, socket.id, EVENTS.REMOVE_USER, socket.id);
@@ -149,75 +164,95 @@ export default function attachSocketServer (io: Server): void {
     //   assets are ready), and the server creates the user and returns everything needed to
     //   render the room in one sceneState message. A single entry point also removes the old
     //   sceneLoad/createdUser ordering race.
-    on(socket, EVENTS.JOIN_SCENE, validJoinScene, (user: unknown, scene: unknown) => {
-      // validJoinScene guarantees these at runtime; re-narrow so the compiler knows too.
-      // The joinScene `user` payload is still partially client-controlled (displayName/skin
-      // fallbacks), but accountId MUST come from the Passport session on socket.request —
-      // never from the payload — or any client can impersonate an account and kick its live
-      // session (issue #167). Production wires express-session + passport onto Engine.IO in
-      // server/index.ts so socket.request.user is the deserialized User when logged in.
-      if (!isObject(user)) return;
-      const sceneName = typeof scene === 'string' ? scene : undefined;
-      socket.createdUser = true;
-      // Session user is set by passport.session() (or test middleware); shape-check id only.
-      const sessionUser = (socket.request as { user?: { id?: unknown, displayName?: unknown, skin?: unknown } }).user;
-      const accountId = sessionUser && (typeof sessionUser.id === 'number' || typeof sessionUser.id === 'string')
-        ? sessionUser.id
-        : null;
-      socket.accountId = accountId;
-      // Single active session per account ("newest wins"): drop any prior socket for this
-      // account before registering the new one (issue #30). Anonymous (no session user) are
-      // exempt — and a spoofed client id can no longer drive eviction (#167).
-      // When the new tab takes over an existing session in the SAME room, carry that session's
-      // position/rotation forward so the user resumes exactly where they were standing instead of
-      // respawning at a random point (new User() seeds a random x/z). A takeover into a DIFFERENT
-      // room is left to that room's own spawn. Captured before disconnect, which deletes the record.
-      let inheritedPosition: Pose | null = null;
-      if (accountId != null) {
-        // io.sockets.sockets is the socket registry (issue #116); Map iteration is safe under
-        // the delete that disconnect() performs.
-        for (const existing of io.sockets.sockets.values() as IterableIterator<GameSocket>) {
-          if (existing.id !== socket.id && existing.accountId === accountId) {
-            console.log(styleText('red', `Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`));
-            const prev = gameState.getUser(existing.id);
-            if (prev && prev.scene === sceneName) {
-              inheritedPosition = {
-                x: prev.x,
-                y: prev.y,
-                z: prev.z,
-                xrot: prev.xrot,
-                yrot: prev.yrot,
-                zrot: prev.zrot
-              };
+    on(
+      socket,
+      EVENTS.JOIN_SCENE,
+      validJoinScene,
+      (user: unknown, scene: unknown) => {
+        // validJoinScene guarantees these at runtime; re-narrow so the compiler knows too.
+        // The joinScene `user` payload is still partially client-controlled (displayName/skin
+        // fallbacks), but accountId MUST come from the Passport session on socket.request —
+        // never from the payload — or any client can impersonate an account and kick its live
+        // session (issue #167). Production wires express-session + passport onto Engine.IO in
+        // server/index.ts so socket.request.user is the deserialized User when logged in.
+        if (!isObject(user)) return;
+        const sceneName = typeof scene === 'string' ? scene : undefined;
+        socket.createdUser = true;
+        // Session user is set by passport.session() (or test middleware); shape-check id only.
+        const sessionUser = (
+          socket.request as { user?: { id?: unknown; displayName?: unknown; skin?: unknown } }
+        ).user;
+        const accountId =
+          sessionUser && (typeof sessionUser.id === 'number' || typeof sessionUser.id === 'string')
+            ? sessionUser.id
+            : null;
+        socket.accountId = accountId;
+        // Single active session per account ("newest wins"): drop any prior socket for this
+        // account before registering the new one (issue #30). Anonymous (no session user) are
+        // exempt — and a spoofed client id can no longer drive eviction (#167).
+        // When the new tab takes over an existing session in the SAME room, carry that session's
+        // position/rotation forward so the user resumes exactly where they were standing instead of
+        // respawning at a random point (new User() seeds a random x/z). A takeover into a DIFFERENT
+        // room is left to that room's own spawn. Captured before disconnect, which deletes the record.
+        let inheritedPosition: Pose | null = null;
+        if (accountId != null) {
+          // io.sockets.sockets is the socket registry (issue #116); Map iteration is safe under
+          // the delete that disconnect() performs.
+          for (const existing of io.sockets.sockets.values() as IterableIterator<GameSocket>) {
+            if (existing.id !== socket.id && existing.accountId === accountId) {
+              console.log(
+                styleText(
+                  'red',
+                  `Account ${accountId} already has session ${existing.id}; replacing with ${socket.id}`
+                )
+              );
+              const prev = gameState.getUser(existing.id);
+              if (prev && prev.scene === sceneName) {
+                inheritedPosition = {
+                  x: prev.x,
+                  y: prev.y,
+                  z: prev.z,
+                  xrot: prev.xrot,
+                  yrot: prev.yrot,
+                  zrot: prev.zrot
+                };
+              }
+              existing.emit(EVENTS.SESSION_REPLACED);
+              existing.disconnect(true);
             }
-            existing.emit(EVENTS.SESSION_REPLACED);
-            existing.disconnect(true);
           }
         }
-      }
-      // A re-join (reconnect, or login after logout) may land in a different scene; drop any
-      // stale broadcast-room membership until the client acks ready again.
-      leaveSceneRoom();
-      // Prefer session identity fields when present; allow client displayName/skin only as
-      // fallbacks for anonymous / incomplete sessions. NEVER trust client user.id for accountId.
-      const displayName = (sessionUser && typeof sessionUser.displayName === 'string' && sessionUser.displayName) ||
-        (typeof user.displayName === 'string' ? user.displayName : undefined);
-      const skin = (sessionUser && typeof sessionUser.skin === 'string' && sessionUser.skin) ||
-        (typeof user.skin === 'string' ? user.skin : undefined);
-      const me = gameState.addUser(socket.id, {
-        displayName,
-        skin
-      }, sceneName);
-      // Apply the inherited position over the fresh random spawn before building sceneState, so
-      // the takeover tab renders at the carried-forward location.
-      if (inheritedPosition) gameState.updatePose(socket.id, inheritedPosition);
-      markDirty(me.scene);
-      socket.emit(EVENTS.SCENE_STATE, {
-        you: me,
-        others: gameState.peersOf(socket.id),
-        tickRate: TICK_RATE
-      });
-    }, joinSceneLimiter);
+        // A re-join (reconnect, or login after logout) may land in a different scene; drop any
+        // stale broadcast-room membership until the client acks ready again.
+        leaveSceneRoom();
+        // Prefer session identity fields when present; allow client displayName/skin only as
+        // fallbacks for anonymous / incomplete sessions. NEVER trust client user.id for accountId.
+        const displayName =
+          (sessionUser && typeof sessionUser.displayName === 'string' && sessionUser.displayName) ||
+          (typeof user.displayName === 'string' ? user.displayName : undefined);
+        const skin =
+          (sessionUser && typeof sessionUser.skin === 'string' && sessionUser.skin) ||
+          (typeof user.skin === 'string' ? user.skin : undefined);
+        const me = gameState.addUser(
+          socket.id,
+          {
+            displayName,
+            skin
+          },
+          sceneName
+        );
+        // Apply the inherited position over the fresh random spawn before building sceneState, so
+        // the takeover tab renders at the carried-forward location.
+        if (inheritedPosition) gameState.updatePose(socket.id, inheritedPosition);
+        markDirty(me.scene);
+        socket.emit(EVENTS.SCENE_STATE, {
+          you: me,
+          others: gameState.peersOf(socket.id),
+          tickRate: TICK_RATE
+        });
+      },
+      joinSceneLimiter
+    );
 
     // ready: the client has rendered the scene and wants live updates. Join the scene's
     //   broadcast room so the fixed-rate loop above starts including this socket. Collapses the
@@ -232,35 +267,53 @@ export default function attachSocketServer (io: Server): void {
     //   ignored — the record is keyed on socket.id — and GameState.updatePose merges only
     //   finite numeric pose fields onto an existing record, so a tick can only ever move the
     //   sender's own avatar and can never create one (issues #56/#113). Rate-limited (#203).
-    on(socket, EVENTS.TICK, isObject, (userData: unknown) => {
-      if (!socket.createdUser || !isObject(userData)) return;
-      const me = gameState.updatePose(socket.id, userData);
-      if (me) markDirty(me.scene);
-    }, tickLimiter);
+    on(
+      socket,
+      EVENTS.TICK,
+      isObject,
+      (userData: unknown) => {
+        if (!socket.createdUser || !isObject(userData)) return;
+        const me = gameState.updatePose(socket.id, userData);
+        if (me) markDirty(me.scene);
+      },
+      tickLimiter
+    );
 
     // Skin and scene changes used to ride on every tick, which is what made the tick an
     // injection surface (#113). They are explicit messages now, validated server-side and
     // applied to the sender's own record only. The skin whitelist is server-only state, so its
     // check composes here with the protocol-level shape check (#117). Rate-limited (#203).
-    on(socket, EVENTS.CHANGE_SKIN, (skin: unknown) => typeof skin === 'string' && VALID_SKINS.has(skin), (skin: unknown) => {
-      if (!socket.createdUser || typeof skin !== 'string') return;
-      const me = gameState.setSkin(socket.id, skin);
-      if (me) markDirty(me.scene);
-    }, changeSkinLimiter);
+    on(
+      socket,
+      EVENTS.CHANGE_SKIN,
+      (skin: unknown) => typeof skin === 'string' && VALID_SKINS.has(skin),
+      (skin: unknown) => {
+        if (!socket.createdUser || typeof skin !== 'string') return;
+        const me = gameState.setSkin(socket.id, skin);
+        if (me) markDirty(me.scene);
+      },
+      changeSkinLimiter
+    );
 
-    on(socket, EVENTS.CHANGE_SCENE, validRoom, (scene: unknown) => {
-      if (!socket.createdUser || typeof scene !== 'string') return;
-      const change = gameState.setScene(socket.id, scene);
-      if (!change) return;
-      // The old room's next snapshot no longer contains the mover (clients reconcile the
-      // removal); the new room's next snapshot picks them up.
-      markDirty(change.from);
-      markDirty(scene);
-      if (socket.sceneRoom) {
-        leaveSceneRoom();
-        joinSceneRoom(scene);
-      }
-    }, changeSceneLimiter);
+    on(
+      socket,
+      EVENTS.CHANGE_SCENE,
+      validRoom,
+      (scene: unknown) => {
+        if (!socket.createdUser || typeof scene !== 'string') return;
+        const change = gameState.setScene(socket.id, scene);
+        if (!change) return;
+        // The old room's next snapshot no longer contains the mover (clients reconcile the
+        // removal); the new room's next snapshot picks them up.
+        markDirty(change.from);
+        markDirty(scene);
+        if (socket.sceneRoom) {
+          leaveSceneRoom();
+          joinSceneRoom(scene);
+        }
+      },
+      changeSceneLimiter
+    );
 
     // Explicit logout: remove the avatar and leave the broadcast/chat rooms. Always clear
     // identity bookkeeping — including the Passport user stamped on the Engine.IO handshake
@@ -279,8 +332,8 @@ export default function attachSocketServer (io: Server): void {
       // refreshed for the life of the connection. Clear it so a subsequent joinScene on this
       // socket cannot impersonate the logged-out account.
       const req = socket.request as {
-        user?: unknown
-        session?: { passport?: { user?: unknown } }
+        user?: unknown;
+        session?: { passport?: { user?: unknown } };
       };
       req.user = undefined;
       if (req.session?.passport) {
@@ -308,7 +361,7 @@ export default function attachSocketServer (io: Server): void {
     //   connetions with the person entering the room. socket.io's own room registry replaces the
     //   old room reducer (issue #116): enumerate the existing members BEFORE joining so we don't
     //   pair the newcomer with itself.
-    on(socket, EVENTS.JOIN_CHAT_ROOM, validRoom, function (room: unknown) {
+    on(socket, EVENTS.JOIN_CHAT_ROOM, validRoom, (room: unknown) => {
       if (typeof room !== 'string') return;
       console.log(`[${socket.id}] join ${room}`);
       const peers = io.sockets.adapter.rooms.get(chatRoomOf(room)) || new Set<string>();
@@ -327,7 +380,7 @@ export default function attachSocketServer (io: Server): void {
     //   exactly "everyone else still in the room" — and on disconnect, where socket.io has
     //   already removed us from every room, leave() is a harmless no-op and the enumeration
     //   still yields the surviving peers.
-    function leaveChatRoom (): void {
+    function leaveChatRoom(): void {
       const room = socket.currentChatRoom;
       if (room) {
         console.log(`[${socket.id}] leaveChatRoom ${room}`);
@@ -351,7 +404,7 @@ export default function attachSocketServer (io: Server): void {
     // the sender's currentChatRoom — otherwise any connected socket could inject candidates
     // or session descriptions into an arbitrary peer (issue #168). Always stamp peer_id with
     // socket.id on the outbound emit so the source cannot be spoofed either.
-    function canRelayTo (peerId: unknown): peerId is string {
+    function canRelayTo(peerId: unknown): peerId is string {
       const room = socket.currentChatRoom;
       if (!room || typeof peerId !== 'string') return false;
       const members = io.sockets.adapter.rooms.get(chatRoomOf(room));
@@ -360,25 +413,44 @@ export default function attachSocketServer (io: Server): void {
 
     // If any user is an Ice Candidate, tells other users to set up a ICE connection with them.
     // Shared relayLimiter covers both ICE and SDP so total signaling volume is capped (#203).
-    on(socket, EVENTS.RELAY_ICE_CANDIDATE, isObject, function (config: unknown) {
-      if (!isObject(config)) return;
-      const peerId = config.peer_id;
-      const iceCandidate = config.ice_candidate;
-      if (!canRelayTo(peerId)) return;
-      console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
-      const peer = io.sockets.sockets.get(peerId);
-      if (peer) peer.emit(EVENTS.ICE_CANDIDATE, { peer_id: socket.id, ice_candidate: iceCandidate });
-    }, relayLimiter);
+    on(
+      socket,
+      EVENTS.RELAY_ICE_CANDIDATE,
+      isObject,
+      (config: unknown) => {
+        if (!isObject(config)) return;
+        const peerId = config.peer_id;
+        const iceCandidate = config.ice_candidate;
+        if (!canRelayTo(peerId)) return;
+        console.log(`[${socket.id}] relaying ICE candidate to [${peerId}] ${iceCandidate}`);
+        const peer = io.sockets.sockets.get(peerId);
+        if (peer)
+          peer.emit(EVENTS.ICE_CANDIDATE, { peer_id: socket.id, ice_candidate: iceCandidate });
+      },
+      relayLimiter
+    );
 
     // Send the answer back to the new user in order to complete the handshake
-    on(socket, EVENTS.RELAY_SESSION_DESCRIPTION, isObject, function (config: unknown) {
-      if (!isObject(config)) return;
-      const peerId = config.peer_id;
-      const sessionDescription = config.session_description;
-      if (!canRelayTo(peerId)) return;
-      console.log(`[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`);
-      const peer = io.sockets.sockets.get(peerId);
-      if (peer) peer.emit(EVENTS.SESSION_DESCRIPTION, { peer_id: socket.id, session_description: sessionDescription });
-    }, relayLimiter);
+    on(
+      socket,
+      EVENTS.RELAY_SESSION_DESCRIPTION,
+      isObject,
+      (config: unknown) => {
+        if (!isObject(config)) return;
+        const peerId = config.peer_id;
+        const sessionDescription = config.session_description;
+        if (!canRelayTo(peerId)) return;
+        console.log(
+          `[${socket.id}] relaying session description to [${peerId}] ${sessionDescription}`
+        );
+        const peer = io.sockets.sockets.get(peerId);
+        if (peer)
+          peer.emit(EVENTS.SESSION_DESCRIPTION, {
+            peer_id: socket.id,
+            session_description: sessionDescription
+          });
+      },
+      relayLimiter
+    );
   });
 }

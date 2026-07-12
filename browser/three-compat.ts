@@ -29,12 +29,17 @@ const gifShaders = new Set<any>();
 //    name), so this component — attached to the scene by the __ready patch — drives every gif.
 if (!AFRAME.components['gif-ticker']) {
   AFRAME.registerComponent('gif-ticker', {
-    tick: function (time: number, delta: number) {
-      gifShaders.forEach(function (shader) {
+    tick: (time: number, delta: number) => {
+      gifShaders.forEach(shader => {
         // Prune shaders whose entity left the scene (e.g. on room change) so we don't tick
         // detached materials forever.
-        if (!shader.el || !shader.el.isConnected) { gifShaders.delete(shader); return; }
-        if (shader.tick) { shader.tick(time, delta); }
+        if (!shader.el || !shader.el.isConnected) {
+          gifShaders.delete(shader);
+          return;
+        }
+        if (shader.tick) {
+          shader.tick(time, delta);
+        }
       });
     }
   });
@@ -53,7 +58,7 @@ const gif = AFRAME.shaders && AFRAME.shaders.gif;
 const proto = gif && gif.Shader && gif.Shader.prototype;
 if (proto && proto.__ready && !proto.__readyPatchedForModernThree) {
   const origReady = proto.__ready;
-  proto.__ready = function patchedReady (this: any) {
+  proto.__ready = function patchedReady(this: any) {
     const result = origReady.apply(this, arguments);
     if (this.__texture) this.__texture.dispose();
     gifShaders.add(this);

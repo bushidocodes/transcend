@@ -11,7 +11,7 @@ export { connectionUrl };
 // `createdb` child-process retry loop, which shelled out with no host/port and so targeted
 // whatever PGHOST/PGPORT defaulted to — not necessarily the database DATABASE_URL points at
 // (issue #133). Never runs in production.
-async function ensureDatabaseExists (): Promise<void> {
+async function ensureDatabaseExists(): Promise<void> {
   const { Client } = await import('pg');
   const dbName = new URL(connectionUrl).pathname.slice(1);
   const adminUrl = new URL(connectionUrl);
@@ -34,7 +34,7 @@ async function ensureDatabaseExists (): Promise<void> {
 //   so the suite always starts from a clean slate;
 // - everywhere else: run pending umzug migrations (migrations/*.ts). Production boot never
 //   calls sync(); schema changes to a live database ship as migrations.
-async function doPrepare (): Promise<void> {
+async function doPrepare(): Promise<void> {
   if (process.env.NODE_ENV === 'testing') {
     await db.sync({ force: true });
     console.log(styleText('blue', `Force-synced test db ${connectionUrl}`));

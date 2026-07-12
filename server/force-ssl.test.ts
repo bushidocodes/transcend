@@ -8,7 +8,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import { forceSSL } from './force-ssl.ts';
 
-function mockReq (overrides: Partial<Request> & { headers?: Record<string, string | undefined> } = {}): Request {
+function mockReq(
+  overrides: Partial<Request> & { headers?: Record<string, string | undefined> } = {}
+): Request {
   const headers = overrides.headers ?? {};
   return {
     headers,
@@ -21,7 +23,7 @@ function mockReq (overrides: Partial<Request> & { headers?: Record<string, strin
   } as unknown as Request;
 }
 
-function mockRes (): Response & {
+function mockRes(): Response & {
   statusCode?: number;
   body?: string;
   redirectTarget?: string;
@@ -49,7 +51,7 @@ function mockRes (): Response & {
   return res as unknown as Response & typeof res;
 }
 
-describe('forceSSL (issue #169)', function () {
+describe('forceSSL (issue #169)', () => {
   const originalOrigin = process.env.APP_ORIGIN;
 
   afterEach(() => {
@@ -57,7 +59,7 @@ describe('forceSSL (issue #169)', function () {
     else process.env.APP_ORIGIN = originalOrigin;
   });
 
-  it('calls next() when x-forwarded-proto is https', function () {
+  it('calls next() when x-forwarded-proto is https', () => {
     process.env.APP_ORIGIN = 'https://good.com';
     const req = mockReq({ headers: { 'x-forwarded-proto': 'https', host: 'evil.com' } });
     const res = mockRes();
@@ -70,7 +72,7 @@ describe('forceSSL (issue #169)', function () {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it('redirects to APP_ORIGIN + path, ignoring a spoofed Host header', function () {
+  it('redirects to APP_ORIGIN + path, ignoring a spoofed Host header', () => {
     process.env.APP_ORIGIN = 'https://good.com';
     const req = mockReq({
       headers: { 'x-forwarded-proto': 'http', host: 'evil.com' },
@@ -88,7 +90,7 @@ describe('forceSSL (issue #169)', function () {
     expect(res.redirectTarget).not.toContain('evil.com');
   });
 
-  it('strips a trailing slash from APP_ORIGIN before joining the path', function () {
+  it('strips a trailing slash from APP_ORIGIN before joining the path', () => {
     process.env.APP_ORIGIN = 'https://good.com/';
     const req = mockReq({
       headers: { 'x-forwarded-proto': 'http', host: 'evil.com' },
@@ -102,7 +104,7 @@ describe('forceSSL (issue #169)', function () {
     expect(res.redirectTarget).toBe('https://good.com/api/auth/whoami');
   });
 
-  it('fails closed with 500 when APP_ORIGIN is unset (does not use Host)', function () {
+  it('fails closed with 500 when APP_ORIGIN is unset (does not use Host)', () => {
     delete process.env.APP_ORIGIN;
     const req = mockReq({
       headers: { 'x-forwarded-proto': 'http', host: 'evil.com' },

@@ -19,11 +19,16 @@
 // `any`): it carries the mutable `_skinLoadSeq` token and the shared `texture`.
 // `ImageCtor` defaults to the browser's window.Image so production behavior is
 // unchanged (the tests inject a manually-fired fake).
-export function loadSkinInto (host: any, url: string, onLoad?: ((host: any) => void) | null, ImageCtor?: any) {
+export function loadSkinInto(
+  host: any,
+  url: string,
+  onLoad?: ((host: any) => void) | null,
+  ImageCtor?: any
+) {
   const Img = ImageCtor || window.Image;
   const token = (host._skinLoadSeq = (host._skinLoadSeq || 0) + 1);
   const image = new Img();
-  image.onload = function () {
+  image.onload = () => {
     if (token !== host._skinLoadSeq) return; // a newer skin was requested; drop this stale load
     host.texture.image = image;
     host.texture.needsUpdate = true;

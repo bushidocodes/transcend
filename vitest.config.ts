@@ -13,13 +13,13 @@ export default defineConfig({
       'browser/**/*.test.{ts,tsx}',
       'db/**/*.test.ts',
       'server/**/*.test.ts',
-      'shared/**/*.test.ts',
+      'shared/**/*.test.ts'
     ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['browser/**', 'server/**', 'db/**', 'shared/**'],
-      exclude: ['**/*.test.*', 'browser/aframeComponents/aframe-minecraft.ts'],
-    },
-  },
+      exclude: ['**/*.test.*', 'browser/aframeComponents/aframe-minecraft.ts']
+    }
+  }
 });

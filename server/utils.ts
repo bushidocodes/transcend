@@ -14,7 +14,7 @@ export class User implements SceneUser {
   zrot: number;
   scene: string;
 
-  constructor (id: string, displayName?: string, skin?: string) {
+  constructor(id: string, displayName?: string, skin?: string) {
     this.id = id;
     this.displayName = displayName;
     this.skin = skin;

@@ -3,11 +3,7 @@
  */
 
 import type { NextFunction, Request, Response } from 'express';
-import {
-  isSameOriginAllowed,
-  normalizeOrigin,
-  requireSameOrigin
-} from './csrf-origin.ts';
+import { isSameOriginAllowed, normalizeOrigin, requireSameOrigin } from './csrf-origin.ts';
 
 describe('normalizeOrigin', () => {
   it('strips a trailing slash', () => {
@@ -25,32 +21,24 @@ describe('isSameOriginAllowed (issue #205)', () => {
   });
 
   it('allows when Origin matches APP_ORIGIN', () => {
-    expect(isSameOriginAllowed(
-      'https://app.example.com',
-      'https://app.example.com',
-      'production'
-    )).toBe(true);
+    expect(
+      isSameOriginAllowed('https://app.example.com', 'https://app.example.com', 'production')
+    ).toBe(true);
   });
 
   it('allows when Origin matches APP_ORIGIN ignoring trailing slash', () => {
-    expect(isSameOriginAllowed(
-      'https://app.example.com',
-      'https://app.example.com/',
-      'production'
-    )).toBe(true);
-    expect(isSameOriginAllowed(
-      'https://app.example.com/',
-      'https://app.example.com',
-      'production'
-    )).toBe(true);
+    expect(
+      isSameOriginAllowed('https://app.example.com', 'https://app.example.com/', 'production')
+    ).toBe(true);
+    expect(
+      isSameOriginAllowed('https://app.example.com/', 'https://app.example.com', 'production')
+    ).toBe(true);
   });
 
   it('rejects a cross-site Origin when APP_ORIGIN is set', () => {
-    expect(isSameOriginAllowed(
-      'https://evil.example',
-      'https://app.example.com',
-      'production'
-    )).toBe(false);
+    expect(
+      isSameOriginAllowed('https://evil.example', 'https://app.example.com', 'production')
+    ).toBe(false);
   });
 
   it('allows any Origin in non-production when APP_ORIGIN is unset', () => {
@@ -74,13 +62,13 @@ describe('requireSameOrigin middleware', () => {
     else process.env.NODE_ENV = originalEnv;
   });
 
-  function mockReq (origin?: string): Request {
+  function mockReq(origin?: string): Request {
     return {
       get: (name: string) => (name.toLowerCase() === 'origin' ? origin : undefined)
     } as unknown as Request;
   }
 
-  function mockRes (): Response & {
+  function mockRes(): Response & {
     statusCode?: number;
     body?: unknown;
     status: ReturnType<typeof vi.fn>;

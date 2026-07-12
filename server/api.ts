@@ -19,7 +19,7 @@ api.use('/auth', auth);
 api.get('/ice-servers', (req, res) => {
   if (!req.user) return res.sendStatus(401);
 
-  const iceServers: Array<{ urls: string, username?: string, credential?: string }> = [
+  const iceServers: Array<{ urls: string; username?: string; credential?: string }> = [
     { urls: process.env.STUN_URL || 'stun:stun.l.google.com:19302' }
   ];
 
@@ -45,6 +45,6 @@ api.get('/ice-servers', (req, res) => {
 });
 
 // No routes matched? 404.
-api.use((req, res) => res.status(404).end());
+api.use((_req, res) => res.status(404).end());
 
 export default api;

@@ -13,8 +13,18 @@ export default (props: Props) => (
     <div style={props.styles.subtitleCenter}> Virtual Teams </div>
     <div style={props.styles.subtitleCenter}> Shared VR Experiences </div>
     <div style={props.styles.subtitleCenter}> Real Friends </div>
-    <a target="_blank" href="https://github.com/TranscendVR/transcend" style={props.styles.viewOnGitHub}>
-      <BrandIcon path={GITHUB_PATH} viewBox={GITHUB_VIEWBOX} label="GitHub" style={props.styles.viewOnGitHubIcon} />
+    <a
+      target="_blank"
+      href="https://github.com/TranscendVR/transcend"
+      style={props.styles.viewOnGitHub}
+      rel="noopener"
+    >
+      <BrandIcon
+        path={GITHUB_PATH}
+        viewBox={GITHUB_VIEWBOX}
+        label="GitHub"
+        style={props.styles.viewOnGitHubIcon}
+      />
       View on GitHub
     </a>
   </div>

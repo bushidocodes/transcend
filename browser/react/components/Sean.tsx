@@ -5,7 +5,7 @@ import Room from './Room.tsx';
 // WebRTC chat join/leave is handled centrally by <App> on scene change (issue #70), so this
 // room is a pure render component.
 export default class Sean extends Component {
-  render () {
+  render() {
     return (
       <a-entity>
         <Room
@@ -22,8 +22,11 @@ export default class Sean extends Component {
           label="Lobby"
           href="/vr"
           rotation="90"
-          x="-24.5" y="1" z="-5"
-          labelx="-1" labely="1"
+          x="-24.5"
+          y="1"
+          z="-5"
+          labelx="-1"
+          labely="1"
         />
       </a-entity>
     );

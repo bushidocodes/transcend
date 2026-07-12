@@ -14,12 +14,14 @@ const debugEnabled = (process.env.DEBUG || '')
   .some(ns => ns === 'sql' || ns === '*');
 const sqlLogging = debugEnabled ? (msg: string) => console.error(`sql ${msg}`) : false;
 
-const name = process.env.DATABASE_NAME || ('transcend' + (process.env.NODE_ENV === 'testing' ? '_test' : ''));
+const name =
+  process.env.DATABASE_NAME || 'transcend' + (process.env.NODE_ENV === 'testing' ? '_test' : '');
 const defaultUrl = `postgres://localhost:5432/${name}`;
 
 // When testing, prefer DATABASE_TEST_URL so a shell-exported DATABASE_URL
 // (pointing at the live dev DB) can't accidentally wipe it via force-sync.
-const url = (process.env.NODE_ENV === 'testing' ? process.env.DATABASE_TEST_URL : null) ||
+const url =
+  (process.env.NODE_ENV === 'testing' ? process.env.DATABASE_TEST_URL : null) ||
   process.env.DATABASE_URL ||
   defaultUrl;
 console.log(styleText('blue', `Opening database connection to ${url}`));

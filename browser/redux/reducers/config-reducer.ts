@@ -32,7 +32,10 @@ export const setTickRate = (tickRate: number): SetTickRateAction => {
 
 const initialState: ConfigState = { tickRate: null };
 
-export default function configReducer (state: ConfigState = initialState, action: UnknownAction): ConfigState {
+export default function configReducer(
+  state: ConfigState = initialState,
+  action: UnknownAction
+): ConfigState {
   switch (action.type) {
     case SET_TICK_RATE:
       return { ...state, tickRate: (action as unknown as SetTickRateAction).tickRate };
