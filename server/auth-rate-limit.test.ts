@@ -57,6 +57,46 @@ describe('auth IP rate limit (issue #140)', function () {
   });
 });
 
+describe('skin PUT rate limit (issue #203)', function () {
+  let skinServer: http.Server;
+  let skinBase: string;
+
+  beforeAll(() => new Promise<void>(resolve => {
+    const limiters = createAuthRateLimiters({
+      windowMs: 60 * 1000,
+      ipMax: 100,
+      loginEmailMax: 100,
+      skinWindowMs: 60 * 1000,
+      skinIpMax: 3
+    });
+    const app = express();
+    app.use(express.json());
+    app.put('/skin', limiters.skinLimiter, (req, res) => res.sendStatus(200));
+    skinServer = app.listen(0, () => {
+      skinBase = 'http://localhost:' + (skinServer.address() as AddressInfo).port;
+      resolve();
+    });
+  }));
+
+  afterAll(() => new Promise(resolve => skinServer.close(resolve)));
+
+  it('returns 429 after the per-IP max on PUT /skin', async function () {
+    const hit = () => fetch(skinBase + '/skin', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skin: 'batman' })
+    });
+
+    expect((await hit()).status).toBe(200);
+    expect((await hit()).status).toBe(200);
+    expect((await hit()).status).toBe(200);
+    const blocked = await hit();
+    expect(blocked.status).toBe(429);
+    const json = await blocked.json();
+    expect(json.error).toMatch(/too many skin/i);
+  });
+});
+
 describe('auth login email rate limit (issue #140)', function () {
   // Fresh limiters so the previous describe's IP hits don't pollute this one.
   let emailServer: http.Server;
