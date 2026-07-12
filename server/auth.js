@@ -1,7 +1,9 @@
 const auth = require('express').Router();
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
-const GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+// passport-google-oauth is a deprecated meta-package (last published 2022). Use the
+// maintained OAuth 2.0 strategy directly (issue #152).
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
 const User = require('../db').model('users');
 
