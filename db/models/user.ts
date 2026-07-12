@@ -96,8 +96,7 @@ export const BCRYPT_ROUNDS = 12;
 // compare (issue #240). Never accept a match against this digest as authentication.
 // Plaintext was: "timing-dummy-not-a-real-password". If BCRYPT_ROUNDS changes, regenerate:
 //   node -e "import('bcryptjs').then(b=>b.hash('timing-dummy-not-a-real-password', ROUNDS).then(console.log))"
-export const DUMMY_PASSWORD_DIGEST =
-  '$2b$12$Rx6CCkeKMhrGV9RWTZWAduaWbGucrUF9ZD1W2rVYRUkqogrSz/tXW';
+export const DUMMY_PASSWORD_DIGEST = '$2b$12$Rx6CCkeKMhrGV9RWTZWAduaWbGucrUF9ZD1W2rVYRUkqogrSz/tXW';
 
 /**
  * Constant-work password check (issue #240).

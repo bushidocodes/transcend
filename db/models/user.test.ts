@@ -1,10 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { prepare } from '../index.ts';
-import User, {
-  BCRYPT_ROUNDS,
-  DUMMY_PASSWORD_DIGEST,
-  comparePassword
-} from './user.ts';
+import User, { BCRYPT_ROUNDS, DUMMY_PASSWORD_DIGEST, comparePassword } from './user.ts';
 
 // describe/it/expect/beforeAll are provided as globals by Vitest (test.globals).
 
@@ -48,9 +44,7 @@ describe('User', () => {
 
     it('returns false for a null digest and never authenticates the dummy hash', async () => {
       await expect(comparePassword('anything', null)).resolves.toBe(false);
-      await expect(comparePassword('timing-dummy-not-a-real-password', null)).resolves.toBe(
-        false
-      );
+      await expect(comparePassword('timing-dummy-not-a-real-password', null)).resolves.toBe(false);
     });
 
     it('returns true only when a real digest matches', async () => {
