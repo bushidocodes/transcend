@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import { getSocket, setSocket } from './socket-holder.ts';
+import { getSocket, setSocket, clearSocket as clearSocketHolder } from './socket-holder.ts';
 import { EVENTS, type SceneState, type UsersMap } from '../shared/protocol.ts';
 import store from './redux/store.ts';
 import { setTickRate } from './redux/reducers/config-reducer.ts';
@@ -18,17 +18,17 @@ import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCan
 let hasConnected = false;
 // Create the socket and wire up its event handlers, publishing the instance through
 // browser/socket-holder.ts (issue #120 — see that module for why the instance lives there).
-// Idempotent: the first call performs the real initialization; later calls return the existing
-// socket untouched. That matters because io() + the socket.on handlers must run exactly once
-// for the lifetime of the page: socket creation is deferred until the user has a valid auth
-// session (issue #67), at which point <App> calls initSocket() on mount, and a logout→login
-// cycle without a full page reload remounts <App> and calls initSocket() again — the socket
-// (and its handlers, and the hasConnected flag) must be reused rather than re-created,
-// otherwise every handler would be registered twice and fire twice per event.
+// Idempotent while a socket exists: later calls return the existing instance so handlers are
+// not double-registered. On logout, clearSocket() disconnects and nulls the singleton so the
+// next login opens a fresh handshake and re-derives socket.request.user from the new session
+// (issue #199). Reusing the same Engine.IO connection across accounts left the prior Passport
+// user stamped on the handshake request.
 export function initSocket (): Socket {
   const existing = getSocket();
   if (existing) return existing;
 
+  // New connection instance — first CONNECT is the initial join path, not a reconnect.
+  hasConnected = false;
   const socket = setSocket(io(window.location.origin));
 
   socket.on(EVENTS.CONNECT, () => {
@@ -170,6 +170,14 @@ function showSessionReplacedOverlay (): void {
 // registry and clears hasLocalMedia (issue #176).
 export function releaseLocalMedia (): void {
   releaseLocalMediaStream();
+}
+
+// Logout teardown (issue #199): disconnect the Engine.IO connection and drop the singleton so
+// the next login re-handshakes with the new Passport session. Also resets hasConnected so
+// initSocket treats the next connection as an initial connect (App emits joinScene on mount).
+export function clearSocket (): void {
+  clearSocketHolder();
+  hasConnected = false;
 }
 
 export default initSocket;

@@ -768,6 +768,82 @@ describe('Socket.io – single active session per account (#30)', function () {
 });
 
 // -----------------------------------------------------------------
+// 7c. Logout clears handshake identity (issue #199)
+// -----------------------------------------------------------------
+
+describe('Socket.io – logout clears handshake identity (#199)', function () {
+  it('clears request.user on logout so re-join does not re-bind the prior account', function () {
+    // Same Engine.IO socket: join as account 199, logout, re-join without reconnecting.
+    // If LOGOUT_USER left socket.request.user intact, re-join would restore accountId 199 and
+    // a later same-account join would sessionReplace this socket. After the fix, re-join is
+    // anonymous and coexists with a new authenticated session for account 199.
+    const first = connect({ id: 199, displayName: 'Alice', skin: 'default' });
+    let second: ConnectedClient;
+
+    return waitFor(first, 'connect')
+      .then(function () {
+        first.emit('joinScene', { displayName: 'Alice', skin: 'default' }, 'lobby');
+        return sleep(120);
+      })
+      .then(function () {
+        first.emit('logoutUser');
+        return sleep(80);
+      })
+      .then(function () {
+        first.emit('joinScene', { displayName: 'Alice', skin: 'default' }, 'lobby');
+        return sleep(120);
+      })
+      .then(function () {
+        second = connect({ id: 199, displayName: 'Alice', skin: 'default' });
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        let firstReplaced = false;
+        first.once('sessionReplaced', function () { firstReplaced = true; });
+        second.emit('joinScene', { displayName: 'Alice', skin: 'default' }, 'lobby');
+        return sleep(200).then(function () {
+          expect(firstReplaced).toBe(false);
+          expect(first.connected).toBe(true);
+          expect(second.connected).toBe(true);
+          return cleanup(first, second);
+        });
+      });
+  });
+
+  it('logoutUser clears identity even when the socket never joined a scene', function () {
+    // Defense-in-depth: LOGOUT_USER must clear request.user even if createdUser is still false,
+    // so a later joinScene cannot pick up the handshake Passport user.
+    const first = connect({ id: 201, displayName: 'Bob', skin: 'default' });
+    let second: ConnectedClient;
+
+    return waitFor(first, 'connect')
+      .then(function () {
+        first.emit('logoutUser');
+        return sleep(80);
+      })
+      .then(function () {
+        first.emit('joinScene', { displayName: 'Bob', skin: 'default' }, 'lobby');
+        return sleep(120);
+      })
+      .then(function () {
+        second = connect({ id: 201, displayName: 'Bob', skin: 'default' });
+        return waitFor(second, 'connect');
+      })
+      .then(function () {
+        let firstReplaced = false;
+        first.once('sessionReplaced', function () { firstReplaced = true; });
+        second.emit('joinScene', { displayName: 'Bob', skin: 'default' }, 'lobby');
+        return sleep(200).then(function () {
+          expect(firstReplaced).toBe(false);
+          expect(first.connected).toBe(true);
+          expect(second.connected).toBe(true);
+          return cleanup(first, second);
+        });
+      });
+  });
+});
+
+// -----------------------------------------------------------------
 // 7b. WebRTC signaling room membership (issue #168)
 // -----------------------------------------------------------------
 

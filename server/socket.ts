@@ -269,16 +269,29 @@ export default function attachSocketServer (io: Server): void {
       }
     }, changeSceneLimiter);
 
-    // Explicit logout: remove the avatar and leave the broadcast/chat rooms without closing the
-    // socket, so the client can re-register (via joinScene) on a subsequent login without
-    // reconnecting.
+    // Explicit logout: remove the avatar and leave the broadcast/chat rooms. Always clear
+    // identity bookkeeping — including the Passport user stamped on the Engine.IO handshake
+    // request — so a reused socket cannot re-bind the prior account on the next joinScene
+    // (issue #199). The browser also disconnects and re-handshakes after logout; this server
+    // clear is defense-in-depth if the connection is kept.
     on(socket, EVENTS.LOGOUT_USER, null, () => {
       if (socket.createdUser) {
         removeUserFromWorld();
         leaveChatRoom();
         leaveSceneRoom();
-        socket.createdUser = false;
-        socket.accountId = null;
+      }
+      socket.createdUser = false;
+      socket.accountId = null;
+      // socket.request.user is set once at handshake by passport.session() and is never
+      // refreshed for the life of the connection. Clear it so a subsequent joinScene on this
+      // socket cannot impersonate the logged-out account.
+      const req = socket.request as {
+        user?: unknown
+        session?: { passport?: { user?: unknown } }
+      };
+      req.user = undefined;
+      if (req.session?.passport) {
+        delete req.session.passport.user;
       }
     });
 
