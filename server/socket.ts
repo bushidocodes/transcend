@@ -11,6 +11,7 @@ import type { Pose } from '../shared/protocol.ts';
 import GameState from './game-state.ts';
 import VALID_SKINS from './validSkins.ts';
 import { SocketRateLimiter, SOCKET_RATE_LIMITS } from './socket-rate-limit.ts';
+import { runGuardedHandler } from './socket-handler-guard.ts';
 
 // Per-connection bookkeeping the handlers hang off the socket object itself (same as the JS
 // version did): whether joinScene ran, which account owns the session, and current rooms.
@@ -35,6 +36,8 @@ const BROADCAST_INTERVAL_MS = 50;
 // user, so one malformed message is a remote denial-of-service (issue #112). Register every
 // handler through this guarded path instead: `validate` (when given) must accept the payload
 // or the message is dropped, and the handler body is caught and logged rather than crashing.
+// Async handlers that return a rejecting Promise are also contained (issue #241) via
+// runGuardedHandler — a bare try/catch only catches synchronous throws.
 // The per-event payload validators live with the event names in shared/protocol.ts (#117).
 //
 // Optional `rateLimit` (issue #203): when provided, excess events for this socket are dropped
@@ -47,7 +50,7 @@ function on(
   socket: Socket,
   event: string,
   validate: ((...args: unknown[]) => boolean) | null,
-  handler: (...args: unknown[]) => void,
+  handler: (...args: unknown[]) => unknown,
   rateLimit?: SocketRateLimiter
 ): void {
   socket.on(event, (...args: unknown[]) => {
@@ -59,8 +62,12 @@ function on(
         console.log(styleText('red', `[${socket.id}] dropped malformed '${event}' payload`));
         return;
       }
-      handler(...args);
+      // Sync throws + async rejections both land in onError (issue #241).
+      runGuardedHandler(handler, args, err => {
+        console.error(styleText('red', `[${socket.id}] handler for '${event}' threw:`), err);
+      });
     } catch (err) {
+      // validate / rateLimit threw (should be rare); still contain it.
       console.error(styleText('red', `[${socket.id}] handler for '${event}' threw:`), err);
     }
   });

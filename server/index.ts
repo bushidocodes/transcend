@@ -212,8 +212,10 @@ prepare()
   });
 
 // Graceful shutdown (issue #121): stop accepting connections, disconnect every socket.io
-// client, drain in-flight HTTP requests, close the Sequelize pool, then exit 0 — with a
-// watchdog that force-exits non-zero if draining hangs. io.close() both disconnects the
+// client, drain in-flight HTTP requests, close the Sequelize pool, then exit — with a
+// watchdog that force-exits non-zero if draining hangs. Exit code respects process.exitCode
+// (0 for SIGTERM/SIGINT, 1 for crash handlers below) so restart:on-failure orchestrators
+// restart after fatals but not after intentional stops. io.close() both disconnects the
 // sockets and closes the attached HTTP server; idle keep-alive connections would stall that
 // close, so they're dropped explicitly. (Windows can't deliver SIGTERM to a process — these
 // handlers run on POSIX deploys, where orchestrators send it.)
@@ -232,13 +234,29 @@ function shutdown(signal: string): void {
       .catch(() => {})
       .then(() => {
         console.log(styleText('blue', 'Shutdown complete'));
-        process.exit(0);
+        process.exit(process.exitCode ?? 0);
       });
   });
   server.closeIdleConnections();
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Process-level safety nets (issue #241): anything that escapes request/socket try/catch
+// (or a future async path that forgets .catch) would otherwise kill the process under
+// Node's unhandled-rejection default. Log and enter the same graceful-shutdown path so
+// orchestrators restart a clean process instead of serving from a half-dead instance.
+// Set exitCode=1 so a clean drain still reports failure (process.exit(0) would hide crashes).
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error(styleText('red', 'unhandledRejection:'), reason);
+  process.exitCode = 1;
+  shutdown('unhandledRejection');
+});
+process.on('uncaughtException', (err: Error) => {
+  console.error(styleText('red', 'uncaughtException:'), err);
+  process.exitCode = 1;
+  shutdown('uncaughtException');
+});
 
 app.use(
   '/',
