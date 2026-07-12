@@ -95,7 +95,7 @@ function App (props: Props) {
             <LoadingSpinner />
           )
         : null}
-      <a-scene id='scene' scene-load>
+      <a-scene id="scene" scene-load>
         <AssetLoader />
         {assetsReady ? <Outlet /> : null}
       </a-scene>

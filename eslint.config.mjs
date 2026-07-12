@@ -38,6 +38,10 @@ export default [
     rules: {
       'react/jsx-uses-react': 'error',
       'react/jsx-uses-vars': 'error',
+      // neostandard's prefer-single only started matching once JSX moved into .tsx files
+      // (it targets **/*.{jsx,tsx}; the JSX used to live in .js). Keep the double quotes
+      // the components were always written with.
+      '@stylistic/jsx-quotes': ['error', 'prefer-double'],
     },
   },
 

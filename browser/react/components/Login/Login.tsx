@@ -8,8 +8,8 @@ export default function Login () {
   return (
     <div style={styles.container}>
       <div>
-        <Link to='/signup' style={styles.signupLink}>
-          <button key='signup' style={styles.signupButton}>Sign Up</button>
+        <Link to="/signup" style={styles.signupLink}>
+          <button key="signup" style={styles.signupButton}>Sign Up</button>
         </Link>
       </div>
       <div style={styles.orDividerLineDiv}>
@@ -20,25 +20,25 @@ export default function Login () {
       <form onSubmit={login}>
         <div>
           <input
-            key='name'
-            name='email'
-            type='email'
-            placeholder='email'
+            key="name"
+            name="email"
+            type="email"
+            placeholder="email"
             style={styles.formControl}
             required
           />
         </div>
         <div>
           <input
-            key='password'
-            name='password'
-            type='password'
-            placeholder='password'
+            key="password"
+            name="password"
+            type="password"
+            placeholder="password"
             style={styles.formControl}
             required
           />
         </div>
-        <button style={styles.loginButton} type='submit'>Log In</button>
+        <button style={styles.loginButton} type="submit">Log In</button>
       </form>
       <div style={styles.orDividerLineDiv}>
         <div style={styles.orDividerLineBefore}></div>
@@ -46,8 +46,8 @@ export default function Login () {
         <div style={styles.orDividerLineAfter}></div>
       </div>
       <div>
-        <a target='_self' href='/api/auth/google/login' style={styles.loginWithGoogle}>
-          <BrandIcon path={GOOGLE_PATH} viewBox={GOOGLE_VIEWBOX} label='Google' style={styles.loginWithGoogleIcon} />
+        <a target="_self" href="/api/auth/google/login" style={styles.loginWithGoogle}>
+          <BrandIcon path={GOOGLE_PATH} viewBox={GOOGLE_VIEWBOX} label="Google" style={styles.loginWithGoogleIcon} />
           Log in with Google
         </a>
       </div>

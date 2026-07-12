@@ -61,7 +61,7 @@ function RequireAuth ({ children }: { children: ReactNode }) {
   }, []);
 
   if (loading) return null;
-  if (auth.id == null) return <Navigate to='/' replace />;
+  if (auth.id == null) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -94,17 +94,17 @@ createRoot(document.getElementById('react-app')!).render(
       <NavigateCapture />
       <Routes>
         {/* Auth / login shell — Home provides title + Outlet context (login, signup, styles) */}
-        <Route path='/' element={<Home />}>
-          <Route index element={<Navigate to='/login' replace />} />
-          <Route path='login' element={<Login />} />
-          <Route path='signup' element={<Signup />} />
+        <Route path="/" element={<Home />}>
+          <Route index element={<Navigate to="/login" replace />} />
+          <Route path="login" element={<Login />} />
+          <Route path="signup" element={<Signup />} />
         </Route>
 
-        <Route path='/logout' element={<Logout />} />
+        <Route path="/logout" element={<Logout />} />
 
         {/* VR section — RequireAuth checks session before rendering App. One route per
             manifest entry (issue #119). */}
-        <Route path='/vr' element={<RequireAuth><App /></RequireAuth>}>
+        <Route path="/vr" element={<RequireAuth><App /></RequireAuth>}>
           <Route index element={<Navigate to={DEFAULT_ROOM} replace />} />
           {ROOMS.map(({ path }) => {
             const RoomComponent = ROOM_COMPONENTS[path];

@@ -27,10 +27,10 @@ export default function BrandIcon ({ path, viewBox, label, style }: Props) {
     <span style={style}>
       <svg
         viewBox={viewBox}
-        width='21'
-        height='21'
-        fill='currentColor'
-        role='img'
+        width="21"
+        height="21"
+        fill="currentColor"
+        role="img"
         aria-label={label}
         style={{ display: 'block', margin: '0 auto' }}
       >

@@ -9,18 +9,18 @@ export default function Signup () {
       <form onSubmit={signup}>
         <div>
           <input
-            key='name'
-            name='name'
-            placeholder='name'
+            key="name"
+            name="name"
+            placeholder="name"
             style={styles.formControl}
             required
           />
         </div>
         <div>
           <input
-            key='displayName'
-            name='displayName'
-            placeholder='display name'
+            key="displayName"
+            name="displayName"
+            placeholder="display name"
             maxLength={8}
             style={styles.formControl}
             required
@@ -28,25 +28,25 @@ export default function Signup () {
         </div>
         <div>
           <input
-            key='email'
-            name='email'
-            type='email'
-            placeholder='email'
+            key="email"
+            name="email"
+            type="email"
+            placeholder="email"
             style={styles.formControl}
             required
           />
         </div>
         <div>
           <input
-            key='password'
-            name='password'
-            type='password'
-            placeholder='password'
+            key="password"
+            name="password"
+            type="password"
+            placeholder="password"
             style={styles.formControl}
             required
           />
         </div>
-        <button style={styles.loginButton} type='submit'>Sign Up</button>
+        <button style={styles.loginButton} type="submit">Sign Up</button>
       </form>
     </div>
   );

@@ -14,7 +14,7 @@ const wrapperStyle: CSSProperties = {
 export default function LoadingSpinner () {
   return (
     <div style={wrapperStyle}>
-      <div className='loading-spinner' role='status' aria-label='Loading' />
+      <div className="loading-spinner" role="status" aria-label="Loading" />
     </div>
   );
 }
