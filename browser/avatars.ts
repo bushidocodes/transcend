@@ -123,8 +123,8 @@ export function remove (id: string): void {
 // Reconcile the remote avatars against a room-scoped `id -> user` payload (sceneState.others
 // or a usersUpdated snapshot, #58): add avatars that are new, redraw on skin change, update
 // pose otherwise, and drop everyone absent from the payload (they left the room, or we did).
-// The local avatar is never touched — it's camera-driven, and the server excludes it from
-// every payload anyway.
+// The local avatar is never touched — it is camera-driven. Room broadcasts may still include
+// the local id in the payload after #200's O(M) room emit; the client skips self here.
 export function sync (users?: Record<string, AvatarUser> | null): void {
   const map = users || {};
   Object.keys(map).forEach(id => {
