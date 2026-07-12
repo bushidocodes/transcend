@@ -6,8 +6,11 @@ const User = db.define('users', {
   name: Sequelize.STRING,
   displayName: Sequelize.STRING,
   skin: Sequelize.STRING,
+  // allowNull: false so the DB rejects NULL email even if a caller skips the route check
+  // (issue #139). OAuth signup always supplies profile.emails[0].value.
   email: {
     type: Sequelize.STRING,
+    allowNull: false,
     validate: {
       isEmail: true,
       notEmpty: true

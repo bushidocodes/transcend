@@ -29,10 +29,28 @@ passport.deserializeUser(
 // attacker-controlled, and passing it straight to User.create let a signup set ANY column —
 // bypassing the VALID_SKINS guard on `skin` (re-opening the injection #79 closed) and
 // pre-binding `googleId` to hijack a victim's future Google login (issue #114).
+//
+// email and password are also required here (issue #139). Without them the model would
+// create unusable rows: Sequelize skips isEmail when the field is null, and setEmailAndPassword
+// early-returns when password is empty so password_digest stays NULL.
 auth.post('/local/signup', (req, res, next) => {
   const { email, password, displayName } = req.body;
   if (!displayName || displayName.length < 1 || displayName.length > 8) {
     return res.status(400).json({ error: 'Display name must be 1–8 characters' });
+  }
+  // Basic shape only — full isEmail still runs on the model after create. Require exactly one @
+  // with non-empty, whitespace-free sides and a dotted domain, so obviously-malformed values get a
+  // clean 400 instead of a 500 from the model's thrown ValidationError. The @-structure is matched
+  // with a linear regex (two disjoint classes around a required @), then the domain dot is checked
+  // with a plain string op — avoiding the polynomial-backtracking pattern CodeQL flagged.
+  const trimmedEmail = typeof email === 'string' ? email.trim() : '';
+  if (!/^[^\s@]+@[^\s@]+$/.test(trimmedEmail) || !trimmedEmail.split('@')[1].includes('.')) {
+    return res.status(400).json({ error: 'A valid email is required' });
+  }
+  // Non-empty password so setEmailAndPassword always produces a password_digest. (Google
+  // OAuth accounts remain passwordless; this path is local-only.)
+  if (typeof password !== 'string' || password.length < 1) {
+    return res.status(400).json({ error: 'Password is required' });
   }
   User.create({ email, password, displayName })
     .then(user => {

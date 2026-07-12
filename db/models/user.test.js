@@ -9,12 +9,12 @@ describe('User', () => {
 
   describe('authenticate(plaintext: String) ~> Boolean', () => {
     it('resolves true if the password matches', () =>
-      User.create({ password: 'ok' })
+      User.create({ email: 'ok@example.com', password: 'ok' })
         .then(user => user.authenticate('ok'))
         .then(result => expect(result).toBe(true)));
 
     it("resolves false if the password doesn't match", () =>
-      User.create({ password: 'ok' })
+      User.create({ email: 'bad@example.com', password: 'ok' })
         .then(user => user.authenticate('not ok'))
         .then(result => expect(result).toBe(false)));
   });
