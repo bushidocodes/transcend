@@ -16,7 +16,7 @@ AFRAME.registerComponent('mute-self', {
   },
   handler: function () {
     console.log('Muting');
-    const stream = store.getState().webrtc.get('localMediaStream');
+    const stream = store.getState().webrtc.localMediaStream;
     console.log('stream', stream);
     // No mic stream (user denied access or it never initialized) — nothing to mute. Bail out
     // instead of throwing on stream.getAudioTracks(), which would crash the click handler.

@@ -39,7 +39,7 @@ let peerMediaElements = {};  // keep track of our <audio> tags, indexed by peer_
 export function joinChatRoom (room, errorback) {
   // Get our microphone from the state
   console.log(store.getState());
-  const localMediaStream = store.getState().webrtc.get('localMediaStream');
+  const localMediaStream = store.getState().webrtc.localMediaStream;
 
   if (!room) {
     console.log('No room was provided');
@@ -81,9 +81,9 @@ export function leaveChatRoom () {
 export async function addPeerConn (config) {
   console.log('Signaling server said to add peer:', config);
   const peerId = config.peer_id;
-  const peers = store.getState().webrtc.get('peers');
+  const peers = store.getState().webrtc.peers;
   // If for some reason, this client aready is connected to the peer, return
-  if (peers.has(peerId)) {
+  if (peers[peerId]) {
     console.log('Already connected to peer ', peerId);
     return;
   }
@@ -126,7 +126,7 @@ export async function addPeerConn (config) {
   };
 
   /* Add our local stream's tracks. addTrack replaces the removed addStream. */
-  const localMediaStream = store.getState().webrtc.get('localMediaStream');
+  const localMediaStream = store.getState().webrtc.localMediaStream;
   localMediaStream.getTracks().forEach(track => peerConnection.addTrack(track, localMediaStream));
 
   // Register the peer before negotiating so an incoming answer / ICE candidate can find it.
@@ -157,9 +157,9 @@ export function removePeerConn (config) {
   if (peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
   }
-  const peers = store.getState().webrtc.get('peers');
-  if (peers.has(peerId)) {
-    peers.get(peerId).close();
+  const peers = store.getState().webrtc.peers;
+  if (peers[peerId]) {
+    peers[peerId].close();
   }
   store.dispatch(deletePeer(peerId));
   // Use the extracted peerId (snake_case config.peer_id). config.peerId is always undefined,
@@ -170,7 +170,7 @@ export function removePeerConn (config) {
 export async function setRemoteAnswer (config) {
   console.log('Remote description received: ', config);
   const peerId = config.peer_id;
-  const peer = store.getState().webrtc.getIn(['peers', peerId]);
+  const peer = store.getState().webrtc.peers[peerId];
   const remoteDescription = config.session_description;
   // The modern Promise-based API accepts the plain RTCSessionDescriptionInit directly, so the
   // deprecated RTCSessionDescription wrapper and callback forms are gone (issue #77).
@@ -191,7 +191,7 @@ export async function setRemoteAnswer (config) {
 }
 
 export async function setIceCandidate (config) {
-  const peer = store.getState().webrtc.getIn(['peers', config.peer_id]);
+  const peer = store.getState().webrtc.peers[config.peer_id];
   // addIceCandidate accepts the plain RTCIceCandidateInit directly; the deprecated
   // RTCIceCandidate wrapper is no longer needed (issue #77).
   try {
@@ -205,8 +205,8 @@ export function disconnectUser () {
   for (const peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
   }
-  const peers = store.getState().webrtc.get('peers');
-  peers.valueSeq().forEach(peerConn => {
+  const peers = store.getState().webrtc.peers;
+  Object.values(peers).forEach(peerConn => {
     peerConn.close();
   });
   store.dispatch(clearPeers());

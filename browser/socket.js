@@ -45,7 +45,7 @@ export function initSocket () {
     // fresh sceneState that repopulates our avatar under the new id (issue #69).
     const auth = store.getState().auth;
     const scene = currentRoom();
-    if (scene && auth && typeof auth.has === 'function' && auth.has('id')) {
+    if (scene && auth && auth.id != null) {
       console.log('Reconnected — re-registering this client with the server (issue #56)');
       avatars.removeLocal();
       socket.emit(EVENTS.JOIN_SCENE, auth, scene);
@@ -166,7 +166,7 @@ function showSessionReplacedOverlay () {
 // terminal teardown (e.g. sessionReplaced) — NOT on a transient disconnect, where the stream is
 // reused on reconnect.
 function releaseLocalMedia () {
-  const stream = store.getState().webrtc.get('localMediaStream');
+  const stream = store.getState().webrtc.localMediaStream;
   if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
 }
 

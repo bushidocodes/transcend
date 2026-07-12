@@ -51,7 +51,7 @@ if (prebundle) prebundle.style.display = 'none';
 function RequireAuth ({ children }) {
   const auth = useSelector(state => state.auth);
   const dispatch = useDispatch();
-  const alreadyAuthed = auth.has('id');
+  const alreadyAuthed = auth.id != null;
   const [loading, setLoading] = useState(!alreadyAuthed);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ function RequireAuth ({ children }) {
   }, []);
 
   if (loading) return null;
-  if (!auth.has('id')) return <Navigate to="/" replace />;
+  if (auth.id == null) return <Navigate to="/" replace />;
   return children;
 }
 

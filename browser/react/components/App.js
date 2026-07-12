@@ -41,7 +41,7 @@ function App (props) {
   useEffect(() => {
     if (!assetsReady || joinedScene.current) return;
     const scene = currentRoom(location.pathname);
-    if (scene && props.auth && props.auth.has('id')) {
+    if (scene && props.auth && props.auth.id != null) {
       joinedScene.current = true;
       initSocket().emit(EVENTS.JOIN_SCENE, props.auth, scene);
     }
