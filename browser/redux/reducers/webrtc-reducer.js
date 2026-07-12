@@ -1,11 +1,11 @@
-import { Map } from 'immutable';
-
-// This is the state of our current webRtc connections and the media elements associated with them
-const initialState = Map({
+// WebRTC connections and media elements for this client. Plain objects (issue #145) —
+// peers is a dictionary of peerId → RTCPeerConnection; peerMediaElements is reserved for
+// any future store-backed audio tags (DOM tags currently live in webRTC/client.js).
+const initialState = {
   localMediaStream: null,
-  peers: Map({}),
-  peerMediaElements: Map({})
-});
+  peers: {},
+  peerMediaElements: {}
+};
 /* --------------- ACTIONS --------------- */
 
 const SET_USER_MEDIA = 'SET_USER_MEDIA';
@@ -48,17 +48,23 @@ export const clearPeers = () => {
 export default function webrtcReducer (state = initialState, action) {
   switch (action.type) {
     case SET_USER_MEDIA:
-      return state.set('localMediaStream', action.stream);
+      return { ...state, localMediaStream: action.stream };
 
     case ADD_PEER:
-      return state.setIn(['peers', action.peerId], action.peerConnection);
+      return {
+        ...state,
+        peers: { ...state.peers, [action.peerId]: action.peerConnection }
+      };
 
-    case DELETE_PEER:
-      return state.deleteIn(['peers', action.peerId]);
+    case DELETE_PEER: {
+      const peers = { ...state.peers };
+      delete peers[action.peerId];
+      return { ...state, peers };
+    }
 
     case CLEAR_PEERS:
-      // I didn't use .clear here because I want to keep the localMediaStream
-      return state.set('peers', Map({})).set('peerMediaElements', Map({}));
+      // Keep localMediaStream; only drop peer connections / media-element maps.
+      return { ...state, peers: {}, peerMediaElements: {} };
 
     default:
       return state;

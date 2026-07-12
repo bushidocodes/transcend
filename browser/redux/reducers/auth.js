@@ -1,5 +1,3 @@
-import { Map } from 'immutable';
-
 /* --------------- HELPERS --------------- */
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
@@ -9,9 +7,13 @@ const handleJson = response => {
   return response.json();
 };
 
+// Normalize server payloads to a plain object. whoami may return non-object bodies when
+// unauthenticated; never store null/array in the auth slice (issue #145).
+const asUser = data => (data && typeof data === 'object' && !Array.isArray(data) ? data : {});
+
 /* --------------- INITIAL STATE --------------- */
 
-const initialState = Map({});
+const initialState = {};
 
 /* --------------- ACTIONS --------------- */
 
@@ -32,11 +34,10 @@ export const login = (username, password) => {
     })
       .then(handleJson)
       .then(data => {
-        const user = Map(data);
-        dispatch(authenticated(user));
+        dispatch(authenticated(asUser(data)));
       })
       .catch(() => {
-        dispatch(authenticated(Map({})));
+        dispatch(authenticated({}));
       });
 };
 
@@ -67,10 +68,9 @@ export const whoami = () => {
     fetch('/api/auth/whoami')
       .then(handleJson)
       .then(data => {
-        const user = Map(data);
-        dispatch(authenticated(user));
+        dispatch(authenticated(asUser(data)));
       })
-      .catch(failed => dispatch(authenticated(Map({}))));
+      .catch(() => dispatch(authenticated({})));
 };
 
 /* --------------- REDUCER --------------- */

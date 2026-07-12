@@ -24,7 +24,7 @@ This project serves to address that need. Transcend was built by [Joey Darbyshir
 
 Transcend is built on [Node.js](https://nodejs.org/en/) using [Socket.io](http://socket.io/) for event-based client-server interaction, [WebRTC](https://webrtc.org/) for real-time audio communication, [A-Frame](https://aframe.io/) for 3D graphics and scene rendering and WebVR capabilities, and [React](https://facebook.github.io/react/) as a view layer.
 
-**Client:** [Redux](http://redux.js.org/) with [Immutable.js](https://facebook.github.io/immutable-js/) holds view/UI state (auth forms, connection status, local avatar pose, and the remote-user snapshot the render loop interpolates).
+**Client:** [Redux](http://redux.js.org/) holds view/UI state as plain objects (auth, scene-loaded flag, WebRTC peers/media, and config).
 
 **Server:** Authoritative multiplayer state lives in a plain `GameState` (user records keyed by socket id). Room membership and the socket registry are socket.io's own — scenes and voice-chat rooms use prefixed socket.io rooms rather than application-level maps. A fixed-rate, room-scoped broadcast loop pushes dirty-room snapshots to clients instead of fanning out on every inbound tick.
 

@@ -40,7 +40,6 @@
     "cross-env": "^10.1.0",
     "express": "^5.0.0",
     "express-session": "^1.19.0",
-    "immutable": "^4.0.0",
     "passport": "^0.7.0",
     "passport-google-oauth": "^2.0.0",
     "passport-local": "^1.0.0",
