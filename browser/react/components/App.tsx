@@ -1,0 +1,113 @@
+import { useEffect, useState, useRef } from 'react';
+import { connect } from 'react-redux';
+import { Outlet, useLocation } from 'react-router';
+import '../../aframeComponents/scene-load.ts';
+import '../../aframeComponents/aframe-minecraft.ts';
+import AssetLoader from './AssetLoader.tsx';
+import LoadingSpinner from './LoadingSpinner.tsx';
+import { initSocket } from '../../socket.ts';
+import { joinChatRoom, leaveChatRoom } from '../../webRTC/client.ts';
+import { EVENTS } from '../../../shared/protocol.ts';
+import { currentRoom } from '../../navigate.ts';
+import type { RootState } from '../../redux/store.ts';
+import type { AuthState } from '../../redux/reducers/auth.ts';
+
+/* ----------------- COMPONENT ------------------ */
+
+const style = { width: '100%', height: '100%' };
+
+interface Props {
+  isLoaded: boolean;
+  auth: AuthState;
+}
+
+function App (props: Props) {
+  // Gate the room (Outlet) on <a-assets> finishing. Under React 19 + A-Frame 1.x, an entity that
+  // references an asset by #id selector can parse before <a-assets> has registered the matching
+  // element, resolving to null with no retry. The static images / gltf monitors / floors now use
+  // direct URLs (race-immune), but the cat-room gif materials still reference assets by selector,
+  // so waiting for a-assets 'loaded' before creating any room entity keeps those resolving too.
+  // A-Frame entities stay as custom elements; React 19's improved CE support sets string props as
+  // attributes (what A-Frame reads) when the DOM property is absent.
+  const [assetsReady, setAssetsReady] = useState(false);
+  // joinScene must be emitted exactly once, even across re-renders.
+  const joinedScene = useRef(false);
+  const location = useLocation();
+
+  // Stage 2 (socket connection): open the socket as soon as <App> mounts — we're past auth via
+  // RequireAuth, so this is the Stage 1 → Stage 2 boundary (issue #67). initSocket() is
+  // idempotent and deferred from module load, so io() never fires before login and a
+  // logout→login remount reuses the existing socket.
+  useEffect(() => {
+    initSocket();
+  }, []);
+
+  // Stage 3 (get all data): join the scene once <a-assets> has finished loading (Stage 4). A
+  // single joinScene carries our identity + room and the server replies with one sceneState
+  // (our avatar + the room's other users + the tick rate), collapsing the old multi-hop
+  // handshake (issue #69). Gating on assetsReady keeps the server from sending scene data
+  // before the scene can display it (issue #68). Guarded to emit exactly once.
+  useEffect(() => {
+    if (!assetsReady || joinedScene.current) return;
+    const scene = currentRoom(location.pathname);
+    if (scene && props.auth && props.auth.id != null) {
+      joinedScene.current = true;
+      initSocket().emit(EVENTS.JOIN_SCENE, props.auth, scene);
+    }
+  }, [assetsReady, props.auth, location.pathname]);
+
+  useEffect(() => {
+    // hasLoaded is the A-Frame runtime property on the <a-assets> element, not in DOM lib types.
+    const assets = document.querySelector('#scene a-assets') as (Element & { hasLoaded?: boolean }) | null;
+    if (!assets || assets.hasLoaded) { setAssetsReady(true); return; }
+    const onLoaded = () => setAssetsReady(true);
+    assets.addEventListener('loaded', onLoaded);
+    return () => assets.removeEventListener('loaded', onLoaded);
+  }, []);
+
+  // Stage 5 (WebRTC peering): join the chat room for the current scene once it's ready, and
+  // leave it on room change / unmount. Centralizing this here (keyed on the route) makes audio
+  // peering a deliberate scene-ready stage instead of a side effect of whichever room component
+  // mounts, and derives the room from the path so it's consistent with the avatar scene (#70).
+  useEffect(() => {
+    if (!assetsReady) return;
+    // currentRoom() is null on the bare /vr index while it redirects to a room — skip it so we
+    // don't briefly join a phantom 'vr' chat room.
+    const room = currentRoom(location.pathname);
+    if (!room) return;
+    // Tell the server which VR room this avatar is in. Room membership used to piggyback on
+    // every position tick, but the server no longer merges `scene` from ticks (issue #113),
+    // so a route change must announce itself. Before the initial joinScene this is a no-op
+    // (the server drops it and joinScene carries the starting scene).
+    initSocket().emit(EVENTS.CHANGE_SCENE, room);
+    joinChatRoom(room);
+    return () => leaveChatRoom();
+  }, [assetsReady, location.pathname]);
+
+  return (
+    // AssetLoader is a stateless component containing the a-assets for all of the React components
+    //   rendered via props.children. It must reside here because A-Frame requires a-assets to a
+    //   direct child of a-scene.
+    // The LoadingSpinner hides the a-scene by pushing it below the visible screen until loaded
+    <div style={style}>
+      {!props.isLoaded
+        ? (
+            <LoadingSpinner />
+          )
+        : null}
+      <a-scene id='scene' scene-load>
+        <AssetLoader />
+        {assetsReady ? <Outlet /> : null}
+      </a-scene>
+    </div>
+  );
+}
+
+/* ----------------- CONTAINER ------------------ */
+
+const mapStateToProps = (state: RootState) => ({
+  isLoaded: state.isLoaded,
+  auth: state.auth,
+});
+
+export default connect(mapStateToProps)(App);

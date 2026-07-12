@@ -4,34 +4,34 @@ import globals from 'globals';
 
 // Flat-config replacement for the legacy .eslintrc + babel-eslint stack. neostandard is the
 // maintained successor to eslint-config-standard; its `semi: true` keeps the codebase's
-// existing "standard style, but with semicolons" convention. The default espree parser handles
-// the modern syntax (optional catch binding, etc.) that previously required babel-eslint.
+// existing "standard style, but with semicolons" convention. `ts: true` swaps in
+// typescript-eslint's parser and TS-aware rules for the converted .ts/.tsx sources.
 //
 // ESLint 10 (#155): published neostandard@0.13 peers only ESLint 9 and ships @stylistic@2,
 // which crashes on ESLint 10 (sourceCode.isSpaceBetweenTokens). Until neostandard 0.14 lands
 // (upstream PR neostandard/neostandard#340), we pin that PR's commit for ESLint 10 + @stylistic@5.
 export default [
   {
-    // public/** is build output; aframe-minecraft.js is a vendored THREEx port kept in its
+    // public/** is build output; aframe-minecraft.ts is a vendored THREEx port kept in its
     // upstream style (tabs, THREEx self-reference, lowercase constructors).
     ignores: [
       'public/**',
       '.playwright-mcp/**',
       '.claude/**',
       '.issue-review/**',
-      'browser/aframeComponents/aframe-minecraft.js',
+      'coverage/**',
+      'browser/aframeComponents/aframe-minecraft.ts',
     ],
   },
 
-  ...neostandard({ semi: true }),
+  ...neostandard({ semi: true, ts: true }),
 
-  // React/JSX: enable JSX parsing and the two rules the old config relied on to keep
-  // `React` and JSX-referenced components from tripping no-unused-vars.
+  // React/JSX: enable the rules that keep JSX-referenced components from tripping
+  // no-unused-vars.
   {
-    files: ['browser/**/*.js'],
+    files: ['browser/**/*.{ts,tsx}'],
     plugins: { react: reactPlugin },
     languageOptions: {
-      parserOptions: { ecmaFeatures: { jsx: true } },
       // THREE/AFRAME are runtime globals provided by A-Frame in the browser.
       globals: { ...globals.browser, THREE: 'readonly', AFRAME: 'readonly' },
     },
@@ -41,17 +41,16 @@ export default [
     },
   },
 
-  // Server and db code runs in Node. shared/ is CommonJS consumed by both the server
-  // (require) and the browser bundle (esbuild interop), so it lints as Node too.
+  // Server and db code runs in Node. shared/ is consumed by both the server and the
+  // browser bundle, so it lints as Node too.
   {
-    files: ['server/**/*.js', 'db/**/*.js', 'shared/**/*.js', 'build.mjs'],
+    files: ['server/**/*.ts', 'db/**/*.ts', 'shared/**/*.ts', 'migrations/**/*.ts', 'build.ts'],
     languageOptions: { globals: { ...globals.node } },
   },
 
-  // Test files use Vitest's globals (test.globals in vitest.config.mjs). toEqualImmutable is a
-  // custom matcher registered in test/setup.js.
+  // Test files use Vitest's globals (test.globals in vitest.config.ts).
   {
-    files: ['**/*.test.js', '**/*.test.jsx'],
+    files: ['**/*.test.ts', '**/*.test.tsx'],
     languageOptions: {
       globals: {
         describe: 'readonly',
