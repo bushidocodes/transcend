@@ -94,6 +94,14 @@ const styles = {
     overflow: 'hidden',
     transition: 'all 0.5s ease-in-out'
   },
+  // Login/signup failure message (issue #228). Min-height keeps layout stable when empty.
+  errorMessage: {
+    minHeight: '1.25em',
+    margin: '0 20px 8px',
+    color: '#ff6b6b',
+    fontSize: '13px',
+    textAlign: 'center'
+  },
   loginButton: {
     backgroundColor: '#2F75B8',
     color: '#FFF',

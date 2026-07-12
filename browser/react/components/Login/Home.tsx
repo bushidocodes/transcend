@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import { useDispatch } from 'react-redux';
 import { login, signup } from '../../../redux/reducers/auth.ts';
@@ -11,11 +11,14 @@ export interface LoginOutletContext {
   login: (event: FormEvent<HTMLFormElement>) => void;
   signup: (event: FormEvent<HTMLFormElement>) => void;
   styles: typeof styles;
+  /** Auth failure message for the active form; null when none (issue #228). */
+  error: string | null;
 }
 
 export default function Home() {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
 
   function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,7 +28,12 @@ export default function Home() {
     };
     const email = form.email.value;
     const password = form.password.value;
-    dispatch(login(email, password)).then(() => navigate('/vr'));
+    setError(null);
+    // Only navigate on success; surface failure so the user is not silently bounced (#228).
+    dispatch(login(email, password)).then(ok => {
+      if (ok) navigate('/vr');
+      else setError('Login failed. Check your email and password.');
+    });
   }
 
   function handleSignup(event: FormEvent<HTMLFormElement>) {
@@ -40,14 +48,25 @@ export default function Home() {
     const displayName = form.displayName.value;
     const email = form.email.value;
     const password = form.password.value;
-    dispatch(signup(name, displayName, email, password)).then(() => navigate('/vr'));
+    setError(null);
+    dispatch(signup(name, displayName, email, password)).then(ok => {
+      if (ok) navigate('/vr');
+      else setError('Signup failed. That email may already be in use, or the form is invalid.');
+    });
   }
 
   return (
     <div>
       <Title styles={styles} />
       <Outlet
-        context={{ login: handleLogin, signup: handleSignup, styles } satisfies LoginOutletContext}
+        context={
+          {
+            login: handleLogin,
+            signup: handleSignup,
+            styles,
+            error
+          } satisfies LoginOutletContext
+        }
       />
     </div>
   );
