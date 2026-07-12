@@ -11,17 +11,26 @@
 
 export class SocketRateLimiter {
   private hits = new Map<string, number[]>();
+  private maxPerWindow: number;
+  private windowMs: number;
+  private now: () => number;
 
   /**
    * @param maxPerWindow  Max events allowed per key inside one window
    * @param windowMs      Sliding window length in milliseconds
    * @param now           Optional clock (injectable for tests); defaults to Date.now
    */
+  // Explicit field assignment (not parameter properties): tsconfig erasableSyntaxOnly
+  // forbids constructor param properties that emit runtime JS.
   constructor (
-    private maxPerWindow: number,
-    private windowMs: number,
-    private now: () => number = Date.now
-  ) {}
+    maxPerWindow: number,
+    windowMs: number,
+    now: () => number = Date.now
+  ) {
+    this.maxPerWindow = maxPerWindow;
+    this.windowMs = windowMs;
+    this.now = now;
+  }
 
   /**
    * Record a hit for `key` and return whether it is still under the limit.
