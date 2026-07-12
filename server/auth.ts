@@ -114,6 +114,79 @@ auth.get('/google/login',
   })
 );
 
+/** Fields we take from a Google profile for account create/link (issue #171). */
+export interface GoogleProfileFields {
+  googleId: string;
+  email: string;
+  name: string;
+  displayName: string;
+}
+
+/**
+ * Pure extraction of identity fields from a Google profile.
+ * Returns an error string when the profile has no email (scope/consent edge cases) so the
+ * strategy can fail cleanly via done(null, false) instead of throwing on emails![0].
+ */
+export function resolveGoogleProfile (profile: {
+  id: string;
+  displayName?: string;
+  emails?: Array<{ value: string }>;
+}): GoogleProfileFields | { error: string } {
+  const email = profile.emails?.[0]?.value;
+  if (!email) {
+    return { error: 'Google account has no email' };
+  }
+  // displayName is 1–8 chars everywhere else (signup + #47); keep OAuth consistent.
+  const displayName = (profile.displayName || email.split('@')[0] || 'User').slice(0, 8);
+  const name = profile.displayName || displayName;
+  return {
+    googleId: profile.id,
+    // Match setEmailAndPassword lowercasing so email unique-index lookups hit local accounts.
+    email: email.toLowerCase(),
+    name,
+    displayName
+  };
+}
+
+/**
+ * Find or create a User for a Google profile:
+ * 1. Existing row with this googleId → return it
+ * 2. Existing local account with the same email → link googleId (and fill blank name/displayName)
+ * 3. Otherwise findOrCreate by googleId with name/email/displayName defaults
+ *
+ * Step 2 avoids unique-email collisions that used to 500 when a local account already existed.
+ */
+export async function resolveGoogleUser (profile: {
+  id: string;
+  displayName?: string;
+  emails?: Array<{ value: string }>;
+}): Promise<InstanceType<typeof User> | false> {
+  const resolved = resolveGoogleProfile(profile);
+  if ('error' in resolved) return false;
+
+  const { googleId, email, name, displayName } = resolved;
+
+  const byGoogle = await User.findOne({ where: { googleId } });
+  if (byGoogle) return byGoogle;
+
+  // Link existing local account with the same email rather than inserting a duplicate.
+  const byEmail = await User.findOne({ where: { email } });
+  if (byEmail) {
+    await byEmail.update({
+      googleId,
+      displayName: byEmail.displayName || displayName,
+      name: byEmail.name || name
+    });
+    return byEmail;
+  }
+
+  const [user] = await User.findOrCreate({
+    where: { googleId },
+    defaults: { name, email, displayName, googleId }
+  });
+  return user;
+}
+
 // Google OAuth cont. CLIENT_ID/CLIENT_SECRET are asserted non-null to preserve the runtime
 // contract: with them unset the strategy constructor throws at boot, exactly as before.
 passport.use(
@@ -122,21 +195,14 @@ passport.use(
     clientSecret: process.env.CLIENT_SECRET!,
     callbackURL: '/api/auth/google/callback'
   },
-  // Google will send back the token and profile
+  // Google will send back the token and profile. resolveGoogleUser handles missing email,
+  // account linking by email, and displayName (issue #171).
   function (token, refreshToken, profile, done) {
-    // Google sends back info
-    const info = {
-      name: profile.displayName,
-      email: profile.emails![0].value
-    };
-      // Put info in db
-    User.findOrCreate({
-      where: {
-        googleId: profile.id
-      },
-      defaults: info
-    })
-      .then(([user]) => {
+    resolveGoogleUser(profile)
+      .then(user => {
+        if (user === false) {
+          return done(null, false, { message: 'Google account has no email' });
+        }
         done(null, user);
       })
       .catch(done);
