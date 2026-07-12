@@ -30,6 +30,12 @@ const User = db.define('users', {
 });
 
 User.prototype.authenticate = function (plaintext) {
+  // Google OAuth (and any other passwordless) accounts have password_digest = NULL.
+  // bcrypt.compare(string, null) throws "Illegal arguments: string, object", which
+  // LocalStrategy surfaces as a 500. Treat a missing digest as "no local password" and
+  // fail the check cleanly so login returns the normal 401 (issue #138).
+  if (!this.password_digest) return Promise.resolve(false);
+
   return new Promise((resolve, reject) =>
     bcrypt.compare(plaintext, this.password_digest,
       (err, result) =>
