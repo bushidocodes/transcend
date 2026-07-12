@@ -129,7 +129,17 @@ describe('POST /local/signup – email and password required (issue #139)', func
     expect(blank.status).toBe(400);
     const noAt = await signup({ email: 'not-an-email', password: 'secret', displayName: 'NoAt' });
     expect(noAt.status).toBe(400);
+    // Has an @ but no domain/TLD — the route must catch this (400) rather than letting the
+    // model's isEmail throw a ValidationError that would surface as a 500.
+    const noDomain = await signup({ email: 'bad@', password: 'secret', displayName: 'NoDom' });
+    expect(noDomain.status).toBe(400);
     expect(mockUser.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts a well-formed email and password', async function () {
+    const res = await signup({ email: 'valid@example.com', password: 'secret', displayName: 'Valid' });
+    expect(res.status).toBe(201);
+    expect(mockUser.create).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a missing or empty password', async function () {

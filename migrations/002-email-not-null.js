@@ -5,9 +5,11 @@
 
 module.exports = {
   async up ({ context: { queryInterface, Sequelize } }) {
-    await queryInterface.sequelize.query(
+    // Row deletion is irreversible (down cannot restore these), so log the count for operators.
+    const [, meta] = await queryInterface.sequelize.query(
       "DELETE FROM users WHERE email IS NULL OR email = ''"
     );
+    console.log(`002-email-not-null: deleted ${meta.rowCount || 0} row(s) with NULL/empty email`);
     await queryInterface.changeColumn('users', 'email', {
       type: Sequelize.STRING,
       allowNull: false
