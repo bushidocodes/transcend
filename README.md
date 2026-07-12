@@ -28,6 +28,8 @@ Transcend is built on [Node.js](https://nodejs.org/en/) using [Socket.io](http:/
 
 **Server:** Authoritative multiplayer state lives in a plain `GameState` (user records keyed by socket id). Room membership and the socket registry are socket.io's own — scenes and voice-chat rooms use prefixed socket.io rooms rather than application-level maps. A fixed-rate, room-scoped broadcast loop pushes dirty-room snapshots to clients instead of fanning out on every inbound tick.
 
+**Language & tooling:** The whole codebase is [TypeScript](https://www.typescriptlang.org/) (strict, type-erasable syntax only). Nothing is compiled to run: Node 24 executes the server's `.ts` files directly via type stripping, [esbuild](https://esbuild.github.io/) bundles the browser entry (`npm run build`), and [Vitest](https://vitest.dev/) runs the tests. `npm run typecheck` (tsc `--noEmit`) is the only step that sees the types.
+
 ## How to Play
 
 Transcend supports keyboard & mouse controls on Chrome 56 or higher on a PC or Mac.

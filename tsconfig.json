@@ -1,0 +1,38 @@
+{
+  // Typecheck-only config: nothing here ever emits JS. Node 24 runs server/db .ts files
+  // directly via type stripping, esbuild bundles the browser, and vitest transforms tests —
+  // so tsc's single job is `npm run typecheck`.
+  "compilerOptions": {
+    "target": "es2022",
+    // Match Node's real ESM resolution: relative imports carry explicit .ts extensions
+    // (Node's type stripping does not add extensions for you), hence allowImportingTsExtensions.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    // Guarantee every file stays runnable under Node's type stripping (no enums, namespaces,
+    // parameter properties — type-level syntax only).
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    // Browser and server share one project, so DOM types are globally visible; server code
+    // simply doesn't use them.
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    // vitest/globals matches `test.globals: true` in vitest.config.ts (describe/it/expect
+    // without imports).
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "browser/**/*",
+    "server/**/*",
+    "db/**/*",
+    "shared/**/*",
+    "migrations/**/*",
+    "build.ts",
+    "vitest.config.ts"
+  ]
+}

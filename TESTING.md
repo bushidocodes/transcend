@@ -32,13 +32,10 @@ the force-sync to wipe it.
 npm test
 ```
 
-Expected output: **21 passing** (User authenticate × 2, userReducer × 6,
-socket.io integration × 13).
-
-### What's not covered
-
-The `browser/**/*.test.js` and `browser/**/*.test.jsx` globs match nothing — no
-browser-side unit tests were written for this project.
+All test files are TypeScript (`**/*.test.ts`) and run through Vitest; the
+suite covers the User model, the shared wire protocol and skin catalog, the
+auth routes and rate limits, GameState, the socket.io integration layer, and
+browser-side units (avatars, pose buffer, rooms, navigation, skin loading).
 
 ---
 
@@ -48,7 +45,7 @@ Perform this after every dependency bump to confirm the golden path still works.
 
 ### Prerequisites
 
-- `npm run build` completes without error (webpack emits `public/bundle.js`).
+- `npm run build` completes without error (esbuild emits `public/bundle.js`).
 - Server running: `npm run server` (or `npm start` which also builds).
 - At least one user account exists: run `npm run seed` for demo accounts
   (password `1234`, emails like `sean@transcend.vr`) or register with
