@@ -16,8 +16,9 @@ import Login from './components/Login/Login.tsx';
 import Signup from './components/Login/Signup.tsx';
 // Importing for its side effects: registering the A-Frame components that socket.ts pulls in.
 // The socket itself is created lazily by <App> after login (issue #67), not at import time;
-// getSocket() returns null until then. releaseLocalMedia is used on logout (issue #172).
-import { releaseLocalMedia } from '../socket.ts';
+// getSocket() returns null until then. releaseLocalMedia is used on logout (issue #172);
+// clearSocket forces a fresh handshake on the next login (issue #199).
+import { releaseLocalMedia, clearSocket } from '../socket.ts';
 import { getSocket } from '../socket-holder.ts';
 import { whoami, logout } from '../redux/reducers/auth.ts';
 import { EVENTS } from '../../shared/protocol.ts';
@@ -82,6 +83,10 @@ function Logout () {
     // Guard the emit so logging out from a state where it was never created can't throw.
     const socket = getSocket();
     if (socket) socket.emit(EVENTS.LOGOUT_USER);
+    // Drop the Engine.IO connection so the next login re-handshakes and passport.session()
+    // re-derives socket.request.user for the new account (issue #199). Reusing the socket left
+    // User A's Passport identity on the handshake after User B logged in locally.
+    clearSocket();
     // Release the microphone so logout doesn't leave the input device open (issue #172).
     // sessionReplaced already calls this; Logout is the other terminal path.
     releaseLocalMedia();
