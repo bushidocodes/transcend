@@ -30,7 +30,7 @@ dbStub.exports = { model: () => mockUser };
 dbStub.loaded = true;
 require.cache[dbPath] = dbStub;
 
-// passport-google-oauth's strategy constructor (run at module load of ./auth) throws
+// passport-google-oauth20's strategy constructor (run at module load of ./auth) throws
 // without a clientID, so provide dummies before requiring the router.
 process.env.CLIENT_ID = process.env.CLIENT_ID || 'dummy-client-id';
 process.env.CLIENT_SECRET = process.env.CLIENT_SECRET || 'dummy-client-secret';
