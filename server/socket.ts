@@ -230,9 +230,13 @@ export default function attachSocketServer(io: Server): void {
         const displayName =
           (sessionUser && typeof sessionUser.displayName === 'string' && sessionUser.displayName) ||
           (typeof user.displayName === 'string' ? user.displayName : undefined);
-        const skin =
+        // Skin must pass the same VALID_SKINS whitelist as changeSkin / PUT /skin (issue #227).
+        // joinScene used to accept any string, reopening the #79 injection surface on the join
+        // path. Invalid or unknown skins fall back to undefined (browser defaults to 3djesus).
+        const rawSkin =
           (sessionUser && typeof sessionUser.skin === 'string' && sessionUser.skin) ||
           (typeof user.skin === 'string' ? user.skin : undefined);
+        const skin = rawSkin && VALID_SKINS.has(rawSkin) ? rawSkin : undefined;
         const me = gameState.addUser(
           socket.id,
           {
