@@ -1,11 +1,7 @@
 // Unit tests for the pure WebRTC peer reservation / terminal-state helpers (issue #231).
 // describe/it/expect are Vitest globals (test.globals).
 
-import {
-  isPeerReserved,
-  isTerminalConnectionState,
-  reservePeerSlot
-} from './peer-guards.ts';
+import { isPeerReserved, isTerminalConnectionState, reservePeerSlot } from './peer-guards.ts';
 
 describe('peer-guards (issue #231)', () => {
   describe('isPeerReserved / reservePeerSlot', () => {

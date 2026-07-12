@@ -8,10 +8,7 @@ import {
 } from '../redux/reducers/webrtc-reducer.ts';
 import { EVENTS } from '../../shared/protocol.ts';
 import { getSocket } from '../socket-holder.ts';
-import {
-  isTerminalConnectionState,
-  reservePeerSlot
-} from './peer-guards.ts';
+import { isTerminalConnectionState, reservePeerSlot } from './peer-guards.ts';
 
 /* ---------- signaling payload shapes (see shared/protocol.ts for the events) ---------- */
 
