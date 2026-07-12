@@ -148,6 +148,11 @@ app.use(passportInit);
 app.use(passportSession);
 
 // Setting up socket.io
+//
+// Single-instance only (issue #239): no @socket.io/redis-adapter (or similar) is configured.
+// GameState, socket rate limiters, and express-rate-limit MemoryStore are all per-process —
+// run exactly one server instance. Sticky sessions do not make multiplayer or limits correct
+// across N workers; see the "Deployment: single-instance only" section in README.md.
 server.on('request', app);
 const io = new SocketIOServer(server, {
   cors: {

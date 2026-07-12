@@ -160,6 +160,19 @@ docker compose up --build
 
 Then open `http://localhost:1337`. Compose sets `DATABASE_URL`, a throwaway `SESSION_SECRET`, and `FORCE_SSL=false` so production mode works over plain HTTP without redirect loops or Secure-cookie login failures. Replace the secret before any real deploy; leave `FORCE_SSL` unset (default on) behind a TLS proxy. The app image healthcheck hits `/healthz`. Postgres is 14 to match CI.
 
+## Deployment: single-instance only
+
+Run **exactly one** Node server process behind your load balancer / reverse proxy. Several critical pieces of state live **in-process only** and are not shared across workers:
+
+| In-process state | Where | Multi-instance failure mode |
+| --- | --- | --- |
+| Multiplayer `GameState` (users / poses) | `server/socket.ts` (`new GameState()`) | Peers on different instances never see each other; room broadcasts stay local |
+| Socket registry & scene/chat rooms | socket.io defaults (no Redis adapter) | Same as above; single-active-session eviction only sees sockets on this process |
+| Socket event rate limits | `server/socket-rate-limit.ts` (`SocketRateLimiter` maps) | Effective limit becomes N× with N instances |
+| Auth / skin HTTP rate limits | `server/auth-rate-limit.ts` (express-rate-limit `MemoryStore`) | Same N× inflation |
+
+Sticky sessions alone do **not** fix this: game state and socket rooms still do not cross process boundaries. Horizontal scaling would need at least a socket.io adapter (e.g. Redis), a shared game-state store, and shared rate-limit stores — **none of which are implemented today**. Prefer a single instance (or scale vertically) until that checklist is wired up.
+
 ## Help
 
 Create an [issue](https://github.com/bushidocodes/transcend/issues) or submit a pull request if you need help or find a bug. Contributions and ideas welcome!
