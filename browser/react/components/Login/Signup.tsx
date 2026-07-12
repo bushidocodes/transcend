@@ -12,6 +12,7 @@ export default function Signup () {
             key="name"
             name="name"
             placeholder="name"
+            aria-label="name"
             style={styles.formControl}
             required
           />
@@ -21,6 +22,7 @@ export default function Signup () {
             key="displayName"
             name="displayName"
             placeholder="display name"
+            aria-label="display name"
             maxLength={8}
             style={styles.formControl}
             required
@@ -32,6 +34,7 @@ export default function Signup () {
             name="email"
             type="email"
             placeholder="email"
+            aria-label="email"
             style={styles.formControl}
             required
           />
@@ -42,6 +45,7 @@ export default function Signup () {
             name="password"
             type="password"
             placeholder="password"
+            aria-label="password"
             style={styles.formControl}
             required
           />

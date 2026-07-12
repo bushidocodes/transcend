@@ -24,6 +24,7 @@ export default function Login () {
             name="email"
             type="email"
             placeholder="email"
+            aria-label="email"
             style={styles.formControl}
             required
           />
@@ -34,6 +35,7 @@ export default function Login () {
             name="password"
             type="password"
             placeholder="password"
+            aria-label="password"
             style={styles.formControl}
             required
           />
