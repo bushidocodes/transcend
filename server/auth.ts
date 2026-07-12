@@ -72,6 +72,12 @@ auth.post('/local/signup', ipLimiter, (req, res, next) => {
     .catch(next);
 });
 
+// Normalize login emails the same way signup/update does (setEmailAndPassword lowercases
+// before store). Without this, mixed-case login never matches the stored row (issue #170).
+export function normalizeEmail (email: string): string {
+  return email.toLowerCase();
+}
+
 // Local login
 auth.post('/local/login', ipLimiter, loginEmailLimiter, (req, res, next) => {
   passport.authenticate('local', {
@@ -79,10 +85,12 @@ auth.post('/local/login', ipLimiter, loginEmailLimiter, (req, res, next) => {
   })(req, res, next);
 });
 
-// Local login cont.
+// Local login cont. Passport-local passes the "username" field as the first arg; the client
+// sends the email there (browser/redux/reducers/auth.ts login()).
 passport.use(new LocalStrategy(
   (email, password, done) => {
-    User.findOne({ where: { email } })
+    const normalizedEmail = typeof email === 'string' ? normalizeEmail(email) : email;
+    User.findOne({ where: { email: normalizedEmail } })
       .then(user => {
         if (!user) {
           return done(null, false, { message: 'Login incorrect' });
