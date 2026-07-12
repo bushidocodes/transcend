@@ -27,9 +27,17 @@ describe('GameState', () => {
       expect(state.getUser('s1')).toBe(user);
     });
 
-    it('treats a missing scene as the not-yet-placed empty room', () => {
+    it('isolates a missing scene under a private unplaced key (issue #204)', () => {
       const user = state.addUser('s1', { displayName: 'Alice' });
-      expect(user.scene).toBe('');
+      // Never leave unplaced users in the shared '' room — that leaked peers across strangers.
+      expect(user.scene).toBe('__unplaced:s1');
+      expect(user.scene).not.toBe('');
+    });
+
+    it('isolates an empty-string scene the same way as a missing scene', () => {
+      // Falsy scene must not land in the shared '' bucket.
+      const user = state.addUser('s1', { displayName: 'Alice' }, '');
+      expect(user.scene).toBe('__unplaced:s1');
     });
 
     it('replaces an existing record for the same id', () => {
@@ -138,11 +146,24 @@ describe('GameState', () => {
       expect(state.peersOf('nobody')).toEqual({});
     });
 
-    it('users who have not reported a scene share the empty not-yet-placed room', () => {
+    it('unplaced users do not see each other as peers (issue #204)', () => {
       state.addUser('d', { displayName: 'Dana' });
       state.addUser('e', { displayName: 'Eve' });
-      expect(state.peersOf('d')).toHaveProperty('e');
-      expect(state.peersOf('d')).not.toHaveProperty('a');
+      // Private __unplaced:<id> keys mean no shared room for missing scenes.
+      expect(state.peersOf('d')).toEqual({});
+      expect(state.peersOf('e')).toEqual({});
+      expect(state.usersInScene('__unplaced:d')).toHaveProperty('d');
+      expect(state.usersInScene('__unplaced:d')).not.toHaveProperty('e');
+      expect(state.usersInScene('')).toEqual({});
+    });
+
+    it('peersOf is empty for a user stuck on the legacy empty scene string', () => {
+      state.addUser('d', { displayName: 'Dana' }, 'lobby');
+      state.getUser('d')!.scene = ''; // simulate stale/legacy state
+      state.addUser('e', { displayName: 'Eve' }, 'lobby');
+      state.getUser('e')!.scene = '';
+      expect(state.peersOf('d')).toEqual({});
+      expect(state.peersOf('e')).toEqual({});
     });
   });
 });
