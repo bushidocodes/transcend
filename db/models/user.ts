@@ -85,6 +85,10 @@ User.init({
   }
 });
 
+// Cost factor 12 is the commonly recommended floor for new deployments (issue #207).
+// Existing digests (cost 10) still verify via bcrypt.compare; only new hashes use 12.
+export const BCRYPT_ROUNDS = 12;
+
 // Sequelize ignores a hook's resolved value (HookReturn is Promise<void>); the mutation of
 // `user` is the effect.
 function setEmailAndPassword (user: User): Promise<void> {
@@ -93,7 +97,7 @@ function setEmailAndPassword (user: User): Promise<void> {
   if (!password) return Promise.resolve();
 
   return new Promise((resolve, reject) =>
-    bcrypt.hash(password, 10, (err, hash) => {
+    bcrypt.hash(password, BCRYPT_ROUNDS, (err, hash) => {
       if (err || hash === undefined) return reject(err ?? new Error('bcrypt produced no hash'));
       user.set('password_digest', hash);
       resolve();
