@@ -93,7 +93,7 @@ Important variables (see comments in `.env.example` for the full list):
 | `DATABASE_URL` | Postgres connection string for the app (default in `.env.example`: `postgres://localhost:5432/transcend`). |
 | `DATABASE_TEST_URL` | Separate database used by `npm test` so force-sync never touches the dev DB (default: `postgres://localhost:5432/transcend_test`). |
 | `PORT` | HTTP listen port. If unset, the server defaults to **1337**. `.env.example` sets `4000` when you copy it. |
-| `CLIENT_ID` / `CLIENT_SECRET` | Optional Google OAuth. Email/password login works without them. |
+| `CLIENT_ID` / `CLIENT_SECRET` | Google OAuth credentials. **Required at boot** (Passport constructs the Google strategy even if you only use email/password). Dummy placeholders are fine for local password-only use; real values needed for "Log in with Google". |
 
 Node loads `.env` at process start via `process.loadEnvFile()` (`server/load-env.ts`). Variables already set in the shell are not overridden.
 
