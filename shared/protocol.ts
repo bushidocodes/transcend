@@ -117,6 +117,28 @@ export const EVENTS = {
   DISCONNECT: 'disconnect'
 } as const;
 
+/* ---------- payload bounds (issue #232) ----------
+   Types alone are not enough: unbounded displayName/scene/room strings become Map keys and are
+   broadcast verbatim; unclamped poses let clients teleport to extreme coordinates. Keep the
+   caps here next to the validators so both sides of the wire agree. */
+
+// Mirrors local signup (server/auth.ts: 1–8 chars). Socket join clamps to this same ceiling.
+export const MAX_DISPLAY_NAME_LENGTH = 8;
+// Scene / chat-room keys — long enough for real room names, short enough to reject amplification.
+export const MAX_ROOM_LENGTH = 64;
+// World-space pose clamp for tick merges (game-state updatePose).
+export const POSE_XZ_MIN = -100;
+export const POSE_XZ_MAX = 100;
+export const POSE_Y_MIN = -50;
+export const POSE_Y_MAX = 100;
+
+/** Clamp a client-supplied displayName to MAX_DISPLAY_NAME_LENGTH (empty → undefined). */
+export function clampDisplayName(name: unknown): string | undefined {
+  if (typeof name !== 'string') return undefined;
+  const trimmed = name.slice(0, MAX_DISPLAY_NAME_LENGTH);
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 /* ---------- payload validators (issue #112) ----------
    The protocol-level shape checks the server runs before dispatching a handler; they live here
    so an event's shape is defined next to its name. Semantic checks that need server-only state
@@ -126,9 +148,12 @@ export const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
 // JOIN_SCENE: `user` must be an object — the handler dereferences it — and a scene must be a
-// string, since it's used as a room key (a missing scene means "not yet placed").
+// string of bounded length, since it's used as a room key (a missing scene means "not yet placed").
 export const validJoinScene = (user: unknown, scene: unknown): boolean =>
-  isObject(user) && (scene == null || typeof scene === 'string');
+  isObject(user) &&
+  (scene == null || (typeof scene === 'string' && scene.length <= MAX_ROOM_LENGTH));
 
-// CHANGE_SCENE / JOIN_CHAT_ROOM: the payload is used as a room key.
-export const validRoom = (room: unknown): room is string => typeof room === 'string';
+// CHANGE_SCENE / JOIN_CHAT_ROOM: the payload is used as a room key — reject oversize strings
+// so they never become Map keys or broadcast payloads (issue #232).
+export const validRoom = (room: unknown): room is string =>
+  typeof room === 'string' && room.length <= MAX_ROOM_LENGTH;
