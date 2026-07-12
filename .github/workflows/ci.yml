@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # User-model tests hit Postgres. db/index.js (under NODE_ENV=testing) reads DATABASE_TEST_URL
+    # User-model tests hit Postgres. db/index.ts (under NODE_ENV=testing) reads DATABASE_TEST_URL
     # and force-syncs the schema, so the database just needs to exist.
     services:
       postgres:
@@ -38,6 +38,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Build
         run: npm run build
