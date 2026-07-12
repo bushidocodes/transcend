@@ -23,14 +23,18 @@ const server = http.createServer();
 const app = express();
 
 // Security headers (issue #201): hide Express, and apply helmet with a CSP loose enough for
-// A-Frame/WebGL (inline scripts/styles, data/blob images, WebSocket connect).
+// A-Frame/WebGL (styles, data/blob images, WebSocket connect). Script policy tightened in #225.
 app.disable('x-powered-by');
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        // App ships only same-origin /bundle.js (no inline <script>); drop 'unsafe-inline'
+        // so a reflected XSS cannot run attacker script tags (issue #225).
+        // Keep 'unsafe-eval': A-Frame / three.js compile shaders and materials via new Function
+        // / eval at runtime — without it WebGL scenes fail to initialize.
+        scriptSrc: ["'self'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
         fontSrc: ["'self'", 'data:'],
