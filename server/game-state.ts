@@ -19,9 +19,14 @@ export default class GameState {
 
   // Create (or replace) the user record for a socket. Creation is joinScene's job alone;
   // every other method here is update-only.
+  //
+  // Missing/empty scene must NOT leave the user in the shared '' room (issue #204): every
+  // unplaced user would then share peersOf/usersInScene and leak identity + pose. Assign a
+  // private `__unplaced:<id>` key instead so unplaced users never group with strangers.
   addUser (id: string, { displayName, skin }: AuthUser, scene?: string): User {
     const user = new User(id, displayName ?? undefined, skin ?? undefined);
     if (scene) user.scene = scene;
+    else user.scene = `__unplaced:${id}`;
     this.users.set(id, user);
     return user;
   }
@@ -79,11 +84,13 @@ export default class GameState {
 
   // The other users in the same scene as `id` (excluding that user), for the sceneState reply.
   // Filtering server-side keeps cross-room position data off the wire entirely (issue #58).
-  // Two users who haven't reported a scene yet both have '' and are treated as sharing the
-  // same (empty) not-yet-placed room.
+  // Unplaced users get a unique `__unplaced:<id>` scene from addUser (issue #204), so they
+  // never share a room with other unplaced users — peersOf is empty until they join a real scene.
   peersOf (id: string): Record<string, User> {
     const self = this.users.get(id);
     if (!self) return {};
+    // Defence in depth: never treat the legacy empty string as a shared room.
+    if (self.scene === '') return {};
     const peers = this.usersInScene(self.scene);
     delete peers[id];
     return peers;
