@@ -1,11 +1,6 @@
 import { User } from './utils.ts';
 import type { AuthUser, Pose } from '../shared/protocol.ts';
-import {
-  POSE_XZ_MIN,
-  POSE_XZ_MAX,
-  POSE_Y_MIN,
-  POSE_Y_MAX
-} from '../shared/protocol.ts';
+import { POSE_XZ_MIN, POSE_XZ_MAX, POSE_Y_MIN, POSE_Y_MAX } from '../shared/protocol.ts';
 
 // The only fields a position tick may update (issue #113). displayName/skin/scene must never
 // ride in on a tick: skin/scene changes are their own explicit methods below.
