@@ -1,5 +1,11 @@
 import store from '../redux/store.ts';
-import { setUserMedia, clearUserMedia, addPeer, deletePeer, clearPeers } from '../redux/reducers/webrtc-reducer.ts';
+import {
+  setUserMedia,
+  clearUserMedia,
+  addPeer,
+  deletePeer,
+  clearPeers
+} from '../redux/reducers/webrtc-reducer.ts';
 import { EVENTS } from '../../shared/protocol.ts';
 import { getSocket } from '../socket-holder.ts';
 
@@ -37,7 +43,7 @@ let cachedIceServers: RTCIceServer[] | null = null;
 // but that's no worse than a missing config — and better than an unhandled rejection.)
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
-async function getIceServers (): Promise<RTCIceServer[]> {
+async function getIceServers(): Promise<RTCIceServer[]> {
   if (cachedIceServers) return cachedIceServers;
   try {
     const res = await fetch('/api/ice-servers');
@@ -60,14 +66,14 @@ let localMediaStream: MediaStream | null = null;
 const peers: Record<string, RTCPeerConnection> = {};
 let peerMediaElements: Record<string, HTMLAudioElement> = {};
 
-export function getLocalMediaStream (): MediaStream | null {
+export function getLocalMediaStream(): MediaStream | null {
   return localMediaStream;
 }
 
 // Stop local microphone tracks and clear the module stream + Redux flag. Safe only on a
 // terminal teardown (sessionReplaced, logout) — NOT on a transient disconnect, where the
 // stream is reused on reconnect.
-export function releaseLocalMediaStream (): void {
+export function releaseLocalMediaStream(): void {
   if (localMediaStream && localMediaStream.getTracks) {
     localMediaStream.getTracks().forEach(track => track.stop());
   }
@@ -83,7 +89,7 @@ export function releaseLocalMediaStream (): void {
 // If the user decides not to share their microphone, they are presented with an error
 //   informing them that voice is unavailable.
 
-export function joinChatRoom (room: string | null, errorback?: () => void): void {
+export function joinChatRoom(room: string | null, errorback?: () => void): void {
   // Do not dump store.getState() here — it retains MediaStream / RTCPeerConnection refs in
   // the console (issue #180). Use module-level localMediaStream (issue #176).
 
@@ -91,14 +97,16 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
     webrtcDebug('No room was provided');
     return;
   }
-  if (localMediaStream != null) {  /* ie, if we've already been initialized */
+  if (localMediaStream != null) {
+    /* ie, if we've already been initialized */
     getSocket()?.emit(EVENTS.JOIN_CHAT_ROOM, room);
     return;
   }
   webrtcDebug('Requesting access to local audio / video inputs');
   // navigator.mediaDevices.getUserMedia (Promise-based) replaces the removed callback-style
   // navigator.getUserMedia / webkitGetUserMedia (issue #77).
-  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+  navigator.mediaDevices
+    .getUserMedia({ audio: true, video: false })
     // On Success
     .then(stream => {
       webrtcDebug('Access granted to audio');
@@ -113,7 +121,9 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
     // On Failure... likely because user denied access to a/v
     .catch(() => {
       webrtcDebug('Access denied for audio/video');
-      window.alert('You chose not to provide access to your microphone, so real-time voice chat is unavailable.');
+      window.alert(
+        'You chose not to provide access to your microphone, so real-time voice chat is unavailable.'
+      );
       if (errorback) errorback();
     });
 }
@@ -121,14 +131,14 @@ export function joinChatRoom (room: string | null, errorback?: () => void): void
 // Called by a A-Frame Room's componentWillUnmount lifecycle hook, it leaveChatRoom
 //   triggers server-side logic to leave the matching socket.io room and tear down
 //   existing WebRTC connections.
-export function leaveChatRoom (): void {
+export function leaveChatRoom(): void {
   // Null pre-init (socket-holder.ts contract) — leaving a room you could never have joined
   // is a no-op, not a crash.
   getSocket()?.emit(EVENTS.LEAVE_CHAT_ROOM);
 }
 
 // accepts conifg
-export async function addPeerConn (config: AddPeerConfig): Promise<void> {
+export async function addPeerConn(config: AddPeerConfig): Promise<void> {
   webrtcDebug('Signaling server said to add peer:', config);
   const peerId = config.peer_id;
   // If for some reason, this client aready is connected to the peer, return
@@ -145,7 +155,7 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   const peerConnection = new RTCPeerConnection({ iceServers });
 
   // I'm not 100% sure what this does, but it sets up ice candidates ¯\_(ツ)_/¯
-  peerConnection.onicecandidate = function (event) {
+  peerConnection.onicecandidate = event => {
     if (event.candidate) {
       getSocket()?.emit(EVENTS.RELAY_ICE_CANDIDATE, {
         peer_id: peerId,
@@ -160,7 +170,7 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   // When we receive a peer's WebRTC track, add an audio tag to the DOM with an ID equal to
   //   the peerID, and set it to autoplay. ontrack replaces the removed onaddstream; its event
   //   carries a streams array rather than a single stream (issue #77).
-  peerConnection.ontrack = function (event) {
+  peerConnection.ontrack = event => {
     webrtcDebug('onTrack', event);
     // A connection can fire ontrack more than once; reuse the element we already made.
     let remoteAudio = peerMediaElements[peerId];
@@ -176,7 +186,9 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
 
   /* Add our local stream's tracks. addTrack replaces the removed addStream. */
   if (localMediaStream) {
-    localMediaStream.getTracks().forEach(track => peerConnection.addTrack(track, localMediaStream!));
+    localMediaStream
+      .getTracks()
+      .forEach(track => peerConnection.addTrack(track, localMediaStream!));
   }
 
   // Register the peer before negotiating so an incoming answer / ICE candidate can find it.
@@ -184,17 +196,19 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   store.dispatch(addPeer(peerId));
 
   /* Only one side of the peer connection should create the
-  * offer, the signaling server picks one to be the offerer.
-  * The other user will get a 'sessionDescription' event and will
-  * create an offer, then send back an answer 'sessionDescription' to us
-  */
+   * offer, the signaling server picks one to be the offerer.
+   * The other user will get a 'sessionDescription' event and will
+   * create an offer, then send back an answer 'sessionDescription' to us
+   */
   if (config.should_create_offer) {
     webrtcDebug('Creating RTC offer to ', peerId);
     try {
       const localDescription = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(localDescription);
-      getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
-        { peer_id: peerId, session_description: localDescription });
+      getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION, {
+        peer_id: peerId,
+        session_description: localDescription
+      });
       webrtcDebug('Offer setLocalDescription succeeded');
     } catch (error) {
       console.error('Error creating/sending offer: ', error);
@@ -202,7 +216,7 @@ export async function addPeerConn (config: AddPeerConfig): Promise<void> {
   }
 }
 
-export function removePeerConn (config: RemovePeerConfig): void {
+export function removePeerConn(config: RemovePeerConfig): void {
   webrtcDebug('Signaling server said to remove peer:', config);
   const peerId = config.peer_id;
   if (peerId in peerMediaElements) {
@@ -218,7 +232,7 @@ export function removePeerConn (config: RemovePeerConfig): void {
   delete peerMediaElements[peerId];
 }
 
-export async function setRemoteAnswer (config: SessionDescriptionConfig): Promise<void> {
+export async function setRemoteAnswer(config: SessionDescriptionConfig): Promise<void> {
   webrtcDebug('Remote description received: ', config);
   const peerId = config.peer_id;
   const peer = peers[peerId];
@@ -236,8 +250,10 @@ export async function setRemoteAnswer (config: SessionDescriptionConfig): Promis
       webrtcDebug('Creating answer');
       const localDescription = await peer.createAnswer();
       await peer.setLocalDescription(localDescription);
-      getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION,
-        { peer_id: peerId, session_description: localDescription });
+      getSocket()?.emit(EVENTS.RELAY_SESSION_DESCRIPTION, {
+        peer_id: peerId,
+        session_description: localDescription
+      });
       webrtcDebug('Answer setLocalDescription succeeded');
     }
   } catch (error) {
@@ -245,7 +261,7 @@ export async function setRemoteAnswer (config: SessionDescriptionConfig): Promis
   }
 }
 
-export async function setIceCandidate (config: IceCandidateConfig): Promise<void> {
+export async function setIceCandidate(config: IceCandidateConfig): Promise<void> {
   const peer = peers[config.peer_id];
   if (!peer) {
     console.error('setIceCandidate: no peer for', config.peer_id);
@@ -260,7 +276,7 @@ export async function setIceCandidate (config: IceCandidateConfig): Promise<void
   }
 }
 
-export function disconnectUser (): void {
+export function disconnectUser(): void {
   for (const peerId in peerMediaElements) {
     peerMediaElements[peerId].remove();
   }

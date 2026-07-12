@@ -16,7 +16,7 @@ export default AFRAME.registerComponent('publish-location', {
   },
   tick: function (this: any) {
     const tickRate = store.getState().config.tickRate;
-    if (!tickRate) return;                 // not joined / no rate yet
+    if (!tickRate) return; // not joined / no rate yet
     this.frame += 1;
     if (this.frame % tickRate !== 0) return;
 

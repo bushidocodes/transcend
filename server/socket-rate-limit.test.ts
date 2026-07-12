@@ -8,7 +8,7 @@ import { SocketRateLimiter } from './socket-rate-limit.ts';
 
 describe('SocketRateLimiter (issue #203)', () => {
   it('allows up to maxPerWindow hits inside the window', () => {
-    let t = 1000;
+    const t = 1000;
     const lim = new SocketRateLimiter(3, 1000, () => t);
 
     expect(lim.allow('a')).toBe(true);
@@ -18,7 +18,7 @@ describe('SocketRateLimiter (issue #203)', () => {
   });
 
   it('tracks keys independently', () => {
-    let t = 1000;
+    const t = 1000;
     const lim = new SocketRateLimiter(1, 1000, () => t);
 
     expect(lim.allow('a')).toBe(true);
@@ -43,7 +43,7 @@ describe('SocketRateLimiter (issue #203)', () => {
   });
 
   it('forget removes a key so a new window starts fresh', () => {
-    let t = 0;
+    const t = 0;
     const lim = new SocketRateLimiter(1, 1000, () => t);
 
     expect(lim.allow('a')).toBe(true);

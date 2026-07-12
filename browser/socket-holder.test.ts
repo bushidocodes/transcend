@@ -8,19 +8,19 @@
 import { getSocket, setSocket, clearSocket } from './socket-holder.ts';
 import type { Socket } from 'socket.io-client';
 
-function mockSocket (): Socket & { disconnect: ReturnType<typeof vi.fn> } {
+function mockSocket(): Socket & { disconnect: ReturnType<typeof vi.fn> } {
   return {
     disconnect: vi.fn()
   } as unknown as Socket & { disconnect: ReturnType<typeof vi.fn> };
 }
 
-describe('socket-holder (issue #199)', function () {
-  afterEach(function () {
+describe('socket-holder (issue #199)', () => {
+  afterEach(() => {
     // Ensure the module singleton does not leak across tests.
     clearSocket();
   });
 
-  it('clearSocket disconnects and nulls the singleton', function () {
+  it('clearSocket disconnects and nulls the singleton', () => {
     const s = mockSocket();
     setSocket(s);
     expect(getSocket()).toBe(s);
@@ -31,9 +31,11 @@ describe('socket-holder (issue #199)', function () {
     expect(getSocket()).toBeNull();
   });
 
-  it('clearSocket is a safe no-op when no socket exists', function () {
+  it('clearSocket is a safe no-op when no socket exists', () => {
     expect(getSocket()).toBeNull();
-    expect(function () { clearSocket(); }).not.toThrow();
+    expect(() => {
+      clearSocket();
+    }).not.toThrow();
     expect(getSocket()).toBeNull();
   });
 });

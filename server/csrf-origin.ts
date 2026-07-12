@@ -18,7 +18,7 @@ import type { NextFunction, Request, Response } from 'express';
 /**
  * Normalize an origin URL for comparison: strip trailing slash, keep scheme+host+port.
  */
-export function normalizeOrigin (origin: string): string {
+export function normalizeOrigin(origin: string): string {
   return origin.replace(/\/$/, '');
 }
 
@@ -26,7 +26,7 @@ export function normalizeOrigin (origin: string): string {
  * Pure check used by the middleware and unit tests.
  * Returns true when the request should be allowed.
  */
-export function isSameOriginAllowed (
+export function isSameOriginAllowed(
   originHeader: string | undefined,
   appOrigin: string | undefined,
   nodeEnv: string | undefined
@@ -40,7 +40,7 @@ export function isSameOriginAllowed (
   return nodeEnv !== 'production';
 }
 
-export function requireSameOrigin (req: Request, res: Response, next: NextFunction): void {
+export function requireSameOrigin(req: Request, res: Response, next: NextFunction): void {
   const origin = req.get('Origin');
   if (isSameOriginAllowed(origin, process.env.APP_ORIGIN, process.env.NODE_ENV)) {
     next();

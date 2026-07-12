@@ -27,7 +27,7 @@ const handleJson = (response: Response): Promise<unknown> => {
 // Normalize server payloads to a plain object. whoami may return non-object bodies when
 // unauthenticated; never store null/array in the auth slice (issue #145).
 const asUser = (data: unknown): AuthState =>
-  (data && typeof data === 'object' && !Array.isArray(data) ? data as AuthState : {});
+  data && typeof data === 'object' && !Array.isArray(data) ? (data as AuthState) : {};
 
 /* --------------- INITIAL STATE --------------- */
 
@@ -45,7 +45,8 @@ interface AuthenticatedAction {
 /* --------------- ACTION CREATORS --------------- */
 
 export const authenticated = (user: AuthState): AuthenticatedAction => ({
-  type: AUTHENTICATED, user
+  type: AUTHENTICATED,
+  user
 });
 
 export const login = (username: string, password: string): AppThunk<Promise<void>> => {
@@ -64,7 +65,12 @@ export const login = (username: string, password: string): AppThunk<Promise<void
       });
 };
 
-export const signup = (name: string, displayName: string, email: string, password: string): AppThunk<Promise<void>> => {
+export const signup = (
+  name: string,
+  displayName: string,
+  email: string,
+  password: string
+): AppThunk<Promise<void>> => {
   return (dispatch: AppDispatch) =>
     fetch('/api/auth/local/signup', {
       method: 'POST',
@@ -83,11 +89,10 @@ export const signup = (name: string, displayName: string, email: string, passwor
 // Returns (not just fires) the chained whoami so callers await the auth slice actually
 // clearing — the Logout route navigates on this promise, and RequireAuth would otherwise
 // still see the stale auth.id.
-export const logout = (): AppThunk<Promise<void>> =>
-  (dispatch: AppDispatch) =>
-    fetch('/api/auth/logout', { method: 'POST' })
-      .then(() => dispatch(whoami()))
-      .catch(() => dispatch(whoami()));
+export const logout = (): AppThunk<Promise<void>> => (dispatch: AppDispatch) =>
+  fetch('/api/auth/logout', { method: 'POST' })
+    .then(() => dispatch(whoami()))
+    .catch(() => dispatch(whoami()));
 
 export const whoami = (): AppThunk<Promise<void>> => {
   return (dispatch: AppDispatch) =>
@@ -96,12 +101,17 @@ export const whoami = (): AppThunk<Promise<void>> => {
       .then(data => {
         dispatch(authenticated(asUser(data)));
       })
-      .catch(() => { dispatch(authenticated({})); });
+      .catch(() => {
+        dispatch(authenticated({}));
+      });
 };
 
 /* --------------- REDUCER --------------- */
 
-export default function authReducer (state: AuthState = initialState, action: UnknownAction): AuthState {
+export default function authReducer(
+  state: AuthState = initialState,
+  action: UnknownAction
+): AuthState {
   switch (action.type) {
     case AUTHENTICATED:
       return (action as unknown as AuthenticatedAction).user;

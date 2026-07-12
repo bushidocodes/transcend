@@ -23,7 +23,7 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 
-  authenticate (plaintext: string): Promise<boolean> {
+  authenticate(plaintext: string): Promise<boolean> {
     // Google OAuth (and any other passwordless) accounts have password_digest = NULL.
     // bcrypt.compare(string, null) throws "Illegal arguments: string, object", which
     // LocalStrategy surfaces as a 500. Treat a missing digest as "no local password" and
@@ -32,9 +32,7 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
     if (!digest) return Promise.resolve(false);
 
     return new Promise((resolve, reject) =>
-      bcrypt.compare(plaintext, digest,
-        (err, result) =>
-          err ? reject(err) : resolve(!!result))
+      bcrypt.compare(plaintext, digest, (err, result) => (err ? reject(err) : resolve(!!result)))
     );
   }
 
@@ -42,7 +40,7 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   // the single chokepoint for every response that returns a user — /local/login (via its
   // redirect to /whoami), /whoami, and /skin all go through JSON serialization (issue #89).
   // The instance keeps password_digest in memory, so authenticate() still works.
-  toJSON (): object {
+  toJSON(): object {
     const values: Record<string, unknown> = Object.assign({}, this.get());
     delete values.password_digest;
     delete values.password;
@@ -53,37 +51,40 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
 // id and the timestamps were implicit under db.define; the typed init requires every declared
 // attribute, so they're spelled out with exactly the DDL Sequelize was generating for them
 // anyway (see migrations/001-baseline.ts — the recorded output of that sync()).
-User.init({
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true, allowNull: false },
-  name: DataTypes.STRING,
-  displayName: DataTypes.STRING,
-  skin: DataTypes.STRING,
-  // allowNull: false so the DB rejects NULL email even if a caller skips the route check
-  // (issue #139). OAuth signup always supplies profile.emails[0].value.
-  email: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      isEmail: true,
-      notEmpty: true
-    }
+User.init(
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true, allowNull: false },
+    name: DataTypes.STRING,
+    displayName: DataTypes.STRING,
+    skin: DataTypes.STRING,
+    // allowNull: false so the DB rejects NULL email even if a caller skips the route check
+    // (issue #139). OAuth signup always supplies profile.emails[0].value.
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        isEmail: true,
+        notEmpty: true
+      }
+    },
+    // For Google OAuth
+    googleId: DataTypes.STRING,
+    // OAuth -> users may or may not have passwords.
+    password_digest: DataTypes.STRING,
+    password: DataTypes.VIRTUAL,
+    createdAt: { type: DataTypes.DATE, allowNull: false },
+    updatedAt: { type: DataTypes.DATE, allowNull: false }
   },
-  // For Google OAuth
-  googleId: DataTypes.STRING,
-  // OAuth -> users may or may not have passwords.
-  password_digest: DataTypes.STRING,
-  password: DataTypes.VIRTUAL,
-  createdAt: { type: DataTypes.DATE, allowNull: false },
-  updatedAt: { type: DataTypes.DATE, allowNull: false }
-}, {
-  sequelize: db,
-  modelName: 'users',
-  indexes: [{ fields: ['email'], unique: true }],
-  hooks: {
-    beforeCreate: setEmailAndPassword,
-    beforeUpdate: setEmailAndPassword
+  {
+    sequelize: db,
+    modelName: 'users',
+    indexes: [{ fields: ['email'], unique: true }],
+    hooks: {
+      beforeCreate: setEmailAndPassword,
+      beforeUpdate: setEmailAndPassword
+    }
   }
-});
+);
 
 // Cost factor 12 is the commonly recommended floor for new deployments (issue #207).
 // Existing digests (cost 10) still verify via bcrypt.compare; only new hashes use 12.
@@ -91,7 +92,7 @@ export const BCRYPT_ROUNDS = 12;
 
 // Sequelize ignores a hook's resolved value (HookReturn is Promise<void>); the mutation of
 // `user` is the effect.
-function setEmailAndPassword (user: User): Promise<void> {
+function setEmailAndPassword(user: User): Promise<void> {
   user.email = user.email && user.email.toLowerCase();
   const password = user.password;
   if (!password) return Promise.resolve();

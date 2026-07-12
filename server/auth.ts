@@ -26,17 +26,15 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-passport.deserializeUser(
-  (id: number, done) => {
-    User.findByPk(id)
-      .then(user => {
-        done(null, user);
-      })
-      .catch(err => {
-        done(err);
-      });
-  }
-);
+passport.deserializeUser((id: number, done) => {
+  User.findByPk(id)
+    .then(user => {
+      done(null, user);
+    })
+    .catch(err => {
+      done(err);
+    });
+});
 
 // Local signup. Only the explicitly picked fields reach the model: req.body is fully
 // attacker-controlled, and passing it straight to User.create let a signup set ANY column —
@@ -67,7 +65,7 @@ auth.post('/local/signup', requireSameOrigin, ipLimiter, (req, res, next) => {
   }
   User.create({ email, password, displayName })
     .then(user => {
-      req.login(user, (err) => {
+      req.login(user, err => {
         if (err) next(err);
         else res.sendStatus(201);
       });
@@ -77,7 +75,7 @@ auth.post('/local/signup', requireSameOrigin, ipLimiter, (req, res, next) => {
 
 // Normalize login emails the same way signup/update does (setEmailAndPassword lowercases
 // before store). Without this, mixed-case login never matches the stored row (issue #170).
-export function normalizeEmail (email: string): string {
+export function normalizeEmail(email: string): string {
   return email.toLowerCase();
 }
 
@@ -90,28 +88,28 @@ auth.post('/local/login', requireSameOrigin, ipLimiter, loginEmailLimiter, (req,
 
 // Local login cont. Passport-local passes the "username" field as the first arg; the client
 // sends the email there (browser/redux/reducers/auth.ts login()).
-passport.use(new LocalStrategy(
-  (email, password, done) => {
+passport.use(
+  new LocalStrategy((email, password, done) => {
     const normalizedEmail = typeof email === 'string' ? normalizeEmail(email) : email;
     User.findOne({ where: { email: normalizedEmail } })
       .then(user => {
         if (!user) {
           return done(null, false, { message: 'Login incorrect' });
         }
-        return user.authenticate(password)
-          .then(ok => {
-            if (!ok) {
-              return done(null, false, { message: 'Login incorrect' });
-            }
-            done(null, user);
-          });
+        return user.authenticate(password).then(ok => {
+          if (!ok) {
+            return done(null, false, { message: 'Login incorrect' });
+          }
+          done(null, user);
+        });
       })
       .catch(done);
-  }
-));
+  })
+);
 
 // Google OAuth
-auth.get('/google/login',
+auth.get(
+  '/google/login',
   passport.authenticate('google', {
     scope: 'email'
   })
@@ -130,7 +128,7 @@ export interface GoogleProfileFields {
  * Returns an error string when the profile has no email (scope/consent edge cases) so the
  * strategy can fail cleanly via done(null, false) instead of throwing on emails![0].
  */
-export function resolveGoogleProfile (profile: {
+export function resolveGoogleProfile(profile: {
   id: string;
   displayName?: string;
   emails?: Array<{ value: string }>;
@@ -159,7 +157,7 @@ export function resolveGoogleProfile (profile: {
  *
  * Step 2 avoids unique-email collisions that used to 500 when a local account already existed.
  */
-export async function resolveGoogleUser (profile: {
+export async function resolveGoogleUser(profile: {
   id: string;
   displayName?: string;
   emails?: Array<{ value: string }>;
@@ -198,29 +196,32 @@ export async function resolveGoogleUser (profile: {
 // Google OAuth cont. CLIENT_ID/CLIENT_SECRET are asserted non-null to preserve the runtime
 // contract: with them unset the strategy constructor throws at boot, exactly as before.
 passport.use(
-  new GoogleStrategy({
-    clientID: process.env.CLIENT_ID!,
-    clientSecret: process.env.CLIENT_SECRET!,
-    callbackURL: '/api/auth/google/callback'
-  },
-  // Google will send back the token and profile. resolveGoogleUser handles missing email,
-  // account linking by email, and displayName (issue #171).
-  function (token, refreshToken, profile, done) {
-    resolveGoogleUser(profile)
-      .then(user => {
-        if (user === false) {
-          return done(null, false, { message: 'Google account has no email' });
-        }
-        done(null, user);
-      })
-      .catch(done);
-  })
+  new GoogleStrategy(
+    {
+      clientID: process.env.CLIENT_ID!,
+      clientSecret: process.env.CLIENT_SECRET!,
+      callbackURL: '/api/auth/google/callback'
+    },
+    // Google will send back the token and profile. resolveGoogleUser handles missing email,
+    // account linking by email, and displayName (issue #171).
+    (_token, _refreshToken, profile, done) => {
+      resolveGoogleUser(profile)
+        .then(user => {
+          if (user === false) {
+            return done(null, false, { message: 'Google account has no email' });
+          }
+          done(null, user);
+        })
+        .catch(done);
+    }
+  )
 );
 
 // Google OAuth cont. - handle the callback after Google has authenticated the user.
 // failureRedirect covers strategy failures including "no email on profile" (done(null, false));
 // without it Passport falls through to a bare 401 with no UI path back to login.
-auth.get('/google/callback',
+auth.get(
+  '/google/callback',
   passport.authenticate('google', {
     successRedirect: '/vr',
     failureRedirect: '/login'
@@ -238,13 +239,14 @@ auth.put('/skin', requireSameOrigin, skinLimiter, (req, res, next) => {
   if (!VALID_SKINS.has(skin)) {
     return res.status(400).json({ error: 'Invalid skin' });
   }
-  req.user.update({ skin })
+  req.user
+    .update({ skin })
     .then(user => res.json(user))
     .catch(next);
 });
 
 auth.post('/logout', requireSameOrigin, (req, res, next) => {
-  req.logout((err) => {
+  req.logout(err => {
     if (err) return next(err);
     res.redirect('/api/auth/whoami');
   });

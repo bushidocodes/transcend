@@ -21,7 +21,7 @@ export default AFRAME.registerComponent('wall-collision', {
   schema: {
     halfWidth: { type: 'number', default: 25 }, // floorWidth / 2
     halfDepth: { type: 'number', default: 25 }, // floorHeight / 2
-    margin: { type: 'number', default: 0.5 }     // keep the camera off the wall plane
+    margin: { type: 'number', default: 0.5 } // keep the camera off the wall plane
   },
   tick: function (this: any) {
     const pos = this.el.object3D.position;

@@ -10,7 +10,15 @@ import './aframeComponents/publish-location.ts';
 import './aframeComponents/remote-pose.ts';
 import './aframeComponents/webrtc-controls.ts';
 import './aframeComponents/wall-collision.ts';
-import { disconnectUser, addPeerConn, removePeerConn, setRemoteAnswer, setIceCandidate, joinChatRoom, releaseLocalMediaStream } from './webRTC/client.ts';
+import {
+  disconnectUser,
+  addPeerConn,
+  removePeerConn,
+  setRemoteAnswer,
+  setIceCandidate,
+  joinChatRoom,
+  releaseLocalMediaStream
+} from './webRTC/client.ts';
 
 // joinScene is emitted once by <App> on mount (browser/react/components/App.tsx). The
 // 'connect' event, however, also fires on every socket.io *re*connect, where <App> is
@@ -23,7 +31,7 @@ let hasConnected = false;
 // next login opens a fresh handshake and re-derives socket.request.user from the new session
 // (issue #199). Reusing the same Engine.IO connection across accounts left the prior Passport
 // user stamped on the handshake request.
-export function initSocket (): Socket {
+export function initSocket(): Socket {
   const existing = getSocket();
   if (existing) return existing;
 
@@ -32,7 +40,7 @@ export function initSocket (): Socket {
   const socket = setSocket(io(window.location.origin));
 
   socket.on(EVENTS.CONNECT, () => {
-    console.log('You\'ve made a persistent two-way connection to the server!');
+    console.log("You've made a persistent two-way connection to the server!");
     if (!hasConnected) {
       hasConnected = true;
       return; // initial connect — <App> handles the first joinScene on mount
@@ -123,7 +131,7 @@ export function initSocket (): Socket {
 // direct DOM (like removeLocalAvatar below) so it renders regardless of the current React route
 // and sits above the A-Frame canvas. Reloading re-runs the auth → joinScene flow, which makes
 // THIS tab the newest session and reclaims the account here.
-function showSessionReplacedOverlay (): void {
+function showSessionReplacedOverlay(): void {
   if (document.getElementById('session-replaced-overlay')) return;
   const overlay = document.createElement('div');
   overlay.id = 'session-replaced-overlay';
@@ -169,14 +177,14 @@ function showSessionReplacedOverlay (): void {
 // stream is reused on reconnect. Exported so Logout can free the mic without going through
 // the socket event path (issue #172). Delegates to client.ts, which owns the MediaStream
 // registry and clears hasLocalMedia (issue #176).
-export function releaseLocalMedia (): void {
+export function releaseLocalMedia(): void {
   releaseLocalMediaStream();
 }
 
 // Logout teardown (issue #199): disconnect the Engine.IO connection and drop the singleton so
 // the next login re-handshakes with the new Passport session. Also resets hasConnected so
 // initSocket treats the next connection as an initial connect (App emits joinScene on mount).
-export function clearSocket (): void {
+export function clearSocket(): void {
   clearSocketHolder();
   hasConnected = false;
 }

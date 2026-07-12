@@ -5,17 +5,17 @@
 
 import { updateMuteButtonPosition } from './update-mute-button-position.ts';
 
-describe('updateMuteButtonPosition (issue #202)', function () {
-  it('is a no-op when #mutebutton is missing', function () {
+describe('updateMuteButtonPosition (issue #202)', () => {
+  it('is a no-op when #mutebutton is missing', () => {
     const doc = {
       getElementById: () => null
     };
-    expect(function () {
+    expect(() => {
       updateMuteButtonPosition({ x: 1, z: 2 }, doc);
     }).not.toThrow();
   });
 
-  it('sets position under the local avatar when the button exists', function () {
+  it('sets position under the local avatar when the button exists', () => {
     const el = {
       setAttribute: vi.fn()
     };

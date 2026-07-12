@@ -15,7 +15,7 @@ export default AFRAME.registerComponent('remote-pose', {
     userId: { type: 'string' },
     part: { type: 'string', default: 'head' }
   },
-  tick (this: any) {
+  tick(this: any) {
     const pose = samplePose(this.data.userId);
     if (!pose) return;
     const object3D = this.el.object3D;

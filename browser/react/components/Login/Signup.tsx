@@ -1,7 +1,7 @@
 import { useOutletContext } from 'react-router';
 import type { LoginOutletContext } from './Home.tsx';
 
-export default function Signup () {
+export default function Signup() {
   const { signup, styles } = useOutletContext<LoginOutletContext>();
 
   return (
@@ -50,7 +50,9 @@ export default function Signup () {
             required
           />
         </div>
-        <button style={styles.loginButton} type="submit">Sign Up</button>
+        <button style={styles.loginButton} type="submit">
+          Sign Up
+        </button>
       </form>
     </div>
   );

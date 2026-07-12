@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Regression test for issue #50 — "Minecraft Avatar occasionally does not load
  * the correct skin when added to a scene."
@@ -20,25 +18,29 @@ import { loadSkinInto } from './loadSkinInto.ts';
 
 // A minimal stand-in for the browser's Image: records each instance so the test
 // can fire onload by hand, and remembers the assigned src.
-function makeFakeImageCtor (created: any[]) {
-  return function FakeImage (this: any) {
+function makeFakeImageCtor(created: any[]) {
+  return function FakeImage(this: any) {
     const img = this;
     img.onload = null;
     Object.defineProperty(img, 'src', {
       configurable: true,
-      get () { return img._src; },
-      set (v) { img._src = v; }
+      get() {
+        return img._src;
+      },
+      set(v) {
+        img._src = v;
+      }
     });
     created.push(img);
   };
 }
 
-function newHost () {
+function newHost() {
   return { texture: { image: null as any, needsUpdate: false } };
 }
 
-describe('loadSkinInto – skin texture race guard (issue #50)', function () {
-  it('a stale (default) load that finishes LAST does not clobber the newer (real) skin', function () {
+describe('loadSkinInto – skin texture race guard (issue #50)', () => {
+  it('a stale (default) load that finishes LAST does not clobber the newer (real) skin', () => {
     const created: any[] = [];
     const Img = makeFakeImageCtor(created);
     const host = newHost();
@@ -59,7 +61,7 @@ describe('loadSkinInto – skin texture race guard (issue #50)', function () {
     expect(host.texture.image.src).toBe('real.png');
   });
 
-  it('the newest load wins even when loads complete in request order', function () {
+  it('the newest load wins even when loads complete in request order', () => {
     const created: any[] = [];
     const Img = makeFakeImageCtor(created);
     const host = newHost();
@@ -75,13 +77,20 @@ describe('loadSkinInto – skin texture race guard (issue #50)', function () {
     expect(host.texture.image.src).toBe('real.png');
   });
 
-  it('a normal single load applies its image, flags needsUpdate, and fires onLoad', function () {
+  it('a normal single load applies its image, flags needsUpdate, and fires onLoad', () => {
     const created: any[] = [];
     const Img = makeFakeImageCtor(created);
     const host = newHost();
 
     let callbackArg: any = null;
-    loadSkinInto(host, 'real.png', h => { callbackArg = h; }, Img);
+    loadSkinInto(
+      host,
+      'real.png',
+      h => {
+        callbackArg = h;
+      },
+      Img
+    );
     created[0].onload();
 
     expect(host.texture.image).toBe(created[0]);

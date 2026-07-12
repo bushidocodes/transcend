@@ -1,7 +1,12 @@
 // Redux 5 still exports createStore but marks it @deprecated (visual only) to push RTK's
 // configureStore. We keep the classic store API for now (issue #154) and use the non-deprecated
 // alias so tooling stays quiet. Migrating to @reduxjs/toolkit is a separate effort.
-import { legacy_createStore as createStore, applyMiddleware, combineReducers, type Action } from 'redux';
+import {
+  legacy_createStore as createStore,
+  applyMiddleware,
+  combineReducers,
+  type Action
+} from 'redux';
 
 import { thunk as thunkMiddleware, type ThunkAction, type ThunkDispatch } from 'redux-thunk';
 
@@ -26,11 +31,6 @@ export type RootState = ReturnType<typeof rootReducer>;
 export type AppDispatch = ThunkDispatch<RootState, undefined, Action>;
 export type AppThunk<R = void> = ThunkAction<R, RootState, undefined, Action>;
 
-const store = createStore(
-  rootReducer,
-  applyMiddleware(
-    thunkMiddleware
-  )
-);
+const store = createStore(rootReducer, applyMiddleware(thunkMiddleware));
 
 export default store;

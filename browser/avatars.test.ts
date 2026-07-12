@@ -15,17 +15,21 @@ let poseBuffer: typeof import('./pose-buffer.ts');
 // The latest pose a remote-pose component would render, once the stream has settled.
 const latestPose = (id: string) => poseBuffer.samplePose(id, Number.MAX_SAFE_INTEGER);
 
-const user = (id: string, overrides?: Partial<AvatarUser>): AvatarUser => Object.assign({
-  id,
-  displayName: id.toUpperCase(),
-  skin: 'batman',
-  x: 1,
-  y: 1.3,
-  z: 2,
-  xrot: 0,
-  yrot: 90,
-  zrot: 0
-}, overrides);
+const user = (id: string, overrides?: Partial<AvatarUser>): AvatarUser =>
+  Object.assign(
+    {
+      id,
+      displayName: id.toUpperCase(),
+      skin: 'batman',
+      x: 1,
+      y: 1.3,
+      z: 2,
+      xrot: 0,
+      yrot: 90,
+      zrot: 0
+    },
+    overrides
+  );
 
 const head = (id: string) => document.getElementById(id);
 const body = (id: string) => document.getElementById(`${id}-body`);
@@ -73,7 +77,7 @@ describe('AvatarManager – sync', () => {
     const before = head('a');
     avatars.sync({ a: user('a', { skin: 'woody' }) });
 
-    expect(head('a')).not.toBe(before);        // rebuilt, not mutated
+    expect(head('a')).not.toBe(before); // rebuilt, not mutated
     expect(head('a')!.getAttribute('skin')).toBe('woody');
     expect(head('a')!.getAttribute('minecraft')).toContain('woody.png');
     expect(document.querySelectorAll('a-minecraft').length).toBe(2);
@@ -98,11 +102,11 @@ describe('AvatarManager – sync', () => {
     const localHead = avatars.setLocal(user('me'));
     avatars.sync({ me: user('me', { x: 999 }), a: user('a') });
 
-    expect(head('me')).toBe(localHead);                       // same entity, untouched
+    expect(head('me')).toBe(localHead); // same entity, untouched
     expect(head('me')!.getAttribute('position')).toBe('1 1.3 2'); // not teleported to 999
-    expect(body('me')).toBeNull();                            // no body was created for it
+    expect(body('me')).toBeNull(); // no body was created for it
     avatars.sync({});
-    expect(head('me')).toBe(localHead);                       // sync removals skip local too
+    expect(head('me')).toBe(localHead); // sync removals skip local too
   });
 
   it('falls back to the default skin for a user without one', () => {

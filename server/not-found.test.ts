@@ -12,22 +12,27 @@ import { notFound } from './not-found.ts';
 let server: http.Server;
 let baseUrl: string;
 
-beforeAll(() => new Promise<void>(resolve => {
-  const app = express();
-  // Minimal stand-in for the real SPA GET handler.
-  app.get('/{*path}', (_req, res) => {
-    res.status(200).send('spa');
-  });
-  app.use(notFound);
-  // Real error middleware only runs on next(err); must not swallow 404s.
-  app.use((err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
-    res.sendStatus(err.status || 500);
-  });
-  server = app.listen(0, () => {
-    baseUrl = 'http://localhost:' + (server.address() as AddressInfo).port;
-    resolve();
-  });
-}));
+beforeAll(
+  () =>
+    new Promise<void>(resolve => {
+      const app = express();
+      // Minimal stand-in for the real SPA GET handler.
+      app.get('/{*path}', (_req, res) => {
+        res.status(200).send('spa');
+      });
+      app.use(notFound);
+      // Real error middleware only runs on next(err); must not swallow 404s.
+      app.use(
+        (err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
+          res.sendStatus(err.status || 500);
+        }
+      );
+      server = app.listen(0, () => {
+        baseUrl = 'http://localhost:' + (server.address() as AddressInfo).port;
+        resolve();
+      });
+    })
+);
 
 afterAll(() => new Promise(resolve => server.close(resolve)));
 

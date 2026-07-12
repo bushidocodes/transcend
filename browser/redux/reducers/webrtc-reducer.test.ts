@@ -47,7 +47,10 @@ describe('webrtcReducer', () => {
       asAction(addPeer('peer-b'))
     );
     expect(webrtcReducer(state, asAction(deletePeer('peer-a'))).peerIds).toEqual(['peer-b']);
-    expect(webrtcReducer(state, asAction(deletePeer('nobody'))).peerIds).toEqual(['peer-a', 'peer-b']);
+    expect(webrtcReducer(state, asAction(deletePeer('nobody'))).peerIds).toEqual([
+      'peer-a',
+      'peer-b'
+    ]);
   });
 
   it('clearPeers drops peer ids but keeps hasLocalMedia', () => {

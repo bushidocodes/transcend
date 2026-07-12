@@ -5,7 +5,7 @@ import 'aframe-gif-shader'; // registers the `gif` A-Frame shader referenced in 
 
 // WebRTC chat join/leave is handled centrally by <App> on scene change (issue #70).
 export default class Yoonah extends Component {
-  render () {
+  render() {
     return (
       <a-entity>
         <Room
@@ -22,8 +22,11 @@ export default class Yoonah extends Component {
           label="Lobby"
           href="/vr"
           rotation="90"
-          x="-24.5" y="1" z="-5"
-          labelx="-1" labely="1"
+          x="-24.5"
+          y="1"
+          z="-5"
+          labelx="-1"
+          labely="1"
         />
         {/* Cat GIFs */}
         <a-entity rotation="0 0 0" position="5 2 -10">
@@ -38,12 +41,12 @@ export default class Yoonah extends Component {
           <a-entity
             geometry="primitive: circle; height: 1.5; radius: 3"
             material="shader: gif; src: #lasercat"
-          >
-          </a-entity>
+          ></a-entity>
         </a-entity>
 
         <a-entity
-          rotation="0 0 0" position="5 2 0"
+          rotation="0 0 0"
+          position="5 2 0"
           animation="property: rotation; to: 0 360 0; dur: 5000; loop: true; easing: linear"
         >
           <a-entity
@@ -54,7 +57,8 @@ export default class Yoonah extends Component {
         </a-entity>
 
         <a-entity
-          rotation="0 0 0" position="5 2 -15"
+          rotation="0 0 0"
+          position="5 2 -15"
           animation="property: rotation; to: 0 360 0; dur: 5000; loop: true; easing: linear"
         >
           <a-entity
@@ -63,7 +67,6 @@ export default class Yoonah extends Component {
             material="shader: gif; src: #bwcat; color: white"
           />
         </a-entity>
-
       </a-entity>
     );
   }

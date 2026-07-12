@@ -5,7 +5,8 @@ import type { Pose } from '../shared/protocol.ts';
 
 let pb: typeof import('./pose-buffer.ts');
 
-const pose = (overrides?: Partial<Pose>): Pose => Object.assign({ x: 0, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0 }, overrides);
+const pose = (overrides?: Partial<Pose>): Pose =>
+  Object.assign({ x: 0, y: 1.3, z: 0, xrot: 0, yrot: 0, zrot: 0 }, overrides);
 
 beforeEach(async () => {
   vi.resetModules(); // the buffer map is module state

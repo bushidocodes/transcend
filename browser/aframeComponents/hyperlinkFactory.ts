@@ -7,7 +7,7 @@
 
 // `this` inside the component methods is the live A-Frame component instance, which isn't
 // worth modeling — hence `this: any` (see browser/types/globals.d.ts for the boundary policy).
-export default function createHyperlinkComponent (handler: (this: any) => void) {
+export default function createHyperlinkComponent(handler: (this: any) => void) {
   // General Purpose Abstract Hyperlink Component
   const abstractComponent = {
     schema: { default: '' },
@@ -59,10 +59,10 @@ export default function createHyperlinkComponent (handler: (this: any) => void) 
       this.highlightClone = clone;
 
       // Toggle highlighter on mouse events. Named handlers so remove() can detach them.
-      this.onMouseEnter = function () {
+      this.onMouseEnter = () => {
         clone.visible = true;
       };
-      this.onMouseLeave = function () {
+      this.onMouseLeave = () => {
         clone.visible = false;
       };
       this.el.addEventListener('mouseenter', this.onMouseEnter);

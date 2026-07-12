@@ -25,27 +25,29 @@ const app = express();
 // Security headers (issue #201): hide Express, and apply helmet with a CSP loose enough for
 // A-Frame/WebGL (inline scripts/styles, data/blob images, WebSocket connect).
 app.disable('x-powered-by');
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'blob:'],
-      fontSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'", 'ws:', 'wss:'],
-      mediaSrc: ["'self'", 'blob:'],
-      workerSrc: ["'self'", 'blob:'],
-      // A-Frame may create child frames / WebXR layers; allow same-origin only.
-      frameSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"]
-    }
-  },
-  // crossOriginEmbedderPolicy blocks some A-Frame/WebGL asset patterns; leave off.
-  crossOriginEmbedderPolicy: false
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        fontSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'", 'ws:', 'wss:'],
+        mediaSrc: ["'self'", 'blob:'],
+        workerSrc: ["'self'", 'blob:'],
+        // A-Frame may create child frames / WebXR layers; allow same-origin only.
+        frameSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"]
+      }
+    },
+    // crossOriginEmbedderPolicy blocks some A-Frame/WebGL asset patterns; leave off.
+    crossOriginEmbedderPolicy: false
+  })
+);
 
 if (process.env.NODE_ENV === 'production') {
   console.log(styleText('blue', 'Production Environment detected, so redirect to HTTPS'));
@@ -69,10 +71,20 @@ if (process.env.NODE_ENV !== 'production') {
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
   if (process.env.NODE_ENV === 'production') {
-    console.error(styleText('red', 'FATAL: SESSION_SECRET is required in production. Generate one with `openssl rand -hex 32`.'));
+    console.error(
+      styleText(
+        'red',
+        'FATAL: SESSION_SECRET is required in production. Generate one with `openssl rand -hex 32`.'
+      )
+    );
     process.exit(1);
   }
-  console.warn(styleText('yellow', 'WARNING: SESSION_SECRET is not set — using an insecure development fallback. Set it before deploying (e.g. `openssl rand -hex 32`).'));
+  console.warn(
+    styleText(
+      'yellow',
+      'WARNING: SESSION_SECRET is not set — using an insecure development fallback. Set it before deploying (e.g. `openssl rand -hex 32`).'
+    )
+  );
 }
 // Server-side sessions (issue #122): express-session + a Postgres store replace
 // cookie-session. The whole session used to live in a signed client cookie, which meant no
@@ -122,8 +134,7 @@ app.use(passportSession);
 server.on('request', app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.APP_ORIGIN ||
-            (process.env.NODE_ENV === 'production' ? false : '*')
+    origin: process.env.APP_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*')
   }
 });
 // Share Express session + Passport with Engine.IO so socket handlers can read the
@@ -146,17 +157,20 @@ app.use(express.static(resolve(import.meta.dirname, '../public')));
 // any orchestrator's probe tolerance. This bounds DB work globally, which per-IP rate
 // limiting wouldn't.
 const HEALTH_TTL_MS = 2000;
-let dbHealth: { at: number, promise: Promise<boolean> | null } = { at: -Infinity, promise: null };
-function checkDbHealth (): Promise<boolean> {
+let dbHealth: { at: number; promise: Promise<boolean> | null } = { at: -Infinity, promise: null };
+function checkDbHealth(): Promise<boolean> {
   if (Date.now() - dbHealth.at > HEALTH_TTL_MS) {
     dbHealth = {
       at: Date.now(),
-      promise: db.authenticate().then(() => true, () => false)
+      promise: db.authenticate().then(
+        () => true,
+        () => false
+      )
     };
   }
   return dbHealth.promise!;
 }
-app.get('/healthz', (req, res) => {
+app.get('/healthz', (_req, res) => {
   checkDbHealth().then(healthy => {
     if (healthy) res.status(200).json({ status: 'ok' });
     else res.status(503).json({ status: 'unavailable' });
@@ -167,7 +181,7 @@ app.get('/healthz', (req, res) => {
 app.use('/api', api);
 
 // Send index.html for anything else
-app.get('/{*path}', (req, res) => {
+app.get('/{*path}', (_req, res) => {
   res.sendFile('app.html', { root: resolve(import.meta.dirname, '../browser') });
 });
 
@@ -187,7 +201,9 @@ prepare()
   })
   .catch(err => {
     // Sequelize connection errors often have an empty .message; the class name is the signal.
-    console.error(styleText('red', `FATAL: database unreachable at boot — ${err.message || err.name || err}`));
+    console.error(
+      styleText('red', `FATAL: database unreachable at boot — ${err.message || err.name || err}`)
+    );
     process.exit(1);
   });
 
@@ -198,7 +214,7 @@ prepare()
 // close, so they're dropped explicitly. (Windows can't deliver SIGTERM to a process — these
 // handlers run on POSIX deploys, where orchestrators send it.)
 let shuttingDown = false;
-function shutdown (signal: string): void {
+function shutdown(signal: string): void {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(styleText('blue', `${signal} received — shutting down`));
@@ -220,8 +236,11 @@ function shutdown (signal: string): void {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-app.use('/', (err: Error & { status?: number }, req: Request, res: Response, next: NextFunction) => {
-  console.log(styleText('red', 'Houston, we have a problem'));
-  console.log(styleText('red', `ERROR: ${err.message}`));
-  res.sendStatus(err.status || 500);
-});
+app.use(
+  '/',
+  (err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
+    console.log(styleText('red', 'Houston, we have a problem'));
+    console.log(styleText('red', `ERROR: ${err.message}`));
+    res.sendStatus(err.status || 500);
+  }
+);

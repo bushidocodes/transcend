@@ -22,7 +22,7 @@ interface Props {
   auth: AuthState;
 }
 
-function App (props: Props) {
+function App(props: Props) {
   // Gate the room (Outlet) on <a-assets> finishing. Under React 19 + A-Frame 1.x, an entity that
   // references an asset by #id selector can parse before <a-assets> has registered the matching
   // element, resolving to null with no retry. The static images / gltf monitors / floors now use
@@ -59,8 +59,13 @@ function App (props: Props) {
 
   useEffect(() => {
     // hasLoaded is the A-Frame runtime property on the <a-assets> element, not in DOM lib types.
-    const assets = document.querySelector('#scene a-assets') as (Element & { hasLoaded?: boolean }) | null;
-    if (!assets || assets.hasLoaded) { setAssetsReady(true); return; }
+    const assets = document.querySelector('#scene a-assets') as
+      | (Element & { hasLoaded?: boolean })
+      | null;
+    if (!assets || assets.hasLoaded) {
+      setAssetsReady(true);
+      return;
+    }
     const onLoaded = () => setAssetsReady(true);
     assets.addEventListener('loaded', onLoaded);
     return () => assets.removeEventListener('loaded', onLoaded);
@@ -91,21 +96,15 @@ function App (props: Props) {
     //   direct child of a-scene.
     // The LoadingSpinner hides the a-scene by pushing it below the visible screen until loaded
     <div style={style}>
-      {!props.isLoaded
-        ? (
-            <LoadingSpinner />
-          )
-        : null}
+      {!props.isLoaded ? <LoadingSpinner /> : null}
       <a-scene id="scene" scene-load>
         <AssetLoader />
         {/* ErrorBoundary (issue #206): a throw in a room component must not unmount the whole app. */}
-        {assetsReady
-          ? (
-              <ErrorBoundary label="room">
-                <Outlet />
-              </ErrorBoundary>
-            )
-          : null}
+        {assetsReady ? (
+          <ErrorBoundary label="room">
+            <Outlet />
+          </ErrorBoundary>
+        ) : null}
       </a-scene>
     </div>
   );
@@ -115,7 +114,7 @@ function App (props: Props) {
 
 const mapStateToProps = (state: RootState) => ({
   isLoaded: state.isLoaded,
-  auth: state.auth,
+  auth: state.auth
 });
 
 export default connect(mapStateToProps)(App);

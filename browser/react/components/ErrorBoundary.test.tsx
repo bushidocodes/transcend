@@ -9,11 +9,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import ErrorBoundary from './ErrorBoundary.tsx';
 
-function Boom (): never {
+function Boom(): never {
   throw new Error('boom from child');
 }
 
-function Ok () {
+function Ok() {
   return <span data-testid="ok">ok</span>;
 }
 
@@ -69,7 +69,7 @@ describe('ErrorBoundary (issue #206)', () => {
 
   it('Try again clears the error and re-renders children', () => {
     let shouldThrow = true;
-    function Flaky () {
+    function Flaky() {
       if (shouldThrow) throw new Error('transient');
       return <span data-testid="recovered">recovered</span>;
     }
@@ -84,8 +84,9 @@ describe('ErrorBoundary (issue #206)', () => {
     expect(container.querySelector('[data-testid="error-boundary-fallback"]')).not.toBeNull();
 
     shouldThrow = false;
-    const tryAgain = Array.from(container.querySelectorAll('button'))
-      .find(b => /try again/i.test(b.textContent || ''));
+    const tryAgain = Array.from(container.querySelectorAll('button')).find(b =>
+      /try again/i.test(b.textContent || '')
+    );
     expect(tryAgain).toBeTruthy();
     act(() => {
       tryAgain!.click();

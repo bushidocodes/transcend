@@ -78,7 +78,10 @@ export const clearPeers = (): { type: typeof CLEAR_PEERS } => {
 
 /* --------------- REDUCER --------------- */
 
-export default function webrtcReducer (state: WebrtcState = initialState, action: UnknownAction): WebrtcState {
+export default function webrtcReducer(
+  state: WebrtcState = initialState,
+  action: UnknownAction
+): WebrtcState {
   switch (action.type) {
     case SET_USER_MEDIA:
       return { ...state, hasLocalMedia: true };

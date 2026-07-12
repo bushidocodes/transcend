@@ -9,11 +9,11 @@ import { Umzug, SequelizeStorage } from 'umzug';
 import { DataTypes } from 'sequelize';
 import createMigrator from './migrator.ts';
 
-function mockSequelize () {
+function mockSequelize() {
   const queryInterface = { mock: 'queryInterface' };
   // SequelizeStorage reads sequelize.constructor.DataTypes.STRING and may call
   // isDefined/define/model when constructing the SequelizeMeta model.
-  function SequelizeCtor () {}
+  function SequelizeCtor() {}
   SequelizeCtor.DataTypes = DataTypes;
 
   const sequelize = {
@@ -40,7 +40,11 @@ describe('createMigrator', () => {
     const sequelize = mockSequelize();
     const migrator = createMigrator(sequelize);
     // umzug exposes the options it was constructed with.
-    const options = (migrator as unknown as { options: { context: { queryInterface: unknown, Sequelize: unknown } } }).options;
+    const options = (
+      migrator as unknown as {
+        options: { context: { queryInterface: unknown; Sequelize: unknown } };
+      }
+    ).options;
     expect(sequelize.getQueryInterface).toHaveBeenCalled();
     expect(options.context.queryInterface).toEqual({ mock: 'queryInterface' });
     expect(options.context.Sequelize).toBe(DataTypes);
@@ -56,9 +60,11 @@ describe('createMigrator', () => {
   it('configures migrations via a glob under migrations/*.ts', () => {
     const sequelize = mockSequelize();
     const migrator = createMigrator(sequelize);
-    const options = (migrator as unknown as {
-      options: { migrations: { glob: [string, { cwd: string }] } }
-    }).options;
+    const options = (
+      migrator as unknown as {
+        options: { migrations: { glob: [string, { cwd: string }] } };
+      }
+    ).options;
     // createMigrator passes { glob: ['migrations/*.ts', { cwd }] }.
     expect(options.migrations.glob[0]).toBe('migrations/*.ts');
     expect(typeof options.migrations.glob[1].cwd).toBe('string');

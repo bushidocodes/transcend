@@ -27,7 +27,7 @@ export const ROOMS: readonly Room[] = [
 export const DEFAULT_ROOM = 'lobby';
 
 // Display label for a room's route path (teleporter labels).
-export function roomLabel (path: string): string {
+export function roomLabel(path: string): string {
   const room = ROOMS.find(r => r.path === path);
   return room ? room.label : path;
 }

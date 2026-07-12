@@ -27,8 +27,8 @@ beforeEach(() => {
   mockUser.findOrCreate.mockReset();
 });
 
-describe('resolveGoogleProfile (issue #171)', function () {
-  it('extracts email, name, displayName, and googleId', function () {
+describe('resolveGoogleProfile (issue #171)', () => {
+  it('extracts email, name, displayName, and googleId', () => {
     const result = resolveGoogleProfile({
       id: 'g-123',
       displayName: 'Ada Lovelace',
@@ -43,7 +43,7 @@ describe('resolveGoogleProfile (issue #171)', function () {
     });
   });
 
-  it('falls back displayName from the email local-part when profile.displayName is missing', function () {
+  it('falls back displayName from the email local-part when profile.displayName is missing', () => {
     const result = resolveGoogleProfile({
       id: 'g-456',
       emails: [{ value: 'longusername@example.com' }]
@@ -56,7 +56,7 @@ describe('resolveGoogleProfile (issue #171)', function () {
     });
   });
 
-  it('returns an error when the profile has no email', function () {
+  it('returns an error when the profile has no email', () => {
     expect(resolveGoogleProfile({ id: 'g-789' })).toEqual({
       error: 'Google account has no email'
     });
@@ -66,15 +66,15 @@ describe('resolveGoogleProfile (issue #171)', function () {
   });
 });
 
-describe('resolveGoogleUser (issue #171)', function () {
-  it('returns false when the profile has no email (no DB calls)', async function () {
+describe('resolveGoogleUser (issue #171)', () => {
+  it('returns false when the profile has no email (no DB calls)', async () => {
     const result = await resolveGoogleUser({ id: 'g-none' });
     expect(result).toBe(false);
     expect(mockUser.findOne).not.toHaveBeenCalled();
     expect(mockUser.findOrCreate).not.toHaveBeenCalled();
   });
 
-  it('returns an existing user matched by googleId', async function () {
+  it('returns an existing user matched by googleId', async () => {
     const existing = { id: 1, googleId: 'g-1', email: 'a@b.com' };
     mockUser.findOne.mockResolvedValueOnce(existing);
 
@@ -89,22 +89,23 @@ describe('resolveGoogleUser (issue #171)', function () {
     expect(mockUser.findOrCreate).not.toHaveBeenCalled();
   });
 
-  it('links googleId onto an existing local account with the same email', async function () {
+  it('links googleId onto an existing local account with the same email', async () => {
     const local = {
       id: 2,
       email: 'local@example.com',
       googleId: null,
       displayName: 'Local',
       name: null,
-      update: vi.fn().mockImplementation(function (this: typeof local, attrs: Record<string, unknown>) {
+      update: vi.fn().mockImplementation(function (
+        this: typeof local,
+        attrs: Record<string, unknown>
+      ) {
         Object.assign(this, attrs);
         return Promise.resolve(this);
       })
     };
     // First findOne: by googleId → miss; second: by email → hit.
-    mockUser.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(local);
+    mockUser.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(local);
 
     const result = await resolveGoogleUser({
       id: 'g-new',
@@ -124,7 +125,7 @@ describe('resolveGoogleUser (issue #171)', function () {
     expect(mockUser.findOrCreate).not.toHaveBeenCalled();
   });
 
-  it('creates a new user with displayName when neither googleId nor email matches', async function () {
+  it('creates a new user with displayName when neither googleId nor email matches', async () => {
     const created = {
       id: 3,
       googleId: 'g-create',

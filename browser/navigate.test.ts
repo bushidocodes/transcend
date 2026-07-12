@@ -17,7 +17,7 @@ describe('currentRoom (issue #119)', () => {
   });
 
   it('returns null when no actual room is selected', () => {
-    expect(currentRoom('/vr')).toBeNull();     // index route, mid-redirect
+    expect(currentRoom('/vr')).toBeNull(); // index route, mid-redirect
     expect(currentRoom('/vr/')).toBeNull();
     expect(currentRoom('/')).toBeNull();
     expect(currentRoom('/login')).toBeNull();

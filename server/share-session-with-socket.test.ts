@@ -18,7 +18,9 @@ describe('attachSessionToEngine (issue #167)', () => {
     const uses: RequestHandler[] = [];
     const io = {
       engine: {
-        use (mw: RequestHandler) { uses.push(mw); }
+        use(mw: RequestHandler) {
+          uses.push(mw);
+        }
       }
     };
     const sessionMiddleware = ((_req, _res, next) => next()) as RequestHandler;
@@ -36,7 +38,11 @@ describe('server/index.ts session wiring (issue #167)', () => {
     const indexPath = join(dirname(fileURLToPath(import.meta.url)), 'index.ts');
     const src = readFileSync(indexPath, 'utf8');
     // Named helper import — prevents silent deletion of the Engine.IO bridge.
-    expect(src).toMatch(/import\s+\{\s*attachSessionToEngine\s*\}\s+from\s+['"]\.\/share-session-with-socket\.ts['"]/);
-    expect(src).toMatch(/attachSessionToEngine\s*\(\s*io\s*,\s*sessionMiddleware\s*,\s*passportInit\s*,\s*passportSession\s*\)/);
+    expect(src).toMatch(
+      /import\s+\{\s*attachSessionToEngine\s*\}\s+from\s+['"]\.\/share-session-with-socket\.ts['"]/
+    );
+    expect(src).toMatch(
+      /attachSessionToEngine\s*\(\s*io\s*,\s*sessionMiddleware\s*,\s*passportInit\s*,\s*passportSession\s*\)/
+    );
   });
 });

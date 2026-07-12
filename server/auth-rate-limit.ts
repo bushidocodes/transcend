@@ -18,7 +18,7 @@
 
 import { rateLimit, ipKeyGenerator, type RateLimitRequestHandler } from 'express-rate-limit';
 
-function envInt (name: string, fallback: number): number {
+function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === '') return fallback;
   const n = Number(raw);
@@ -44,7 +44,7 @@ export interface AuthRateLimiters {
   skinIpMax: number;
 }
 
-export function createAuthRateLimiters (overrides: AuthRateLimiterOverrides = {}): AuthRateLimiters {
+export function createAuthRateLimiters(overrides: AuthRateLimiterOverrides = {}): AuthRateLimiters {
   const windowMs = overrides.windowMs ?? envInt('AUTH_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000);
   const ipMax = overrides.ipMax ?? envInt('AUTH_RATE_LIMIT_IP_MAX', 60);
   const loginEmailMax = overrides.loginEmailMax ?? envInt('AUTH_LOGIN_EMAIL_RATE_LIMIT_MAX', 20);
@@ -70,7 +70,7 @@ export function createAuthRateLimiters (overrides: AuthRateLimiterOverrides = {}
     legacyHeaders: false,
     // Custom key is the account identifier, not the IP — disable the "must use IP" validation.
     validate: { keyGeneratorIpFallback: false },
-    keyGenerator: (req) => {
+    keyGenerator: req => {
       const raw = (req.body && (req.body.username || req.body.email)) || '';
       const email = String(raw).toLowerCase().trim();
       if (email) return `login-email:${email}`;

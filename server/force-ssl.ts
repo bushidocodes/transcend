@@ -11,7 +11,7 @@
 import { styleText } from 'node:util';
 import type { NextFunction, Request, Response } from 'express';
 
-export function forceSSL (req: Request, res: Response, next: NextFunction): void {
+export function forceSSL(req: Request, res: Response, next: NextFunction): void {
   if (req.headers['x-forwarded-proto'] === 'https') {
     next();
     return;

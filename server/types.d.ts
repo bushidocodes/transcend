@@ -7,5 +7,3 @@ declare global {
     interface User extends UserModel {}
   }
 }
-
-export {};
