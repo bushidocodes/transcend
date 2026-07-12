@@ -41,7 +41,7 @@ export function isSameOriginAllowed (
 }
 
 export function requireSameOrigin (req: Request, res: Response, next: NextFunction): void {
-  const origin = req.get('Origin') ?? undefined;
+  const origin = req.get('Origin');
   if (isSameOriginAllowed(origin, process.env.APP_ORIGIN, process.env.NODE_ENV)) {
     next();
     return;
