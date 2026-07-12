@@ -1,4 +1,7 @@
-import { createStore, applyMiddleware, combineReducers } from 'redux';
+// Redux 5 still exports createStore but marks it @deprecated (visual only) to push RTK's
+// configureStore. We keep the classic store API for now (issue #154) and use the non-deprecated
+// alias so tooling stays quiet. Migrating to @reduxjs/toolkit is a separate effort.
+import { legacy_createStore as createStore, applyMiddleware, combineReducers } from 'redux';
 
 import { thunk as thunkMiddleware } from 'redux-thunk';
 
