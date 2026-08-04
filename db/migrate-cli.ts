@@ -1,5 +1,5 @@
 // Migration CLI (issue #133): `node db/migrate-cli.ts <up|down|pending|executed>` — wired to
-// `npm run migrate` / `npm run migrate:undo`. Importing db/index no longer connects or runs
+// `pnpm run migrate` / `pnpm run migrate:undo`. Importing db/index no longer connects or runs
 // anything on its own (prepare() is lazy), so `down` really only runs down.
 import db from './index.ts';
 import createMigrator from './migrator.ts';

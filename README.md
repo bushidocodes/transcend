@@ -28,7 +28,7 @@ Transcend is built on [Node.js](https://nodejs.org/en/) using [Socket.io](http:/
 
 **Server:** Authoritative multiplayer state lives in a plain `GameState` (user records keyed by socket id). Room membership and the socket registry are socket.io's own — scenes and voice-chat rooms use prefixed socket.io rooms rather than application-level maps. A fixed-rate, room-scoped broadcast loop pushes dirty-room snapshots to clients instead of fanning out on every inbound tick.
 
-**Language & tooling:** The whole codebase is [TypeScript](https://www.typescriptlang.org/) (strict, type-erasable syntax only). Nothing is compiled to run: Node 24 executes the server's `.ts` files directly via type stripping, [esbuild](https://esbuild.github.io/) bundles the browser entry (`npm run build`), and [Vitest](https://vitest.dev/) runs the tests. `npm run typecheck` (tsc `--noEmit`) is the only step that sees the types.
+**Language & tooling:** The whole codebase is [TypeScript](https://www.typescriptlang.org/) (strict, type-erasable syntax only). Nothing is compiled to run: Node 24 executes the server's `.ts` files directly via type stripping, [esbuild](https://esbuild.github.io/) bundles the browser entry (`pnpm run build`), and [Vitest](https://vitest.dev/) runs the tests. `pnpm run typecheck` (tsc `--noEmit`) is the only step that sees the types. Package management is **[pnpm](https://pnpm.io/)** (`packageManager` in `package.json`; enable with `corepack enable`).
 
 ## How to Play
 
@@ -69,12 +69,12 @@ When you are in game, look down where your feet would be and you'll notice a mic
 
 ## Installation
 
-To install Transcend on your computer, you will need [Node.js 24+](https://nodejs.org/en/download/) (see `.nvmrc` / `package.json` `engines`) and [PostgreSQL](http://postgresguide.com/setup/install.html).
+To install Transcend on your computer, you will need [Node.js 24+](https://nodejs.org/en/download/) (see `.nvmrc` / `package.json` `engines`), [pnpm 11](https://pnpm.io/installation) (via Corepack: `corepack enable`), and [PostgreSQL](http://postgresguide.com/setup/install.html).
 
 ### 1. Install dependencies
 
 ```
-npm install
+pnpm install
 ```
 
 ### 2. Environment
@@ -91,7 +91,7 @@ Important variables (see comments in `.env.example` for the full list):
 | --- | --- |
 | `SESSION_SECRET` | Signs the session cookie. **Required in production** — the server refuses to boot without it. In development it falls back to an insecure key with a warning. Generate with `openssl rand -hex 32`. |
 | `DATABASE_URL` | Postgres connection string for the app (default in `.env.example`: `postgres://localhost:5432/transcend`). |
-| `DATABASE_TEST_URL` | Separate database used by `npm test` so force-sync never touches the dev DB (default: `postgres://localhost:5432/transcend_test`). |
+| `DATABASE_TEST_URL` | Separate database used by `pnpm test` so force-sync never touches the dev DB (default: `postgres://localhost:5432/transcend_test`). |
 | `PORT` | HTTP listen port. If unset, the server defaults to **1337**. `.env.example` sets `4000` when you copy it. |
 | `CLIENT_ID` / `CLIENT_SECRET` | Google OAuth credentials. **Required at boot** (Passport constructs the Google strategy even if you only use email/password). Dummy placeholders are fine for local password-only use; real values needed for "Log in with Google". |
 
@@ -104,19 +104,19 @@ Ensure PostgreSQL is running and reachable at `DATABASE_URL`.
 On server start, `prepare()` (see `db/index.ts`):
 
 - In non-production, **creates the database if it does not exist** (connects to the same host’s `postgres` maintenance DB).
-- Runs **pending Umzug migrations** automatically (`migrations/*.ts`). You do not need `npm run migrate` for a normal boot.
+- Runs **pending Umzug migrations** automatically (`migrations/*.ts`). You do not need `pnpm run migrate` for a normal boot.
 
 Optional but recommended for local play — seed demo accounts (password `1234`, e.g. `sean@transcend.vr`):
 
 ```
-npm run seed
+pnpm run seed
 ```
 
 Manual migration CLI (usually unnecessary; boot already migrates):
 
 ```
-npm run migrate        # up
-npm run migrate:undo   # down one
+pnpm run migrate        # up
+pnpm run migrate:undo   # down one
 ```
 
 For the test database, see [TESTING.md](TESTING.md) (`createdb transcend_test` / `DATABASE_TEST_URL`).
@@ -124,31 +124,31 @@ For the test database, see [TESTING.md](TESTING.md) (`createdb transcend_test` /
 ### 4. Start the app
 
 ```
-npm start
+pnpm start
 ```
 
-`npm start` runs `npm run build` (esbuild → `public/bundle.js`) then starts the server with file watching. The game is at `http://localhost:1337` (or `http://localhost:$PORT` if `PORT` is set — e.g. `4000` when using the stock `.env.example`).
+`pnpm start` runs `pnpm run build` (esbuild → `public/bundle.js`) then starts the server with file watching. The game is at `http://localhost:1337` (or `http://localhost:$PORT` if `PORT` is set — e.g. `4000` when using the stock `.env.example`).
 
 To rebuild without restarting, or run the server alone after a prior build:
 
 ```
-npm run build
-npm run server
+pnpm run build
+pnpm run server
 ```
 
 ### Scripts
 
 | Script | What it does |
 | --- | --- |
-| `npm start` | Build client bundle, then run the server with `--watch` |
-| `npm run build` / `build-watch` / `build-prod` | esbuild client bundle (dev, watch, or minified production) |
-| `npm run server` | Server only (`node --watch server/index.ts`) |
-| `npm run seed` | Insert demo users into the database |
-| `npm run migrate` / `migrate:undo` | Apply or undo Umzug migrations |
-| `npm run lint` / `lint:fix` | Biome check (and auto-fix) |
-| `npm run format` | Biome format |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm test` / `test-watch` / `test:coverage` | Vitest suite (see [TESTING.md](TESTING.md)) |
+| `pnpm start` | Build client bundle, then run the server with `--watch` |
+| `pnpm run build` / `build-watch` / `build-prod` | esbuild client bundle (dev, watch, or minified production) |
+| `pnpm run server` | Server only (`node --watch server/index.ts`) |
+| `pnpm run seed` | Insert demo users into the database |
+| `pnpm run migrate` / `migrate:undo` | Apply or undo Umzug migrations |
+| `pnpm run lint` / `lint:fix` | Biome check (and auto-fix) |
+| `pnpm run format` | Biome format |
+| `pnpm run typecheck` | `tsc --noEmit` |
+| `pnpm test` / `test-watch` / `test:coverage` | Vitest suite (see [TESTING.md](TESTING.md)) |
 
 ### Docker (prod-parity)
 

@@ -19,7 +19,7 @@ If your Postgres is not on the default port, or requires credentials, set
 `DATABASE_TEST_URL` before running tests:
 
 ```
-DATABASE_TEST_URL=postgres://postgres:postgres@localhost:5433/transcend_test npm test
+DATABASE_TEST_URL=postgres://postgres:postgres@localhost:5433/transcend_test pnpm test
 ```
 
 `DATABASE_TEST_URL` takes priority over `DATABASE_URL` during test runs, so a
@@ -29,7 +29,7 @@ the force-sync to wipe it.
 ### Running the suite
 
 ```
-npm test
+pnpm test
 ```
 
 All test files are TypeScript (`**/*.test.ts`) and run through Vitest; the
@@ -45,9 +45,9 @@ Perform this after every dependency bump to confirm the golden path still works.
 
 ### Prerequisites
 
-- `npm run build` completes without error (esbuild emits `public/bundle.[hash].js` and `public/app.html`).
-- Server running: `npm run server` (or `npm start` which also builds).
-- At least one user account exists: run `npm run seed` for demo accounts
+- `pnpm run build` completes without error (esbuild emits `public/bundle.[hash].js` and `public/app.html`).
+- Server running: `pnpm run server` (or `pnpm start` which also builds).
+- At least one user account exists: run `pnpm run seed` for demo accounts
   (password `1234`, emails like `sean@transcend.vr`) or register with
   email/password on the login page.
 

@@ -6,15 +6,17 @@
 FROM node:24-slim AS build
 WORKDIR /app
 
-COPY package.json package-lock.json .npmrc ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@11.5.0 --activate
+
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
 
 COPY build.ts tsconfig.json ./
 COPY browser ./browser
 COPY shared ./shared
 COPY public ./public
 
-RUN npm run build-prod
+RUN pnpm run build-prod
 
 # --- runtime: production deps + source + built assets ---------------------------
 FROM node:24-slim AS runtime
@@ -24,8 +26,10 @@ ENV NODE_ENV=production
 # Default listen port; override with PORT at runtime.
 ENV PORT=1337
 
-COPY package.json package-lock.json .npmrc ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN corepack enable && corepack prepare pnpm@11.5.0 --activate
+
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile --prod && pnpm store prune
 
 # Server + DB stack (executed as TypeScript by Node 24).
 COPY server ./server
